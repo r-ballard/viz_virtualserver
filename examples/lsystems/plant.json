@@ -1,0 +1,12 @@
+{
+  "axiom": "X",
+  "rules": {
+    "X": "F+[[X]-X]-F[-FX]+X",
+    "F": "FF"
+  },
+  "generations": 5,
+  "angle": 25,
+  "step": 5,
+  "initial_heading": 90,
+  "draw_symbols": ["F"]
+}

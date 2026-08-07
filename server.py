@@ -1,10 +1,12 @@
 from polygon_handlers import polygons_interpolate, random_points_inside_polygon
 from voronoi_handlers import get_clipped_voronoi
 from fastapi import FastAPI
+from lsystem.api import router as lsystem_router
 from datatypes import *
 import uvicorn
 
 app = FastAPI()
+app.include_router(lsystem_router)
 
 
 @app.get("/")

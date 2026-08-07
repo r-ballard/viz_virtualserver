@@ -1,0 +1,11 @@
+{
+  "axiom": "F",
+  "rules": {
+    "F": "F+F--F+F"
+  },
+  "generations": 4,
+  "angle": 60,
+  "step": 10,
+  "initial_heading": 0,
+  "draw_symbols": ["F"]
+}
