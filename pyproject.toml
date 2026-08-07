@@ -12,12 +12,20 @@ dependencies = [
     "uvicorn[standard]>=0.51,<1",
 ]
 
+[build-system]
+requires = ["uv_build>=0.11.32,<0.12"]
+build-backend = "uv_build"
+
 [dependency-groups]
 dev = [
     "httpx>=0.28,<1",
     "pytest>=8.4,<9",
     "ruff>=0.12,<1",
 ]
+
+[tool.uv.build-backend]
+module-name = "lsystem"
+module-root = ""
 
 [tool.uv.workspace]
 members = ["renderer"]

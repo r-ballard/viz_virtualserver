@@ -14,7 +14,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock README.md ./
 COPY renderer/pyproject.toml renderer/pyproject.toml
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --package viz-virtualserver --no-dev
+    uv sync --frozen --package viz-virtualserver --no-dev --no-install-project
 
 COPY . .
 RUN --mount=type=cache,target=/root/.cache/uv \
