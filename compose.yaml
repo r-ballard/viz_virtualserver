@@ -1,0 +1,17 @@
+services:
+  compute:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5699:5699"
+
+  renderer:
+    build:
+      context: .
+      dockerfile: renderer/Dockerfile
+    ports:
+      - "5700:5700"
+    depends_on:
+      compute:
+        condition: service_healthy

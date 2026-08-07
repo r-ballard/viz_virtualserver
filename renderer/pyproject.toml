@@ -1,0 +1,10 @@
+[project]
+name = "viz-renderer"
+version = "0.1.0"
+description = "py5/Processing-compatible rendering service for viz_virtualserver"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi>=0.139,<1",
+    "py5==0.10.11a0",
+    "uvicorn[standard]>=0.51,<1",
+]
