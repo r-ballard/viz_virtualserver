@@ -1,0 +1,17 @@
+{
+  "canvas": {
+    "shape": "square",
+    "width": 1000,
+    "height": 1000,
+    "up_anchor": "vertex:0"
+  },
+  "seed": 7,
+  "point_count": 5,
+  "ring_count": 10,
+  "boundary_mode": "inscribed",
+  "radius_scale": 0.9,
+  "center_margin": 50,
+  "min_center_spacing": 100,
+  "pen": 1,
+  "color": "#000000"
+}

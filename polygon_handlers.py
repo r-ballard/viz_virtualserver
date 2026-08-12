@@ -1,6 +1,8 @@
-from shapely.geometry import Polygon, Point
-import numpy as np
 import random
+from multiprocessing import Pool, cpu_count
+
+import numpy as np
+from shapely.geometry import Point, Polygon
 
 
 def polygon_simplify(points, tolerance):
@@ -21,7 +23,8 @@ def polygon_interpolate(polygon: list,
                         max_iter: int = 100):
     """Recursively interpolate polygon segments to generate a whirl like output.
     :param polygon: Vertices of the polygon
-    :param displacement_f: Factor of how much distance the new point moves along the edge relative to the edge's length
+    :param displacement_f: Factor of how much distance the new point moves along
+        the edge relative to the edge's length
     :param displacement: Displacement of each of the new points relative to the previous points
     :param min_area: Minimum area to terminate the interpolation
     :param max_iter: Maximum iterations to terminate the interpolation
@@ -80,7 +83,8 @@ def polygons_interpolate(polygons, **kwargs):
         return [polygons_interpolate_wrapper((polygon, kwargs)) for polygon in polygons]
     else:
         # multiprocessing
-        with Pool(cpu_count() - 1) as pool:
+        worker_count = max(1, cpu_count() - 1)
+        with Pool(worker_count) as pool:
             args = [[polygon, kwargs] for polygon in polygons]
             output = pool.map(polygons_interpolate_wrapper, args)
         return output

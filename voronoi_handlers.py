@@ -1,8 +1,8 @@
 
+import numpy as np
 from scipy.spatial import Voronoi
 from scipy.spatial.qhull import QhullError
 from shapely.geometry import Polygon
-import numpy as np
 
 
 def get_clipped_voronoi(polygon: list, points: list):

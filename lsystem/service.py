@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .geometry import GenerationGeometry, union_bounds, commands_to_geometry
+from .geometry import GenerationGeometry, commands_to_geometry, union_bounds
 from .grammar import iter_generations
 from .layers import layer_for_generation, resolve_pen_layers
 from .models import LSystemRequest, PenLayerSpec

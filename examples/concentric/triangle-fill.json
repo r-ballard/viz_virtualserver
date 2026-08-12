@@ -1,0 +1,17 @@
+{
+  "canvas": {
+    "shape": "triangle",
+    "width": 1000,
+    "height": 1000,
+    "up_anchor": "vertex:0"
+  },
+  "seed": 42,
+  "point_count": 7,
+  "ring_count": 12,
+  "boundary_mode": "clip",
+  "radius_scale": 1.0,
+  "center_margin": 30,
+  "min_center_spacing": 80,
+  "pen": 1,
+  "color": "#000000"
+}

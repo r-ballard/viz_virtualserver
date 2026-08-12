@@ -1,0 +1,23 @@
+{
+  "canvas": {
+    "shape": "triangle",
+    "width": 1000,
+    "height": 1000,
+    "up_anchor": "vertex:0"
+  },
+  "seed": 271828,
+  "point_count": 8,
+  "ring_count": 10,
+  "ring_spacing": "random",
+  "boundary_mode": "inscribed",
+  "radius_scale": 0.95,
+  "radius_variation": 0.2,
+  "min_ring_radius": 10,
+  "max_ring_radius": 150,
+  "center_margin": 25,
+  "min_center_spacing": 90,
+  "center_bias": "uniform",
+  "overlap_mode": "avoid",
+  "pen": 1,
+  "color": "#000000"
+}

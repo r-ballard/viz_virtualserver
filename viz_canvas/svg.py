@@ -1,0 +1,104 @@
+from __future__ import annotations
+
+import xml.etree.ElementTree as ET
+
+from .geometry import CanvasGeometry
+
+SVG_NS = "http://www.w3.org/2000/svg"
+CLIP_ID = "viz-canvas-clip"
+ET.register_namespace("", SVG_NS)
+
+
+def canvas_root_attributes(canvas: CanvasGeometry) -> dict[str, str]:
+    """Return SVG-root metadata that makes the logical canvas self-describing."""
+
+    up_x, up_y = canvas.up_vector
+    return {
+        "viewBox": f"0 0 {_fmt(canvas.width)} {_fmt(canvas.height)}",
+        "width": _fmt(canvas.width),
+        "height": _fmt(canvas.height),
+        "data-viz-canvas-version": "1",
+        "data-viz-canvas-shape": canvas.shape,
+        "data-viz-canvas-coordinate-system": "svg-y-down",
+        "data-viz-canvas-up-anchor": canvas.up_anchor,
+        "data-viz-canvas-up-vector": f"{_fmt(up_x)},{_fmt(up_y)}",
+        "data-viz-canvas-polygon": _polygon_points(canvas),
+        "data-viz-canvas-clip-id": CLIP_ID,
+    }
+
+
+def append_canvas_clip(root: ET.Element, canvas: CanvasGeometry) -> str:
+    """Add the canonical user-space clip path and return its SVG URL value.
+
+    Exporters apply the returned value directly to their own drawable groups.
+    In particular, strict ``pen-N`` groups must remain top-level SVG children.
+    """
+
+    defs = ET.SubElement(root, _tag("defs"))
+    clip = ET.SubElement(
+        defs,
+        _tag("clipPath"),
+        {"id": CLIP_ID, "clipPathUnits": "userSpaceOnUse"},
+    )
+    ET.SubElement(clip, _tag("path"), {"d": canvas_path_data(canvas)})
+    return f"url(#{CLIP_ID})"
+
+
+def canvas_to_svg(
+    canvas: CanvasGeometry,
+    *,
+    include_boundary: bool = False,
+    boundary_stroke_width: float = 1.0,
+) -> str:
+    """Serialize an empty, metadata-bearing SVG drawing canvas.
+
+    ``include_boundary`` is intended for visual/debug templates. The boundary
+    is real drawable geometry when enabled and should not be confused with the
+    non-rendering clip path in ``<defs>``.
+    """
+
+    if boundary_stroke_width <= 0:
+        raise ValueError("boundary_stroke_width must be positive")
+
+    root = ET.Element(_tag("svg"), canvas_root_attributes(canvas))
+    append_canvas_clip(root, canvas)
+
+    if include_boundary:
+        guide = ET.SubElement(
+            root,
+            _tag("g"),
+            {
+                "id": "canvas-guide",
+                "data-viz-role": "canvas-guide",
+                "fill": "none",
+                "stroke": "#000000",
+                "stroke-width": _fmt(boundary_stroke_width),
+            },
+        )
+        ET.SubElement(guide, _tag("path"), {"d": canvas_path_data(canvas)})
+
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(
+        root, encoding="unicode", short_empty_elements=True
+    )
+
+
+def canvas_path_data(canvas: CanvasGeometry) -> str:
+    points = list(canvas.polygon)
+    first_x, first_y = points[0]
+    commands = [f"M {_fmt(first_x)} {_fmt(first_y)}"]
+    commands.extend(f"L {_fmt(x)} {_fmt(y)}" for x, y in points[1:])
+    commands.append("Z")
+    return " ".join(commands)
+
+
+def _polygon_points(canvas: CanvasGeometry) -> str:
+    return " ".join(f"{_fmt(x)},{_fmt(y)}" for x, y in canvas.polygon)
+
+
+def _tag(local_name: str) -> str:
+    return f"{{{SVG_NS}}}{local_name}"
+
+
+def _fmt(value: float) -> str:
+    text = f"{float(value):.9f}".rstrip("0").rstrip(".")
+    return text if text not in {"", "-0"} else "0"

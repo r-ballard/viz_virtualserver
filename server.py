@@ -1,12 +1,21 @@
-from polygon_handlers import polygons_interpolate, random_points_inside_polygon
-from voronoi_handlers import get_clipped_voronoi
-from fastapi import FastAPI
-from lsystem.api import router as lsystem_router
-from datatypes import *
 import uvicorn
+from fastapi import FastAPI
+
+from concentric.api import router as concentric_router
+from datatypes import (
+    ClippedVoronoiData,
+    PolygonsInterpolateData,
+    RandomPointsInsidePolygonData,
+)
+from lsystem.api import router as lsystem_router
+from polygon_handlers import polygons_interpolate, random_points_inside_polygon
+from viz_canvas.api import router as canvas_router
+from voronoi_handlers import get_clipped_voronoi
 
 app = FastAPI()
 app.include_router(lsystem_router)
+app.include_router(canvas_router)
+app.include_router(concentric_router)
 
 
 @app.get("/")

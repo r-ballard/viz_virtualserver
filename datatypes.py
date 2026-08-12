@@ -1,9 +1,9 @@
+
 from pydantic import BaseModel
-from typing import List
 
 
 class PolygonsInterpolateData(BaseModel):
-    polygons: List[list]
+    polygons: list[list]
     displacement_f: float = None
     displacement: float = 10
     min_area: float = 10
@@ -11,11 +11,11 @@ class PolygonsInterpolateData(BaseModel):
 
 
 class RandomPointsInsidePolygonData(BaseModel):
-    polygon: List[list]
+    polygon: list[list]
     n: int = None
     seed: int = -1
 
 
 class ClippedVoronoiData(BaseModel):
-    polygon: List[list]
+    polygon: list[list]
     points: list

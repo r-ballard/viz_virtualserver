@@ -12,7 +12,7 @@ class PenLayerSpec(BaseModel):
     color: str = Field(pattern=r"^#[0-9A-Fa-f]{6}$")
 
     @model_validator(mode="after")
-    def validate_range(self) -> "PenLayerSpec":
+    def validate_range(self) -> PenLayerSpec:
         if self.end_generation < self.start_generation:
             raise ValueError("end_generation must be >= start_generation")
         return self
@@ -33,7 +33,7 @@ class LSystemRequest(BaseModel):
     max_symbols: int = Field(default=1_000_000, ge=1, le=10_000_000)
 
     @model_validator(mode="after")
-    def validate_symbols_and_layers(self) -> "LSystemRequest":
+    def validate_symbols_and_layers(self) -> LSystemRequest:
         bad_keys = [key for key in self.rules if len(key) != 1]
         if bad_keys:
             raise ValueError(f"rule keys must be single symbols: {bad_keys}")
