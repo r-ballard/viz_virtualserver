@@ -212,6 +212,35 @@ def test_design_serializer_draws_no_structural_domain_outlines() -> None:
     assert root.findall("svg:path", NS) == []
 
 
+def test_overlapping_domains_remain_separate_ordered_metadata_not_union_artwork() -> None:
+    canvas = make_canvas(
+        PolygonDomain("a", ((0.0, 0.0), (60.0, 0.0), (60.0, 60.0), (0.0, 60.0))),
+        PolygonDomain("b", ((40.0, 20.0), (90.0, 20.0), (90.0, 70.0), (40.0, 70.0))),
+    )
+
+    root = ET.fromstring(serialize_design_result_svg(canvas=canvas, results=()))
+    metadata = json.loads(root.find("svg:metadata", NS).text)
+
+    assert metadata == {
+        "schema": "viz-domain/v1",
+        "domains": [
+            {
+                "id": "a",
+                "vertices": [[0.0, 0.0], [60.0, 0.0], [60.0, 60.0], [0.0, 60.0]],
+                "provenance": None,
+            },
+            {
+                "id": "b",
+                "vertices": [[40.0, 20.0], [90.0, 20.0], [90.0, 70.0], [40.0, 70.0]],
+                "provenance": None,
+            },
+        ],
+    }
+    assert [domain["id"] for domain in metadata["domains"]] == ["a", "b"]
+    assert root.findall("svg:g", NS) == []
+    assert root.findall("svg:path", NS) == []
+
+
 def test_design_serializer_supports_empty_domains_and_results() -> None:
     root = ET.fromstring(serialize_design_result_svg(canvas=make_canvas(), results=()))
     metadata = root.find("svg:metadata[@id='viz-domain-metadata']", NS)

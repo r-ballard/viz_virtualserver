@@ -51,6 +51,26 @@ class RecordingAlgorithm:
         return self.result or DesignResult((), (), design_pass.id)
 
 
+class DomainAttributionAlgorithm:
+    name = "attribute"
+    capabilities = AlgorithmCapabilities()
+
+    def generate(self, *, canvas, domains, design_pass):
+        del canvas
+        return DesignResult(
+            paths=tuple(
+                VectorPath(
+                    points=(domain.vertices[0], domain.vertices[1]),
+                    closed=False,
+                    layer_id=f"artwork-{domain.id}",
+                )
+                for domain in domains
+            ),
+            derived_domains=(),
+            producing_pass_id=design_pass.id,
+        )
+
+
 def test_vector_path_defensively_copies_points() -> None:
     points = [[10.0, 20.0], [30.0, 40.0]]
     path = VectorPath(points=points, closed=False, layer_id="linework")
@@ -239,6 +259,68 @@ def test_execute_pass_delivers_target_domains_in_declared_order() -> None:
         algorithms={"record": algorithm},
     )
     assert algorithm.calls[0][1] == (domain_b, domain_a)
+
+
+def test_execute_pass_does_not_union_or_reorder_overlapping_target_domains() -> None:
+    domain_a = PolygonDomain(
+        "a", ((0.0, 0.0), (6.0, 0.0), (6.0, 6.0), (0.0, 6.0))
+    )
+    domain_b = PolygonDomain(
+        "b", ((4.0, 2.0), (8.0, 2.0), (8.0, 8.0), (4.0, 8.0))
+    )
+    before = (domain_a.vertices, domain_b.vertices)
+
+    state = execute_design_pass(
+        canvas=make_canvas(domain_a, domain_b),
+        state=DesignState((domain_a, domain_b)),
+        design_pass=DesignPass("both", "attribute", ("a", "b")),
+        algorithms={"attribute": DomainAttributionAlgorithm()},
+    )
+
+    assert [path.layer_id for path in state.results[0].paths] == [
+        "artwork-a",
+        "artwork-b",
+    ]
+    assert [path.points for path in state.results[0].paths] == [
+        ((0.0, 0.0), (6.0, 0.0)),
+        ((4.0, 2.0), (8.0, 2.0)),
+    ]
+    assert (domain_a.vertices, domain_b.vertices) == before
+
+
+def test_separate_passes_do_not_clip_or_mutate_overlapping_source_domains() -> None:
+    domain_a = PolygonDomain(
+        "a", ((0.0, 0.0), (6.0, 0.0), (6.0, 6.0), (0.0, 6.0))
+    )
+    domain_b = PolygonDomain(
+        "b", ((4.0, 2.0), (8.0, 2.0), (8.0, 8.0), (4.0, 8.0))
+    )
+    before = (domain_a.vertices, domain_b.vertices)
+
+    state = execute_design_passes(
+        canvas=make_canvas(domain_a, domain_b),
+        state=DesignState((domain_a, domain_b)),
+        passes=(
+            DesignPass("pass-a", "attribute", ("a",)),
+            DesignPass("pass-b", "attribute", ("b",)),
+        ),
+        algorithms={"attribute": DomainAttributionAlgorithm()},
+    )
+
+    assert [result.producing_pass_id for result in state.results] == [
+        "pass-a",
+        "pass-b",
+    ]
+    assert [result.paths[0].layer_id for result in state.results] == [
+        "artwork-a",
+        "artwork-b",
+    ]
+    assert [result.paths[0].points for result in state.results] == [
+        ((0.0, 0.0), (6.0, 0.0)),
+        ((4.0, 2.0), (8.0, 2.0)),
+    ]
+    assert state.source_domains == (domain_a, domain_b)
+    assert (domain_a.vertices, domain_b.vertices) == before
 
 
 def test_execute_pass_requires_matching_result_pass_id() -> None:

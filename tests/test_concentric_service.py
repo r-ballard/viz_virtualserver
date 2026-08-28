@@ -384,6 +384,55 @@ def test_concentric_adapter_is_deterministic_neutral_and_does_not_mutate_paramet
         assert _domain_canvas(second).contains(path_center)
 
 
+def test_concentric_adapter_does_not_merge_or_dedupe_overlapping_domain_batches() -> None:
+    first = PolygonDomain(
+        "first", ((0.0, 0.0), (60.0, 0.0), (60.0, 60.0), (0.0, 60.0))
+    )
+    second = PolygonDomain(
+        "second", ((40.0, 20.0), (100.0, 20.0), (100.0, 80.0), (40.0, 80.0))
+    )
+    canvas = CanvasGeometry(
+        shape="rectangle",
+        width=100.0,
+        height=80.0,
+        polygon=((0.0, 0.0), (100.0, 0.0), (100.0, 80.0), (0.0, 80.0)),
+        up_anchor="edge:0",
+        domains=(first, second),
+    )
+    before = (first.vertices, second.vertices)
+    design_pass = DesignPass(
+        id="overlap",
+        algorithm="concentric",
+        target_domain_ids=("first", "second"),
+        parameters=_design_parameters(
+            seed=7,
+            point_count=1,
+            ring_count=2,
+            boundary_mode="inscribed",
+            min_ring_radius=1.0,
+        ),
+        logical_layers=(LogicalLayer("artwork"),),
+    )
+    algorithm = ConcentricDomainAlgorithm()
+
+    combined = algorithm.generate(
+        canvas=canvas, domains=(first, second), design_pass=design_pass
+    )
+    assert len(combined.paths) == 4
+    path_centers = [
+        (
+            sum(point[0] for point in path.points) / len(path.points),
+            sum(point[1] for point in path.points) / len(path.points),
+        )
+        for path in combined.paths
+    ]
+    assert path_centers[0] == pytest.approx(path_centers[1])
+    assert path_centers[2] == pytest.approx(path_centers[3])
+    assert all(_domain_canvas(first).contains(center) for center in path_centers[:2])
+    assert all(_domain_canvas(second).contains(center) for center in path_centers[2:])
+    assert (first.vertices, second.vertices) == before
+
+
 def test_min_center_spacing_is_enforced() -> None:
     request = _triangle_request(point_count=5, min_center_spacing=15.0)
     result = generate_concentric_points(request)
