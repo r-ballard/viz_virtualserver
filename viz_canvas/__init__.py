@@ -1,5 +1,17 @@
 """Intrinsic canvas geometry for generative vector artwork."""
 
+from .design import (
+    AlgorithmCapabilities,
+    DesignPass,
+    DesignResult,
+    DesignState,
+    DomainAlgorithm,
+    LogicalLayer,
+    VectorPath,
+    execute_design_pass,
+    execute_design_passes,
+    validate_pass_graph,
+)
 from .geometry import (
     CanvasError,
     CanvasGeometry,
@@ -25,22 +37,31 @@ from .semantics import (
 )
 
 __all__ = [
+    "AlgorithmCapabilities",
     "CanvasError",
     "CanvasGeometry",
     "CanvasSpec",
+    "DesignPass",
+    "DesignResult",
+    "DesignState",
     "DomainProvenance",
     "DomainRef",
     "DomainRelation",
+    "DomainAlgorithm",
     "Edge",
     "FeatureRef",
     "FeatureType",
+    "LogicalLayer",
     "Point",
     "PolygonDomain",
     "PolygonGroup",
     "PolygonSurface",
     "RelationEndpoint",
     "RelationType",
+    "VectorPath",
     "build_canvas",
+    "execute_design_pass",
+    "execute_design_passes",
     "is_convex_polygon",
     "polygon_centroid",
     "polygon_edges",
@@ -48,4 +69,5 @@ __all__ = [
     "polygon_winding",
     "validate_simple_polygon",
     "validate_semantics",
+    "validate_pass_graph",
 ]
