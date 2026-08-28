@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import xml.etree.ElementTree as ET
 
+from .design import DesignResult, VectorPath
 from .geometry import CanvasGeometry
 
 SVG_NS = "http://www.w3.org/2000/svg"
@@ -82,12 +84,85 @@ def canvas_to_svg(
     )
 
 
+def build_domain_metadata_payload(canvas: CanvasGeometry) -> dict[str, object]:
+    """Build canonical, versioned metadata for every declared polygon domain."""
+
+    domains: list[dict[str, object]] = []
+    for domain in canvas.domains:
+        provenance = domain.provenance
+        domains.append(
+            {
+                "id": domain.id,
+                "vertices": [[float(x), float(y)] for x, y in domain.vertices],
+                "provenance": (
+                    None
+                    if provenance is None
+                    else {
+                        "source_domain_ids": list(provenance.source_domain_ids),
+                        "generating_pass_id": provenance.generating_pass_id,
+                        "operation": provenance.operation,
+                    }
+                ),
+            }
+        )
+    return {"schema": "viz-domain/v1", "domains": domains}
+
+
+def serialize_design_result_svg(
+    *, canvas: CanvasGeometry, results: tuple[DesignResult, ...]
+) -> str:
+    """Serialize neutral design paths with domain metadata and logical layers."""
+
+    root = ET.Element(_tag("svg"), canvas_root_attributes(canvas))
+    clip_value = append_canvas_clip(root, canvas)
+    metadata = ET.SubElement(root, _tag("metadata"), {"id": "viz-domain-metadata"})
+    metadata.text = json.dumps(
+        build_domain_metadata_payload(canvas), separators=(",", ":"), sort_keys=False
+    )
+
+    layers: dict[str, ET.Element] = {}
+    for result in results:
+        for path in result.paths:
+            layer = layers.get(path.layer_id)
+            if layer is None:
+                layer = ET.SubElement(
+                    root,
+                    _tag("g"),
+                    {
+                        "id": path.layer_id,
+                        "data-viz-role": "logical-layer",
+                        "data-viz-layer": path.layer_id,
+                        "clip-path": clip_value,
+                        "fill": "none",
+                        "stroke": "#000000",
+                        "stroke-width": "1",
+                        "stroke-linecap": "round",
+                        "stroke-linejoin": "round",
+                    },
+                )
+                layers[path.layer_id] = layer
+            ET.SubElement(layer, _tag("path"), {"d": _vector_path_data(path)})
+
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(
+        root, encoding="unicode", short_empty_elements=True
+    )
+
+
 def canvas_path_data(canvas: CanvasGeometry) -> str:
     points = list(canvas.polygon)
     first_x, first_y = points[0]
     commands = [f"M {_fmt(first_x)} {_fmt(first_y)}"]
     commands.extend(f"L {_fmt(x)} {_fmt(y)}" for x, y in points[1:])
     commands.append("Z")
+    return " ".join(commands)
+
+
+def _vector_path_data(path: VectorPath) -> str:
+    first_x, first_y = path.points[0]
+    commands = [f"M {_fmt(first_x)} {_fmt(first_y)}"]
+    commands.extend(f"L {_fmt(x)} {_fmt(y)}" for x, y in path.points[1:])
+    if path.closed:
+        commands.append("Z")
     return " ".join(commands)
 
 
