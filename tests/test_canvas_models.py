@@ -1,7 +1,10 @@
+import dataclasses
+
 import pytest
 from pydantic import ValidationError
 
-from viz_canvas.models import CanvasSpec
+from viz_canvas.geometry import CanvasGeometry
+from viz_canvas.models import CanvasSpec, DomainProvenance, PolygonDomain
 
 
 def test_square_requires_equal_dimensions() -> None:
@@ -27,3 +30,105 @@ def test_polygon_points_must_fit_declared_viewbox() -> None:
 def test_named_shape_rejects_custom_points() -> None:
     with pytest.raises(ValidationError, match="only be supplied"):
         CanvasSpec(shape="triangle", points=[(0, 0), (1, 0), (0, 1)])
+
+
+def test_polygon_domain_preserves_declared_vertex_order() -> None:
+    vertices = ((10.0, 10.0), (90.0, 10.0), (50.0, 80.0))
+
+    domain = PolygonDomain(id="triangle", vertices=vertices)
+
+    assert domain.vertices == vertices
+    assert domain.edge(0) == (vertices[0], vertices[1])
+    assert domain.edge(1) == (vertices[1], vertices[2])
+    assert domain.edge(2) == (vertices[2], vertices[0])
+
+
+def test_polygon_domain_is_immutable() -> None:
+    domain = PolygonDomain(
+        id="triangle",
+        vertices=((0.0, 0.0), (10.0, 0.0), (0.0, 10.0)),
+    )
+
+    with pytest.raises((AttributeError, dataclasses.FrozenInstanceError)):
+        domain.id = "changed"
+
+
+def test_polygon_domain_copies_mutable_vertex_inputs() -> None:
+    vertices = [[0.0, 0.0], [10.0, 0.0], [0.0, 10.0]]
+    domain = PolygonDomain(id="triangle", vertices=vertices)
+
+    vertices[0][0] = 99.0
+
+    assert domain.vertices == ((0.0, 0.0), (10.0, 0.0), (0.0, 10.0))
+    with pytest.raises(TypeError):
+        domain.vertices[0][0] = 99.0
+
+
+def test_domain_provenance_copies_mutable_source_ids() -> None:
+    source_domain_ids = ["source"]
+    provenance = DomainProvenance(
+        source_domain_ids=source_domain_ids,
+        generating_pass_id="pass-a",
+        operation="copy",
+    )
+
+    source_domain_ids.append("changed")
+
+    assert provenance.source_domain_ids == ("source",)
+
+
+def test_polygon_domain_accepts_clockwise_and_counterclockwise_order() -> None:
+    ccw = PolygonDomain(
+        id="ccw",
+        vertices=((0.0, 0.0), (10.0, 0.0), (0.0, 10.0)),
+    )
+    cw = PolygonDomain(
+        id="cw",
+        vertices=((0.0, 0.0), (0.0, 10.0), (10.0, 0.0)),
+    )
+
+    assert ccw.vertices[0] == cw.vertices[0]
+    assert ccw.winding != cw.winding
+
+
+def test_intrinsic_canvas_accepts_overlapping_domains() -> None:
+    a = PolygonDomain(
+        id="a",
+        vertices=((0.0, 0.0), (8.0, 0.0), (0.0, 8.0)),
+    )
+    b = PolygonDomain(
+        id="b",
+        vertices=((2.0, 2.0), (10.0, 2.0), (2.0, 10.0)),
+    )
+
+    canvas = CanvasGeometry(
+        shape="rectangle",
+        width=100.0,
+        height=100.0,
+        polygon=((0.0, 0.0), (100.0, 0.0), (100.0, 100.0), (0.0, 100.0)),
+        up_anchor="edge:0",
+        domains=(a, b),
+    )
+
+    assert canvas.domains == (a, b)
+
+
+def test_intrinsic_canvas_rejects_duplicate_domain_ids() -> None:
+    a = PolygonDomain(
+        id="same",
+        vertices=((0.0, 0.0), (8.0, 0.0), (0.0, 8.0)),
+    )
+    b = PolygonDomain(
+        id="same",
+        vertices=((2.0, 2.0), (10.0, 2.0), (2.0, 10.0)),
+    )
+
+    with pytest.raises(ValueError, match="duplicate domain id"):
+        CanvasGeometry(
+            shape="rectangle",
+            width=100.0,
+            height=100.0,
+            polygon=((0.0, 0.0), (100.0, 0.0), (100.0, 100.0), (0.0, 100.0)),
+            up_anchor="edge:0",
+            domains=(a, b),
+        )

@@ -1,13 +1,64 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
 CanvasShape = Literal["rectangle", "square", "triangle", "polygon"]
 Point = tuple[float, float]
+Edge = tuple[Point, Point]
 _UP_ANCHOR_RE = re.compile(r"^(vertex|edge):(\d+)$")
+
+
+@dataclass(frozen=True, slots=True)
+class DomainProvenance:
+    source_domain_ids: tuple[str, ...]
+    generating_pass_id: str
+    operation: str
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "source_domain_ids", tuple(self.source_domain_ids))
+
+
+@dataclass(frozen=True, slots=True)
+class PolygonDomain:
+    id: str
+    vertices: tuple[Point, ...]
+    provenance: DomainProvenance | None = None
+
+    def __post_init__(self) -> None:
+        from .geometry import validate_simple_polygon
+
+        if not self.id:
+            raise ValueError("polygon domain id must not be empty")
+        vertices = tuple(tuple(vertex) for vertex in self.vertices)
+        validate_simple_polygon(vertices)
+        object.__setattr__(self, "vertices", vertices)
+
+    def edge(self, index: int) -> Edge:
+        if index < 0 or index >= len(self.vertices):
+            raise IndexError(f"edge index out of range: {index}")
+        return self.vertices[index], self.vertices[(index + 1) % len(self.vertices)]
+
+    @property
+    def winding(self) -> str:
+        from .geometry import polygon_winding
+
+        return polygon_winding(self.vertices)
+
+    @property
+    def centroid(self) -> Point:
+        from .geometry import polygon_centroid
+
+        return polygon_centroid(self.vertices)
+
+    @property
+    def is_convex(self) -> bool:
+        from .geometry import is_convex_polygon
+
+        return is_convex_polygon(self.vertices)
 
 
 class CanvasSpec(BaseModel):
