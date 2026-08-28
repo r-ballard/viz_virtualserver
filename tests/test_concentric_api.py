@@ -21,6 +21,7 @@ def test_concentric_endpoint_returns_geometry() -> None:
         },
     )
     assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/json")
     payload = response.json()
     assert payload["algorithm"] == "concentric-points"
     assert payload["canvas"]["shape"] == "triangle"
@@ -42,6 +43,9 @@ def test_concentric_svg_endpoint_returns_pen_layered_svg() -> None:
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("image/svg+xml")
     root = ET.fromstring(response.text)
+    assert root.attrib["width"] == "120"
+    assert root.attrib["height"] == "100"
+    assert root.attrib["viewBox"] == "0 0 120 100"
     namespace = "{http://www.w3.org/2000/svg}"
     layer = next(child for child in root if child.tag == f"{namespace}g")
     assert layer.attrib["id"] == "pen-2"

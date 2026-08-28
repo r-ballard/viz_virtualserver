@@ -1,3 +1,4 @@
+import json
 import xml.etree.ElementTree as ET
 
 from concentric.models import ConcentricPointsRequest
@@ -19,6 +20,9 @@ def test_svg_preserves_canvas_metadata_and_top_level_pen_group() -> None:
     result = generate_concentric_points(request)
     root = ET.fromstring(result_to_svg(result, request, stroke_width=2.0))
 
+    assert root.attrib["width"] == "100"
+    assert root.attrib["height"] == "80"
+    assert root.attrib["viewBox"] == "0 0 100 80"
     assert root.attrib["data-viz-canvas-shape"] == "triangle"
     assert root.attrib["data-viz-canvas-up-anchor"] == "vertex:0"
     assert root.attrib["data-viz-algorithm"] == "concentric-points"
@@ -30,10 +34,27 @@ def test_svg_preserves_canvas_metadata_and_top_level_pen_group() -> None:
     assert layer.attrib["id"] == "pen-3"
     assert layer.attrib["data-pen"] == "3"
     assert layer.attrib["stroke"] == "#123456"
+    assert layer.attrib["stroke-width"] == "2"
+    assert layer.attrib["fill"] == "none"
+    assert layer.attrib["data-viz-role"] == "algorithm-layer"
+    assert layer.attrib["data-viz-algorithm"] == "concentric-points"
     assert layer.attrib["clip-path"] == "url(#viz-canvas-clip)"
 
     circles = root.findall(f".//{SVG}circle")
     assert len(circles) == request.point_count * request.ring_count
+
+    metadata = root.find(f"{SVG}metadata")
+    assert metadata is not None
+    assert json.loads(metadata.text or "") == {
+        "schema": "viz-domain/v1",
+        "domains": [
+            {
+                "id": "concentric-source",
+                "vertices": [[50.0, 0.0], [100.0, 80.0], [0.0, 80.0]],
+                "provenance": None,
+            }
+        ],
+    }
 
 
 def test_svg_has_nonrendering_intrinsic_canvas_clip() -> None:
