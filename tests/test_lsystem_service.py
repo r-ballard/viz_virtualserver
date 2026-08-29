@@ -1,4 +1,6 @@
+import json
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 import pytest
 
@@ -153,3 +155,22 @@ def test_growth_page_combines_multiple_birth_generations_mapped_to_one_pen():
     ] == [1, 2]
     root = ET.fromstring(lsystem_svg.growth_pages_to_svgs({2: page})[2])
     assert len(root.findall(SVG + "g")) == 1
+
+
+def test_plant_booklet_example_keeps_generation_eight_plotter_readable():
+    config_path = (
+        Path(__file__).parents[1] / "examples" / "lsystems" / "plant-booklet.json"
+    )
+    request = LSystemRequest.model_validate(json.loads(config_path.read_text()))
+
+    page = lsystem_service.generate_lsystem_growth_pages(
+        request, generation_numbers=(8,), growth_mode="cumulative"
+    )[8]
+    segment_counts = [
+        generation["segment_count"]
+        for layer in page["layers"]
+        for generation in layer["generations"]
+    ]
+
+    assert [layer["pen"] for layer in page["layers"]] == list(range(1, 9))
+    assert 1_000 <= sum(segment_counts) <= 4_000
