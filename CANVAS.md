@@ -1,8 +1,56 @@
-# Intrinsic vector canvases
+# Polygon-domain canvases
 
 `viz-virtualserver` treats the drawing canvas as part of the generated vector artifact rather than assuming that every algorithm draws into an anonymous rectangle. This is a design-space concern: `plotter-workflow` still owns physical paper placement, imposition, pen assignment, HP-GL conversion, and DPX-3300 transport.
 
-The initial canvas contract supports `rectangle`, `square`, `triangle`, and custom `polygon` domains. It is intentionally independent of any one algorithm or origami layout.
+The canvas contract supports `rectangle`, `square`, `triangle`, and custom `polygon` domains. It is intentionally independent of any one algorithm or physical layout. `CanvasGeometry` is this repository's API-neutral implementation of the architecture's intrinsic-canvas concept; `CanvasSpec` remains the Pydantic request model used by the HTTP API.
+
+## Canonical domain grammar
+
+```text
+IntrinsicCanvas
+    -> zero or more PolygonDomains
+
+PolygonDomain
+    -> immutable simple ordered polygon
+    -> canonical canvas coordinates
+    -> overlap with other domains is legal
+
+PolygonSurface
+    -> optional semantic reference to exactly one domain
+
+PolygonGroup
+    -> ordered semantic surface collection only
+
+DomainRelation
+    -> optional typed semantic relationship
+
+DesignPass
+    -> targets one or more domains
+
+DesignResult
+    -> neutral vector paths + logical layers + optional derived domains
+```
+
+The ordered vertices of a `PolygonDomain` define stable features: `edge:i = vertex:i -> vertex:(i+1 mod n)`. Clockwise and counterclockwise input are both accepted, and vertex order is never silently normalized. All domain vertices and generated vector paths use canonical canvas coordinates.
+
+Domains are independent. They may overlap, and overlap does not imply a merge. A `PolygonSurface`, when declared, references exactly one domain. `PolygonGroup` membership preserves the declared surface order but does not imply adjacency, union, or any other geometric relationship. Typed `DomainRelation` values are optional and must be declared explicitly when semantics such as adjacency, correspondence, alignment, containment, or overlap matter.
+
+A `DesignPass` reads one or more target domains and returns neutral `VectorPath` values assigned to logical layers. Logical layers express design intent; they are not physical plotter or pen slots. Operations that change geometry create new derived domains with provenance rather than mutating their source domains.
+
+A conceptual domain collection can contain independent geometry such as:
+
+```json
+{
+  "domains": [
+    {"id": "domain-a", "vertices": [[0, 0], [80, 0], [80, 60], [0, 60]]},
+    {"id": "domain-b", "vertices": [[50, 20], [110, 20], [80, 80]]}
+  ]
+}
+```
+
+The overlap between these domains is legal and has no additional meaning unless an explicit semantic relation declares one.
+
+This fragment illustrates the domain collection, not an HTTP request body. The current `CanvasSpec` request model still resolves one legacy canvas polygon; generic multi-domain canvases are assembled through the internal `CanvasGeometry` and design-pass interfaces.
 
 ## Geometry model
 
@@ -93,6 +141,40 @@ The boundary is deliberately opt-in because it is real SVG stroke geometry and t
 
 ## SVG contract
 
+Multi-domain design SVGs contain one compact JSON metadata node with schema `viz-domain/v1`:
+
+```xml
+<metadata id="viz-domain-metadata">{"schema":"viz-domain/v1","domains":[{"id":"domain-a","vertices":[[0.0,0.0],[80.0,0.0],[80.0,60.0],[0.0,60.0]],"provenance":null},{"id":"domain-b","vertices":[[50.0,20.0],[110.0,20.0],[80.0,80.0]],"provenance":{"source_domain_ids":["domain-a"],"generating_pass_id":"pass-1","operation":"example-operation"}}]}</metadata>
+```
+
+The payload shape is exactly:
+
+```json
+{
+  "schema": "viz-domain/v1",
+  "domains": [
+    {
+      "id": "domain-a",
+      "vertices": [[0.0, 0.0], [80.0, 0.0], [80.0, 60.0], [0.0, 60.0]],
+      "provenance": null
+    },
+    {
+      "id": "domain-b",
+      "vertices": [[50.0, 20.0], [110.0, 20.0], [80.0, 80.0]],
+      "provenance": {
+        "source_domain_ids": ["domain-a"],
+        "generating_pass_id": "pass-1",
+        "operation": "example-operation"
+      }
+    }
+  ]
+}
+```
+
+This metadata is the structural representation of domain geometry. A visible border or outline path is optional artwork and is not required to recover the domain structure. Domain and vertex order are preserved in the payload.
+
+The existing singular `data-viz-canvas-*` root attributes and `viz-canvas-clip` remain part of the compatibility contract for single-domain consumers. They are additive to the versioned multi-domain metadata, not replacements for it.
+
 A triangle template contains root metadata similar to:
 
 ```xml
@@ -115,7 +197,7 @@ A triangle template contains root metadata similar to:
 
 Future SVG exporters should reuse `viz_canvas.svg.canvas_root_attributes()` and `append_canvas_clip()` rather than reproduce these attributes independently. `append_canvas_clip()` returns `url(#viz-canvas-clip)` so the exporter can apply the clip directly to each drawable group.
 
-For strict multi-pen output, the existing `pen-N` groups must remain **top-level** SVG children. Apply the canvas clip to those groups directly rather than nesting them inside a canvas wrapper:
+For legacy strict multi-pen output, the existing `pen-N` groups must remain **top-level** SVG children. Apply the canvas clip to those groups directly rather than nesting them inside a canvas wrapper:
 
 ```xml
 <g id="pen-1" data-pen="1" clip-path="url(#viz-canvas-clip)" ...>
@@ -123,7 +205,7 @@ For strict multi-pen output, the existing `pen-N` groups must remain **top-level
 </g>
 ```
 
-That preserves the current `viz-virtualserver` -> `plotter-workflow` pen-layer contract while still making the logical canvas intrinsic to the SVG.
+That preserves the current `viz-virtualserver` -> `plotter-workflow` pen-layer contract while still making the logical canvas intrinsic to the SVG. The neutral design serializer instead emits top-level groups with `data-viz-role="logical-layer"`. The concentric compatibility wrapper separately rebuilds its established physical `pen-N` group from the legacy request; the generic domain model does not assign physical plotter slots.
 
 ## Generator-facing behavior
 
@@ -159,6 +241,6 @@ plotter-workflow
 
 `plotter-workflow` should not need to invent triangle-aware generative behavior. It consumes a vector file whose logical domain and orientation are already explicit.
 
-## Scope of this first slice
+## Repository boundaries
 
-This patch establishes the canvas contract and API only. It does **not** yet change L-system output or the py5 renderer. The next integration should exercise this abstraction with one existing algorithm before extracting any shared algorithm package or changing repository boundaries.
+`viz_canvas` owns the generic immutable polygon, semantic-reference, pass-execution, and neutral SVG contracts. Algorithms consume those contracts through adapters and declare their geometry capabilities. HTTP request models and legacy endpoint wrappers remain outside that generic core so existing clients can retain their established API and SVG behavior.
