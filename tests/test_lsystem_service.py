@@ -100,12 +100,12 @@ def test_growth_pages_support_cumulative_and_delta_geometry_with_independent_bou
         generation["segment_count"]
         for layer in cumulative[2]["layers"]
         for generation in layer["generations"]
-    ] == [1, 2]
+    ] == [2, 1]
     assert cumulative[1]["bounds"]["width"] == pytest.approx(1.0)
     assert cumulative[2]["bounds"]["width"] == pytest.approx(3.0)
 
     assert [layer["pen"] for layer in delta[2]["layers"]] == [2]
-    assert delta[2]["bounds"]["width"] == pytest.approx(2.0)
+    assert delta[2]["bounds"]["width"] == pytest.approx(1.0)
 
     delta_request = LSystemRequest.model_validate(
         {**request.model_dump(), "growth_mode": "delta"}

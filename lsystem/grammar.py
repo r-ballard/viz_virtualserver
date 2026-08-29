@@ -64,11 +64,9 @@ def iter_tagged_generations(
                 expanded.append((symbol, birth_generation))
                 continue
 
-            inherited = False
             for child in replacement:
-                if child == symbol and not inherited:
+                if child == symbol:
                     expanded.append((child, birth_generation))
-                    inherited = True
                 else:
                     expanded.append((child, generation))
 
