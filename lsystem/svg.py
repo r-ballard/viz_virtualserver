@@ -73,6 +73,22 @@ def result_to_generation_svgs(
     return pages
 
 
+def growth_pages_to_svgs(
+    pages: dict[int, dict],
+    *,
+    padding: float = 0.0,
+    stroke_width: float = 1.0,
+) -> dict[int, str]:
+    """Render independently bounded cumulative or delta growth pages."""
+
+    return {
+        generation: result_to_svg(
+            page, padding=padding, stroke_width=stroke_width
+        )
+        for generation, page in pages.items()
+    }
+
+
 def _path_data(path: list, *, min_x: float, max_y: float, padding: float) -> str:
     transformed = [
         (float(x) - min_x + padding, max_y - float(y) + padding)

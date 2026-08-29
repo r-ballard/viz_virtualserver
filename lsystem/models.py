@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -30,6 +32,7 @@ class LSystemRequest(BaseModel):
     draw_symbols: list[str] = Field(default_factory=lambda: ["F"])
     move_symbols: list[str] = Field(default_factory=lambda: ["f"])
     pen_layers: list[PenLayerSpec] | None = None
+    growth_mode: Literal["cumulative", "delta"] = "cumulative"
     max_symbols: int = Field(default=1_000_000, ge=1, le=10_000_000)
 
     @model_validator(mode="after")

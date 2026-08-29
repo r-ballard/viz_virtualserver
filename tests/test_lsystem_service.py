@@ -1,5 +1,8 @@
 import xml.etree.ElementTree as ET
 
+import pytest
+
+import lsystem.service as lsystem_service
 import lsystem.svg as lsystem_svg
 from lsystem.models import LSystemRequest
 from lsystem.service import generate_lsystem
@@ -69,3 +72,84 @@ def test_generation_page_svgs_share_bounds_and_map_one_generation_to_each_pen():
         drawings = layers[0].findall(SVG + "g")
         assert len(drawings) == 1
         assert drawings[0].attrib["data-generation"] == str(generation)
+
+
+def test_growth_pages_support_cumulative_and_delta_geometry_with_independent_bounds():
+    request = LSystemRequest(
+        axiom="X",
+        rules={"X": "FX", "F": "FF"},
+        generations=2,
+        angle=90,
+        step=1,
+        pen_layers=[
+            {"pen": 1, "start_generation": 0, "end_generation": 1, "color": "#000000"},
+            {"pen": 2, "start_generation": 2, "end_generation": 2, "color": "#FF0000"},
+        ],
+    )
+
+    cumulative = lsystem_service.generate_lsystem_growth_pages(
+        request, generation_numbers=(1, 2), growth_mode="cumulative"
+    )
+    delta = lsystem_service.generate_lsystem_growth_pages(
+        request, generation_numbers=(1, 2), growth_mode="delta"
+    )
+
+    assert [layer["pen"] for layer in cumulative[1]["layers"]] == [1]
+    assert [layer["pen"] for layer in cumulative[2]["layers"]] == [1, 2]
+    assert [
+        generation["segment_count"]
+        for layer in cumulative[2]["layers"]
+        for generation in layer["generations"]
+    ] == [1, 2]
+    assert cumulative[1]["bounds"]["width"] == pytest.approx(1.0)
+    assert cumulative[2]["bounds"]["width"] == pytest.approx(3.0)
+
+    assert [layer["pen"] for layer in delta[2]["layers"]] == [2]
+    assert delta[2]["bounds"]["width"] == pytest.approx(2.0)
+
+    delta_request = LSystemRequest.model_validate(
+        {**request.model_dump(), "growth_mode": "delta"}
+    )
+    configured_delta = lsystem_service.generate_lsystem_growth_pages(
+        delta_request, generation_numbers=(2,)
+    )
+    assert [layer["pen"] for layer in configured_delta[2]["layers"]] == [2]
+
+    cumulative_svgs = lsystem_svg.growth_pages_to_svgs(cumulative)
+    delta_svgs = lsystem_svg.growth_pages_to_svgs(delta)
+    cumulative_roots = {
+        generation: ET.fromstring(svg) for generation, svg in cumulative_svgs.items()
+    }
+    assert cumulative_roots[1].attrib["viewBox"] == "0 0 1 1"
+    assert cumulative_roots[1].attrib["viewBox"] != cumulative_roots[2].attrib["viewBox"]
+    assert [
+        group.attrib["id"] for group in cumulative_roots[2].findall(SVG + "g")
+    ] == ["pen-1", "pen-2"]
+    assert [
+        group.attrib["id"]
+        for group in ET.fromstring(delta_svgs[2]).findall(SVG + "g")
+    ] == ["pen-2"]
+
+
+def test_growth_page_combines_multiple_birth_generations_mapped_to_one_pen():
+    request = LSystemRequest(
+        axiom="X",
+        rules={"X": "FX", "F": "FF"},
+        generations=2,
+        step=1,
+        pen_layers=[
+            {"pen": 1, "start_generation": 0, "end_generation": 2, "color": "#000000"}
+        ],
+    )
+
+    page = lsystem_service.generate_lsystem_growth_pages(
+        request, generation_numbers=(2,)
+    )[2]
+
+    assert len(page["layers"]) == 1
+    assert page["layers"][0]["pen"] == 1
+    assert [
+        generation["generation"] for generation in page["layers"][0]["generations"]
+    ] == [1, 2]
+    root = ET.fromstring(lsystem_svg.growth_pages_to_svgs({2: page})[2])
+    assert len(root.findall(SVG + "g")) == 1

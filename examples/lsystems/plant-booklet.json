@@ -9,6 +9,7 @@
   "step": 5,
   "initial_heading": 90,
   "draw_symbols": ["F"],
+  "growth_mode": "cumulative",
   "pen_layers": [
     {"pen": 1, "start_generation": 0, "end_generation": 1, "color": "#000000"},
     {"pen": 2, "start_generation": 2, "end_generation": 2, "color": "#D62728"},
