@@ -352,6 +352,34 @@ def test_execute_pass_rejects_derived_collision_without_mutating_state_or_domain
     assert state.results == ()
 
 
+def test_sequential_passes_reject_the_same_derived_domain_id() -> None:
+    source = make_domain("source")
+    first = RecordingAlgorithm(
+        DesignResult((), (make_domain("shared-derived"),), "first")
+    )
+    second = RecordingAlgorithm(
+        DesignResult((), (make_domain("shared-derived"),), "second")
+    )
+
+    with pytest.raises(
+        ValueError, match="duplicate derived domain id: shared-derived"
+    ):
+        execute_design_passes(
+            canvas=make_canvas(source),
+            state=DesignState((source,)),
+            passes=(
+                DesignPass("first", "first-derive", ("source",)),
+                DesignPass(
+                    "second",
+                    "second-derive",
+                    ("source",),
+                    depends_on=("first",),
+                ),
+            ),
+            algorithms={"first-derive": first, "second-derive": second},
+        )
+
+
 def test_sequential_execution_requires_list_order_to_satisfy_dependencies() -> None:
     domain = make_domain("source")
     passes = (
@@ -367,12 +395,56 @@ def test_sequential_execution_requires_list_order_to_satisfy_dependencies() -> N
         )
 
 
+def test_unknown_dependency_is_not_satisfied_by_an_earlier_list_item() -> None:
+    source = make_domain("source")
+    passes = (
+        DesignPass("unrelated", "record", ("source",)),
+        DesignPass("consumer", "record", ("source",), depends_on=("missing",)),
+    )
+
+    with pytest.raises(ValueError, match="unknown dependency: missing"):
+        execute_design_passes(
+            canvas=make_canvas(source),
+            state=DesignState((source,)),
+            passes=passes,
+            algorithms={"record": RecordingAlgorithm()},
+        )
+
+
+def test_completed_dependencies_come_from_existing_result_pass_ids() -> None:
+    source = make_domain("source")
+    algorithm = RecordingAlgorithm()
+    state = DesignState(
+        (source,),
+        results=(DesignResult((), (), "producer"),),
+    )
+
+    final_state = execute_design_passes(
+        canvas=make_canvas(source),
+        state=state,
+        passes=(
+            DesignPass(
+                "consumer", "record", ("source",), depends_on=("producer",)
+            ),
+        ),
+        algorithms={"record": algorithm},
+    )
+
+    assert [call[2].id for call in algorithm.calls] == ["consumer"]
+    assert [result.producing_pass_id for result in final_state.results] == [
+        "producer",
+        "consumer",
+    ]
+
+
 def test_sequential_execution_resolves_derived_domains_and_preserves_provenance() -> None:
     source = make_domain("source")
+    source_vertices = source.vertices
+    provenance = DomainProvenance(("source",), "first", "copy")
     derived = PolygonDomain(
-        id="derived",
+        id="derived-from-source",
         vertices=source.vertices,
-        provenance=DomainProvenance(("source",), "first", "copy"),
+        provenance=provenance,
     )
     first = RecordingAlgorithm(DesignResult((), (derived,), "first"))
     second = RecordingAlgorithm()
@@ -381,10 +453,21 @@ def test_sequential_execution_resolves_derived_domains_and_preserves_provenance(
         state=DesignState((source,)),
         passes=(
             DesignPass("first", "derive", ("source",)),
-            DesignPass("second", "record", ("derived",), depends_on=("first",)),
+            DesignPass(
+                "second",
+                "record",
+                ("derived-from-source",),
+                depends_on=("first",),
+            ),
         ),
         algorithms={"derive": first, "record": second},
     )
     assert second.calls[0][1] == (derived,)
-    assert state.resolve_domain("derived").provenance == derived.provenance
+    assert state.resolve_domain("derived-from-source") is derived
+    assert state.resolve_domain("derived-from-source").provenance == DomainProvenance(
+        ("source",), "first", "copy"
+    )
+    assert state.source_domains == (source,)
+    assert source.vertices == source_vertices
+    assert source.provenance is None
     assert [result.producing_pass_id for result in state.results] == ["first", "second"]

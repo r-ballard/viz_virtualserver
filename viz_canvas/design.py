@@ -121,7 +121,9 @@ class DesignState:
         return matches[0]
 
 
-def validate_pass_graph(passes: Sequence[DesignPass]) -> tuple[DesignPass, ...]:
+def _validate_pass_graph(
+    passes: Sequence[DesignPass], *, completed_external_ids: set[str]
+) -> tuple[DesignPass, ...]:
     passes = tuple(passes)
     pass_ids = [design_pass.id for design_pass in passes]
     if len(pass_ids) != len(set(pass_ids)):
@@ -132,7 +134,7 @@ def validate_pass_graph(passes: Sequence[DesignPass]) -> tuple[DesignPass, ...]:
         for dependency in design_pass.depends_on:
             if dependency == design_pass.id:
                 raise ValueError(f"design pass {design_pass.id} has a self-dependency")
-            if dependency not in known_ids:
+            if dependency not in known_ids and dependency not in completed_external_ids:
                 raise ValueError(f"unknown dependency: {dependency}")
 
     dependencies = {design_pass.id: design_pass.depends_on for design_pass in passes}
@@ -146,13 +148,18 @@ def validate_pass_graph(passes: Sequence[DesignPass]) -> tuple[DesignPass, ...]:
             return
         visiting.add(pass_id)
         for dependency in dependencies[pass_id]:
-            visit(dependency)
+            if dependency in known_ids:
+                visit(dependency)
         visiting.remove(pass_id)
         visited.add(pass_id)
 
     for pass_id in pass_ids:
         visit(pass_id)
     return passes
+
+
+def validate_pass_graph(passes: Sequence[DesignPass]) -> tuple[DesignPass, ...]:
+    return _validate_pass_graph(passes, completed_external_ids=set())
 
 
 def execute_design_pass(
@@ -200,8 +207,8 @@ def execute_design_passes(
     passes: Sequence[DesignPass],
     algorithms: Mapping[str, DomainAlgorithm],
 ) -> DesignState:
-    passes = validate_pass_graph(passes)
     completed = {result.producing_pass_id for result in state.results}
+    passes = _validate_pass_graph(passes, completed_external_ids=completed)
     current = state
     for design_pass in passes:
         missing = tuple(
