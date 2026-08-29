@@ -51,6 +51,8 @@ class DesignResult:
         domain_ids = [domain.id for domain in derived_domains]
         if len(domain_ids) != len(set(domain_ids)):
             raise ValueError("duplicate derived domain id in design result")
+        if any(domain.provenance is None for domain in derived_domains):
+            raise ValueError("derived domain requires provenance")
         object.__setattr__(self, "paths", paths)
         object.__setattr__(self, "derived_domains", derived_domains)
 

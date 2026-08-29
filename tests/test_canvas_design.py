@@ -27,6 +27,13 @@ def make_domain(domain_id: str, *, concave: bool = False) -> PolygonDomain:
     return PolygonDomain(id=domain_id, vertices=vertices)
 
 
+def make_derived_domain(domain_id: str, producing_pass_id: str) -> PolygonDomain:
+    return dataclasses.replace(
+        make_domain(domain_id),
+        provenance=DomainProvenance(("source",), producing_pass_id, "copy-for-test"),
+    )
+
+
 def make_canvas(*domains: PolygonDomain) -> CanvasGeometry:
     return CanvasGeometry(
         shape="rectangle",
@@ -117,6 +124,11 @@ def test_multiple_paths_can_share_or_use_different_logical_layers() -> None:
 def test_design_result_requires_unique_derived_domain_ids() -> None:
     with pytest.raises(ValueError, match="duplicate derived domain id"):
         DesignResult((), (make_domain("same"), make_domain("same")), "pass-a")
+
+
+def test_design_result_requires_provenance_for_derived_domains() -> None:
+    with pytest.raises(ValueError, match="derived domain requires provenance"):
+        DesignResult((), (make_domain("derived"),), "pass-a")
 
 
 def test_design_pass_copies_inputs_and_preserves_nested_parameter_types() -> None:
@@ -338,7 +350,9 @@ def test_execute_pass_requires_matching_result_pass_id() -> None:
 def test_execute_pass_rejects_derived_collision_without_mutating_state_or_domain() -> None:
     domain = make_domain("source")
     state = DesignState((domain,))
-    algorithm = RecordingAlgorithm(DesignResult((), (make_domain("source"),), "pass-a"))
+    algorithm = RecordingAlgorithm(
+        DesignResult((), (make_derived_domain("source", "pass-a"),), "pass-a")
+    )
     before = domain.vertices
     with pytest.raises(ValueError, match="duplicate derived domain id"):
         execute_design_pass(
@@ -355,10 +369,10 @@ def test_execute_pass_rejects_derived_collision_without_mutating_state_or_domain
 def test_sequential_passes_reject_the_same_derived_domain_id() -> None:
     source = make_domain("source")
     first = RecordingAlgorithm(
-        DesignResult((), (make_domain("shared-derived"),), "first")
+        DesignResult((), (make_derived_domain("shared-derived", "first"),), "first")
     )
     second = RecordingAlgorithm(
-        DesignResult((), (make_domain("shared-derived"),), "second")
+        DesignResult((), (make_derived_domain("shared-derived", "second"),), "second")
     )
 
     with pytest.raises(
