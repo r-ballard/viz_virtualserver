@@ -393,6 +393,26 @@ def test_design_executor_rejects_path_for_undeclared_domain() -> None:
         )
 
 
+def test_design_executor_accepts_path_for_domain_derived_by_same_result() -> None:
+    target = make_domain("target")
+    derived = make_derived_domain("derived", "pass-1")
+    result = DesignResult(
+        paths=(VectorPath(((0, 0), (1, 1)), False, "ink", "derived"),),
+        derived_domains=(derived,),
+        producing_pass_id="pass-1",
+    )
+
+    state = execute_design_pass(
+        canvas=make_canvas(target),
+        state=DesignState((target,)),
+        design_pass=DesignPass("pass-1", "record", ("target",)),
+        algorithms={"record": RecordingAlgorithm(result)},
+    )
+
+    assert state.results == (result,)
+    assert state.derived_domains == (derived,)
+
+
 def test_execute_pass_rejects_derived_collision_without_mutating_state_or_domain() -> None:
     domain = make_domain("source")
     state = DesignState((domain,))
