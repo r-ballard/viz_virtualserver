@@ -26,7 +26,8 @@ class AffineTransform:
         values = tuple(float(value) for value in (self.a, self.b, self.c, self.d, self.e, self.f))
         if not all(math.isfinite(value) for value in values):
             raise ValueError("affine transform matrix values must be finite")
-        if abs(self.determinant) <= EPSILON:
+        determinant = values[0] * values[3] - values[1] * values[2]
+        if not math.isfinite(determinant) or abs(determinant) <= EPSILON:
             raise ValueError("affine transform matrix must be invertible")
         for name, value in zip(("a", "b", "c", "d", "e", "f"), values, strict=True):
             object.__setattr__(self, name, value)
@@ -81,6 +82,10 @@ class CompositionTransform:
 
     domain_id: str
     transform: AffineTransform
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.transform, AffineTransform):
+            raise ValueError("composition transform must be an AffineTransform")
 
 
 def resolve_composition_transforms(
