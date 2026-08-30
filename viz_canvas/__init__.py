@@ -28,6 +28,7 @@ from .geometry import (
     polygon_winding,
     validate_simple_polygon,
 )
+from .jobs import DomainArtworkJob, derive_domain_seed
 from .models import CanvasSpec, DomainProvenance, Edge, Point, PolygonDomain
 from .semantics import (
     DomainRef,
@@ -55,6 +56,7 @@ __all__ = [
     "DomainRef",
     "DomainRelation",
     "DomainAlgorithm",
+    "DomainArtworkJob",
     "Edge",
     "FeatureRef",
     "FeatureType",
@@ -69,6 +71,7 @@ __all__ = [
     "build_canvas",
     "execute_design_pass",
     "execute_design_passes",
+    "derive_domain_seed",
     "is_convex_polygon",
     "polygon_centroid",
     "polygon_edges",
