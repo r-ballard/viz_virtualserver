@@ -27,7 +27,21 @@ class AffineTransform:
         if not all(math.isfinite(value) for value in values):
             raise ValueError("affine transform matrix values must be finite")
         determinant = values[0] * values[3] - values[1] * values[2]
-        if not math.isfinite(determinant) or abs(determinant) <= EPSILON:
+        if (
+            not math.isfinite(determinant)
+            or abs(determinant) <= EPSILON
+            or abs(determinant) >= 1.0 / EPSILON
+        ):
+            raise ValueError("affine transform matrix must be invertible")
+        inverse_values = (
+            values[3] / determinant,
+            -values[1] / determinant,
+            -values[2] / determinant,
+            values[0] / determinant,
+            (values[2] * values[5] - values[3] * values[4]) / determinant,
+            (values[1] * values[4] - values[0] * values[5]) / determinant,
+        )
+        if not all(math.isfinite(value) for value in inverse_values):
             raise ValueError("affine transform matrix must be invertible")
         for name, value in zip(("a", "b", "c", "d", "e", "f"), values, strict=True):
             object.__setattr__(self, name, value)

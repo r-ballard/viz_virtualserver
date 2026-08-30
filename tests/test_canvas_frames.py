@@ -46,6 +46,16 @@ def test_affine_transform_rejects_matrix_with_non_finite_determinant() -> None:
         AffineTransform(a=1e308, b=0, c=0, d=1e308, e=0, f=0)
 
 
+def test_affine_transform_rejects_matrix_with_non_finite_inverse_coefficients() -> None:
+    with pytest.raises(ValueError, match="invertible"):
+        AffineTransform(a=1e308, b=0, c=0, d=1e-308, e=1e308, f=1e308)
+
+
+def test_affine_transform_rejects_matrix_whose_inverse_is_below_tolerance() -> None:
+    with pytest.raises(ValueError, match="invertible"):
+        AffineTransform(a=1e308, b=0, c=0, d=1, e=0, f=0)
+
+
 def test_composition_transform_rejects_singular_matrix() -> None:
     with pytest.raises(ValueError, match="invertible"):
         AffineTransform(a=1, b=2, c=2, d=4, e=0, f=0)
