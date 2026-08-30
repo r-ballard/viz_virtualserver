@@ -12,6 +12,11 @@ from .design import (
     execute_design_passes,
     validate_pass_graph,
 )
+from .frames import (
+    AffineTransform,
+    CompositionTransform,
+    resolve_composition_transforms,
+)
 from .geometry import (
     CanvasError,
     CanvasGeometry,
@@ -38,9 +43,11 @@ from .semantics import (
 
 __all__ = [
     "AlgorithmCapabilities",
+    "AffineTransform",
     "CanvasError",
     "CanvasGeometry",
     "CanvasSpec",
+    "CompositionTransform",
     "DesignPass",
     "DesignResult",
     "DesignState",
@@ -67,6 +74,7 @@ __all__ = [
     "polygon_edges",
     "polygon_signed_area",
     "polygon_winding",
+    "resolve_composition_transforms",
     "validate_simple_polygon",
     "validate_semantics",
     "validate_pass_graph",
