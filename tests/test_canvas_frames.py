@@ -56,6 +56,18 @@ def test_affine_transform_rejects_matrix_whose_inverse_is_below_tolerance() -> N
         AffineTransform(a=1e308, b=0, c=0, d=1, e=0, f=0)
 
 
+def test_affine_transform_with_extreme_finite_values_constructs_an_inverse() -> None:
+    transform = AffineTransform(1e-100, 1e100, 1e-100, 2e100, 1e110, 1e110)
+
+    inverse = transform.inverse()
+    restored = inverse.inverse()
+
+    assert all(
+        math.isfinite(value)
+        for value in (restored.a, restored.b, restored.c, restored.d, restored.e, restored.f)
+    )
+
+
 def test_composition_transform_rejects_singular_matrix() -> None:
     with pytest.raises(ValueError, match="invertible"):
         AffineTransform(a=1, b=2, c=2, d=4, e=0, f=0)

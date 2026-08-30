@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from fractions import Fraction
 from types import MappingProxyType
 
 from .geometry import EPSILON
@@ -26,23 +27,7 @@ class AffineTransform:
         values = tuple(float(value) for value in (self.a, self.b, self.c, self.d, self.e, self.f))
         if not all(math.isfinite(value) for value in values):
             raise ValueError("affine transform matrix values must be finite")
-        determinant = values[0] * values[3] - values[1] * values[2]
-        if (
-            not math.isfinite(determinant)
-            or abs(determinant) <= EPSILON
-            or abs(determinant) >= 1.0 / EPSILON
-        ):
-            raise ValueError("affine transform matrix must be invertible")
-        inverse_values = (
-            values[3] / determinant,
-            -values[1] / determinant,
-            -values[2] / determinant,
-            values[0] / determinant,
-            (values[2] * values[5] - values[3] * values[4]) / determinant,
-            (values[1] * values[4] - values[0] * values[5]) / determinant,
-        )
-        if not all(math.isfinite(value) for value in inverse_values):
-            raise ValueError("affine transform matrix must be invertible")
+        _inverse_coefficients(values)
         for name, value in zip(("a", "b", "c", "d", "e", "f"), values, strict=True):
             object.__setattr__(self, name, value)
 
@@ -67,15 +52,10 @@ class AffineTransform:
     def inverse(self) -> AffineTransform:
         """Return the inverse transform."""
 
-        determinant = self.determinant
-        return AffineTransform(
-            a=self.d / determinant,
-            b=-self.b / determinant,
-            c=-self.c / determinant,
-            d=self.a / determinant,
-            e=(self.c * self.f - self.d * self.e) / determinant,
-            f=(self.b * self.e - self.a * self.f) / determinant,
+        a, b, c, d, e, f = _inverse_coefficients(
+            (self.a, self.b, self.c, self.d, self.e, self.f)
         )
+        return AffineTransform(a=a, b=b, c=c, d=d, e=e, f=f)
 
     def compose(self, other: AffineTransform) -> AffineTransform:
         """Return this transform applied after ``other``."""
@@ -100,6 +80,30 @@ class CompositionTransform:
     def __post_init__(self) -> None:
         if not isinstance(self.transform, AffineTransform):
             raise ValueError("composition transform must be an AffineTransform")
+
+
+def _inverse_coefficients(values: tuple[float, ...]) -> tuple[float, ...]:
+    a, b, c, d, e, f = (Fraction.from_float(value) for value in values)
+    determinant = a * d - b * c
+    tolerance = Fraction.from_float(EPSILON)
+    if abs(determinant) <= tolerance or abs(determinant) >= 1 / tolerance:
+        raise ValueError("affine transform matrix must be invertible")
+
+    coefficients = (
+        d / determinant,
+        -b / determinant,
+        -c / determinant,
+        a / determinant,
+        (c * f - d * e) / determinant,
+        (b * e - a * f) / determinant,
+    )
+    try:
+        inverse_values = tuple(float(value) for value in coefficients)
+    except OverflowError as exc:
+        raise ValueError("affine transform matrix must be invertible") from exc
+    if not all(math.isfinite(value) for value in inverse_values):
+        raise ValueError("affine transform matrix must be invertible")
+    return inverse_values
 
 
 def resolve_composition_transforms(
