@@ -53,6 +53,8 @@ class DomainArtworkJob:
         composition_transforms = tuple(self.composition_transforms)
         passes = tuple(self.passes)
 
+        if not domains:
+            raise ValueError("domains collection must not be empty")
         if surfaces is not None and not surfaces:
             raise ValueError("explicit surfaces collection must not be empty")
 

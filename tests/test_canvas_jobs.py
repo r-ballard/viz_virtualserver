@@ -50,6 +50,20 @@ def test_job_omitted_surfaces_create_one_ordered_surface_per_domain() -> None:
     ]
 
 
+def test_job_rejects_omitted_surfaces_without_domains() -> None:
+    with pytest.raises(ValueError, match="domains collection must not be empty"):
+        DomainArtworkJob(
+            schema_version=1,
+            seed=42,
+            domains=(),
+            surfaces=None,
+            groups=(),
+            relations=(),
+            composition_transforms=(),
+            passes=(make_pass(),),
+        )
+
+
 def test_domain_seed_is_stable_across_unrelated_reordering() -> None:
     before = derive_domain_seed(42, "pass", "algorithm", "stable")
     after = derive_domain_seed(42, "pass", "algorithm", "stable")
