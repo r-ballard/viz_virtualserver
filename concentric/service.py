@@ -144,7 +144,13 @@ def generate_concentric_design_result(
             domains=(domain,),
         )
         payload = _generate_concentric_points(request, domain_canvas)
-        paths.extend(_payload_vector_paths(payload, layer_id=layer_id))
+        paths.extend(
+            _payload_vector_paths(
+                payload,
+                layer_id=layer_id,
+                domain_id=domain.id,
+            )
+        )
 
     return DesignResult(
         paths=tuple(paths),
@@ -153,7 +159,9 @@ def generate_concentric_design_result(
     )
 
 
-def _payload_vector_paths(result: dict, *, layer_id: str) -> list[VectorPath]:
+def _payload_vector_paths(
+    result: dict, *, layer_id: str, domain_id: str = "concentric-source"
+) -> list[VectorPath]:
     paths: list[VectorPath] = []
     for point in result["points"]:
         center_x, center_y = point["center"]
@@ -165,7 +173,14 @@ def _payload_vector_paths(result: dict, *, layer_id: str) -> list[VectorPath]:
                 )
                 for index in range(_CIRCLE_PATH_SEGMENTS)
             )
-            paths.append(VectorPath(points=points, closed=True, layer_id=layer_id))
+            paths.append(
+                VectorPath(
+                    points=points,
+                    closed=True,
+                    layer_id=layer_id,
+                    domain_id=domain_id,
+                )
+            )
     return paths
 
 

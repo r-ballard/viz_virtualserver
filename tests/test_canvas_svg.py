@@ -149,14 +149,16 @@ def test_design_paths_compose_repeated_layers_in_first_seen_order() -> None:
     results = (
         DesignResult(
             (
-                VectorPath(((0.0, 0.0), (10.0, 10.0)), False, "a"),
-                VectorPath(((10.0, 0.0), (0.0, 10.0), (5.0, 5.0)), True, "b"),
+                VectorPath(((0.0, 0.0), (10.0, 10.0)), False, "a", "canvas"),
+                VectorPath(
+                    ((10.0, 0.0), (0.0, 10.0), (5.0, 5.0)), True, "b", "canvas"
+                ),
             ),
             (),
             "first",
         ),
         DesignResult(
-            (VectorPath(((2.0, 3.0), (4.0, 5.0)), False, "a"),),
+            (VectorPath(((2.0, 3.0), (4.0, 5.0)), False, "a", "canvas"),),
             (),
             "second",
         ),

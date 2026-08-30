@@ -171,6 +171,8 @@ def test_concentric_domain_algorithm_returns_design_result() -> None:
     assert result.producing_pass_id == "concentric"
     assert len(result.paths) == 6
     assert {path.layer_id for path in result.paths} == {"concentric"}
+    assert {path.domain_id for path in result.paths} == {"target"}
+    assert {path.coordinate_frame for path in result.paths} == {"domain"}
     assert all(path.closed for path in result.paths)
 
 
@@ -280,6 +282,7 @@ def test_concentric_adapter_accepts_full_request_parameters_in_domain_order() ->
     assert first.vertices[0][0] <= path_centers[0][0] <= first.vertices[1][0]
     assert second.vertices[0][0] <= path_centers[1][0] <= second.vertices[1][0]
     assert {path.layer_id for path in result.paths} == {"artwork"}
+    assert [path.domain_id for path in result.paths] == ["first", "second"]
 
 
 def test_concentric_adapter_is_deterministic_neutral_and_does_not_mutate_parameters() -> None:
@@ -343,6 +346,8 @@ def test_concentric_adapter_is_deterministic_neutral_and_does_not_mutate_paramet
         "points",
         "closed",
         "layer_id",
+        "domain_id",
+        "coordinate_frame",
     }
     assert {path.layer_id for path in first_result.paths} == {"artwork"}
     assert all(path.closed and len(path.points) == 64 for path in first_result.paths)

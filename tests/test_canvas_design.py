@@ -70,6 +70,7 @@ class DomainAttributionAlgorithm:
                     points=(domain.vertices[0], domain.vertices[1]),
                     closed=False,
                     layer_id=f"artwork-{domain.id}",
+                    domain_id=domain.id,
                 )
                 for domain in domains
             ),
@@ -80,9 +81,30 @@ class DomainAttributionAlgorithm:
 
 def test_vector_path_defensively_copies_points() -> None:
     points = [[10.0, 20.0], [30.0, 40.0]]
-    path = VectorPath(points=points, closed=False, layer_id="linework")
+    path = VectorPath(points=points, closed=False, layer_id="linework", domain_id="source")
     points[0][0] = 99.0
     assert path.points == ((10.0, 20.0), (30.0, 40.0))
+
+
+def test_vector_path_requires_a_domain_id() -> None:
+    with pytest.raises(ValueError, match="domain id must not be empty"):
+        VectorPath(
+            points=((0, 0), (1, 1)),
+            closed=False,
+            layer_id="ink",
+            domain_id="",
+        )
+
+
+def test_vector_path_rejects_unknown_coordinate_frame() -> None:
+    with pytest.raises(ValueError, match="coordinate frame"):
+        VectorPath(
+            points=((0, 0), (1, 1)),
+            closed=False,
+            layer_id="ink",
+            domain_id="target",
+            coordinate_frame="physical",
+        )
 
 
 @pytest.mark.parametrize(
@@ -91,17 +113,22 @@ def test_vector_path_defensively_copies_points() -> None:
 )
 def test_vector_path_rejects_too_few_points(points, closed, message) -> None:
     with pytest.raises(ValueError, match=message):
-        VectorPath(points=points, closed=closed, layer_id="layer")
+        VectorPath(points=points, closed=closed, layer_id="layer", domain_id="source")
 
 
 @pytest.mark.parametrize("point", [[0.0], [0.0, 1.0, 2.0]])
 def test_vector_path_rejects_coordinates_without_exactly_two_values(point) -> None:
     with pytest.raises(ValueError, match="exactly two coordinates"):
-        VectorPath(points=[point, [3.0, 4.0]], closed=False, layer_id="layer")
+        VectorPath(
+            points=[point, [3.0, 4.0]],
+            closed=False,
+            layer_id="layer",
+            domain_id="source",
+        )
 
 
 def test_design_result_is_neutral_and_copies_sequences() -> None:
-    paths = [VectorPath(((10.0, 20.0), (30.0, 40.0)), False, "linework")]
+    paths = [VectorPath(((10.0, 20.0), (30.0, 40.0)), False, "linework", "source")]
     result = DesignResult(paths, [], "pass-a")
     paths.clear()
     assert result.paths[0].points == ((10.0, 20.0), (30.0, 40.0))
@@ -111,9 +138,9 @@ def test_design_result_is_neutral_and_copies_sequences() -> None:
 def test_multiple_paths_can_share_or_use_different_logical_layers() -> None:
     result = DesignResult(
         paths=(
-            VectorPath(((0.0, 0.0), (10.0, 0.0)), False, "shared"),
-            VectorPath(((0.0, 1.0), (10.0, 1.0)), False, "shared"),
-            VectorPath(((0.0, 2.0), (10.0, 2.0)), False, "accent"),
+            VectorPath(((0.0, 0.0), (10.0, 0.0)), False, "shared", "source"),
+            VectorPath(((0.0, 1.0), (10.0, 1.0)), False, "shared", "source"),
+            VectorPath(((0.0, 2.0), (10.0, 2.0)), False, "accent", "source"),
         ),
         derived_domains=(),
         producing_pass_id="pass-a",
@@ -343,6 +370,25 @@ def test_execute_pass_requires_matching_result_pass_id() -> None:
             canvas=make_canvas(domain),
             state=DesignState((domain,)),
             design_pass=DesignPass("pass-a", "record", ("source",)),
+            algorithms={"record": algorithm},
+        )
+
+
+def test_design_executor_rejects_path_for_undeclared_domain() -> None:
+    domain = make_domain("target")
+    algorithm = RecordingAlgorithm(
+        DesignResult(
+            paths=(VectorPath(((0, 0), (1, 1)), False, "ink", "other"),),
+            derived_domains=(),
+            producing_pass_id="pass-1",
+        )
+    )
+
+    with pytest.raises(ValueError, match="undeclared domain: other"):
+        execute_design_pass(
+            canvas=make_canvas(domain),
+            state=DesignState((domain,)),
+            design_pass=DesignPass("pass-1", "record", ("target",)),
             algorithms={"record": algorithm},
         )
 

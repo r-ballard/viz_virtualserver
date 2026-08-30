@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Protocol
+from typing import Literal, Protocol
 
 from .geometry import CanvasGeometry as IntrinsicCanvas
 from .models import Point, PolygonDomain
@@ -20,8 +20,14 @@ class VectorPath:
     points: tuple[Point, ...]
     closed: bool
     layer_id: str
+    domain_id: str
+    coordinate_frame: Literal["domain", "composition"] = "domain"
 
     def __post_init__(self) -> None:
+        if not self.domain_id:
+            raise ValueError("vector path domain id must not be empty")
+        if self.coordinate_frame not in {"domain", "composition"}:
+            raise ValueError("unknown vector path coordinate frame")
         points = tuple(tuple(point) for point in self.points)
         if any(len(point) != 2 for point in points):
             raise ValueError("vector path points require exactly two coordinates")
@@ -186,6 +192,14 @@ def execute_design_pass(
     result = algorithm.generate(canvas=canvas, domains=domains, design_pass=design_pass)
     if result.producing_pass_id != design_pass.id:
         raise ValueError("result pass id does not match design pass")
+
+    allowed_path_domains = {
+        *design_pass.target_domain_ids,
+        *(domain.id for domain in result.derived_domains),
+    }
+    for path in result.paths:
+        if path.domain_id not in allowed_path_domains:
+            raise ValueError(f"undeclared domain: {path.domain_id}")
 
     existing_ids = {
         domain.id for domain in (*state.source_domains, *state.derived_domains)
