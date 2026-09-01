@@ -1,5 +1,6 @@
 """Intrinsic canvas geometry for generative vector artwork."""
 
+from .bundle import DesignBundle, write_design_bundle
 from .design import (
     AlgorithmCapabilities,
     DesignPass,
@@ -53,6 +54,7 @@ __all__ = [
     "CanvasGeometry",
     "CanvasSpec",
     "CompositionTransform",
+    "DesignBundle",
     "DesignPass",
     "DesignResult",
     "DesignState",
@@ -90,4 +92,5 @@ __all__ = [
     "validate_simple_polygon",
     "validate_semantics",
     "validate_pass_graph",
+    "write_design_bundle",
 ]

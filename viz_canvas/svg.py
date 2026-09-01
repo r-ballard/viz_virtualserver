@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import dataclasses
 import json
 import xml.etree.ElementTree as ET
 
-from .design import DesignResult, VectorPath
+from .design import DesignResult, DesignState, VectorPath
+from .frames import AffineTransform, resolve_composition_transforms
 from .geometry import CanvasGeometry
+from .jobs import DomainArtworkJob
+from .models import PolygonDomain
 from .projection import SurfaceProjection
 
 SVG_NS = "http://www.w3.org/2000/svg"
@@ -110,11 +114,20 @@ def build_domain_metadata_payload(canvas: CanvasGeometry) -> dict[str, object]:
 
 
 def serialize_design_result_svg(
-    *, canvas: CanvasGeometry, results: tuple[DesignResult, ...]
+    *,
+    canvas: CanvasGeometry,
+    results: tuple[DesignResult, ...],
+    view_box: tuple[float, float, float, float] | None = None,
 ) -> str:
     """Serialize neutral design paths with domain metadata and logical layers."""
 
-    root = ET.Element(_tag("svg"), canvas_root_attributes(canvas))
+    root_attributes = canvas_root_attributes(canvas)
+    if view_box is not None:
+        min_x, min_y, width, height = view_box
+        root_attributes["viewBox"] = " ".join(
+            _fmt(value) for value in (min_x, min_y, width, height)
+        )
+    root = ET.Element(_tag("svg"), root_attributes)
     clip_value = append_canvas_clip(root, canvas)
     _append_domain_metadata(root, canvas)
 
@@ -143,6 +156,72 @@ def serialize_design_result_svg(
 
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(
         root, encoding="unicode", short_empty_elements=True
+    )
+
+
+def canonical_design_to_svg(job: DomainArtworkJob, state: DesignState) -> str:
+    """Serialize completed paths in the job's explicitly declared canonical frame."""
+
+    transforms = resolve_composition_transforms(job.domains, job.composition_transforms)
+    canonical_domains = tuple(
+        _transform_domain(domain, transforms.get(domain.id))
+        for domain in (*state.source_domains, *state.derived_domains)
+    )
+    canonical_results = tuple(
+        dataclasses.replace(
+            result,
+            paths=tuple(
+                dataclasses.replace(
+                    path,
+                    points=(
+                        tuple(transforms[path.domain_id].apply(point) for point in path.points)
+                        if path.coordinate_frame == "domain" and path.domain_id in transforms
+                        else path.points
+                    ),
+                    coordinate_frame="composition",
+                )
+                for path in result.paths
+            ),
+        )
+        for result in state.results
+    )
+    points = tuple(
+        point
+        for domain in canonical_domains
+        for point in domain.vertices
+    ) + tuple(
+        point
+        for result in canonical_results
+        for path in result.paths
+        for point in path.points
+    )
+    min_x = min(x for x, _ in points)
+    min_y = min(y for _, y in points)
+    max_x = max(x for x, _ in points)
+    max_y = max(y for _, y in points)
+    canvas = CanvasGeometry(
+        shape="rectangle",
+        width=max_x - min_x,
+        height=max_y - min_y,
+        polygon=((min_x, min_y), (max_x, min_y), (max_x, max_y), (min_x, max_y)),
+        up_anchor="edge:0",
+        domains=canonical_domains,
+    )
+    return serialize_design_result_svg(
+        canvas=canvas,
+        results=canonical_results,
+        view_box=(min_x, min_y, max_x - min_x, max_y - min_y),
+    )
+
+
+def _transform_domain(
+    domain: PolygonDomain, transform: AffineTransform | None
+) -> PolygonDomain:
+    if transform is None:
+        return domain
+    return dataclasses.replace(
+        domain,
+        vertices=tuple(transform.apply(point) for point in domain.vertices),
     )
 
 
