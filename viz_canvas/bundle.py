@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 import shutil
+import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -85,6 +86,7 @@ def write_design_bundle(
         )
         _verify_staged_bundle(
             temporary,
+            expected_audit=audit,
             filenames=filenames,
             surface_digests=tuple(surface_digests),
             design_digest=design_digest,
@@ -97,21 +99,41 @@ def write_design_bundle(
             destination.replace(backup / destination.name)
         try:
             temporary.replace(destination)
-        except BaseException:
+        except BaseException as publication_error:
             if backup is not None:
-                (backup / destination.name).replace(destination)
+                previous_bundle = backup / destination.name
+                try:
+                    previous_bundle.replace(destination)
+                except BaseException as restore_error:
+                    publication_error.add_note(
+                        "restoring the previous bundle also failed; recover it from "
+                        f"{previous_bundle}: {restore_error}"
+                    )
+                    raise publication_error from restore_error
             raise
         published = True
     finally:
+        active_error = sys.exception()
         if temporary.exists():
-            _remove_created_directory(temporary, destination.parent)
-        if published and backup is not None and backup.exists():
             try:
-                _remove_created_directory(backup, destination.parent)
-            except (OSError, RuntimeError):
-                # Publication already succeeded. Leaving the exact task-owned backup
-                # is safer than reporting a failed write after replacing the bundle.
-                pass
+                _remove_created_directory(temporary, destination.parent)
+            except (OSError, RuntimeError) as cleanup_error:
+                if active_error is None:
+                    raise
+                active_error.add_note(f"temporary bundle cleanup also failed: {cleanup_error}")
+        if backup is not None and backup.exists():
+            previous_bundle = backup / destination.name
+            should_remove_backup = published or not previous_bundle.exists()
+            if should_remove_backup:
+                try:
+                    _remove_created_directory(backup, destination.parent)
+                except (OSError, RuntimeError) as cleanup_error:
+                    if active_error is None and not published:
+                        raise
+                    if active_error is not None:
+                        active_error.add_note(
+                            f"bundle backup cleanup also failed: {cleanup_error}"
+                        )
 
     return DesignBundle(
         root=destination,
@@ -122,11 +144,16 @@ def write_design_bundle(
 
 
 def _absolute_destination(output_dir: Path) -> Path:
+    current_directory = Path.cwd().resolve(strict=True)
+    if output_dir == Path("."):
+        raise ValueError("bundle destination must not be the current directory")
     requested = output_dir if output_dir.is_absolute() else Path.cwd() / output_dir
     parent = requested.parent.resolve(strict=False)
     if requested.name in {"", ".", ".."}:
         raise ValueError("bundle destination must name a directory")
     destination = parent / requested.name
+    if destination == current_directory:
+        raise ValueError("bundle destination must not be the current directory")
     if not destination.is_absolute() or destination.parent != parent:
         raise ValueError("bundle destination path is unsafe")
     return destination
@@ -199,10 +226,19 @@ def _validate_state(job: DomainArtworkJob, state: DesignState) -> None:
     domain_ids = {domain.id for domain in (*state.source_domains, *state.derived_domains)}
     if len(domain_ids) != len(state.source_domains) + len(state.derived_domains):
         raise ValueError("design state contains duplicate domain ids")
-    for result in state.results:
+    for design_pass, result in zip(job.passes, state.results, strict=True):
+        allowed_owners = {
+            *design_pass.target_domain_ids,
+            *(domain.id for domain in result.derived_domains),
+        }
         for path in result.paths:
             if path.domain_id not in domain_ids:
                 raise ValueError(f"design path references unknown domain: {path.domain_id}")
+            if path.domain_id not in allowed_owners:
+                raise ValueError(
+                    f"design path owner {path.domain_id!r} is not a target or derived "
+                    f"domain of producing pass {result.producing_pass_id!r}"
+                )
 
 
 def _validate_projections(
@@ -275,6 +311,7 @@ def _sha256(path: Path) -> str:
 def _verify_staged_bundle(
     root: Path,
     *,
+    expected_audit: dict[str, object],
     filenames: tuple[str, ...],
     surface_digests: tuple[str, ...],
     design_digest: str,
@@ -284,8 +321,45 @@ def _verify_staged_bundle(
     surfaces = root / "surfaces"
     if tuple(sorted(path.name for path in surfaces.iterdir())) != tuple(sorted(filenames)):
         raise RuntimeError("staged bundle has missing or unexpected surface files")
+    try:
+        staged_audit = json.loads((root / "design.json").read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise RuntimeError("malformed staged design.json") from exc
+    if not isinstance(staged_audit, dict):
+        raise RuntimeError("malformed staged design.json")
+
+    expected_design = expected_audit["design_svg"]
+    staged_design = staged_audit.get("design_svg")
+    if not isinstance(staged_design, dict) or staged_design.get("path") != "design.svg":
+        raise RuntimeError("staged audit design SVG path mismatch")
+    if staged_design.get("sha256") != expected_design["sha256"]:
+        raise RuntimeError("staged audit design SVG digest mismatch")
     if _sha256(root / "design.svg") != design_digest:
         raise RuntimeError("staged design SVG digest mismatch")
-    for filename, digest in zip(filenames, surface_digests, strict=True):
+
+    expected_surfaces = expected_audit["surfaces"]
+    staged_surfaces = staged_audit.get("surfaces")
+    if not isinstance(staged_surfaces, list) or not isinstance(expected_surfaces, list):
+        raise RuntimeError("staged audit surface entries mismatch")
+    expected_order = [entry["surface_id"] for entry in expected_surfaces]
+    staged_order = [
+        entry.get("surface_id") if isinstance(entry, dict) else None
+        for entry in staged_surfaces
+    ]
+    if staged_order != expected_order:
+        raise RuntimeError("staged audit surface entries are missing or out of order")
+    if len(staged_surfaces) != len(filenames):
+        raise RuntimeError("staged audit surface entries are missing or out of order")
+    for staged, expected, filename, digest in zip(
+        staged_surfaces, expected_surfaces, filenames, surface_digests, strict=True
+    ):
+        if not isinstance(staged, dict) or not isinstance(expected, dict):
+            raise RuntimeError("staged audit surface entries mismatch")
+        if staged.get("domain_id") != expected["domain_id"]:
+            raise RuntimeError("staged audit surface entries mismatch")
+        if staged.get("path") != f"surfaces/{filename}":
+            raise RuntimeError("staged audit surface path mismatch")
+        if staged.get("sha256") != digest:
+            raise RuntimeError("staged audit surface digest mismatch")
         if _sha256(surfaces / filename) != digest:
             raise RuntimeError(f"staged surface SVG digest mismatch: {filename}")

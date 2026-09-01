@@ -178,7 +178,6 @@ def canonical_design_to_svg(job: DomainArtworkJob, state: DesignState) -> str:
                         if path.coordinate_frame == "domain" and path.domain_id in transforms
                         else path.points
                     ),
-                    coordinate_frame="composition",
                 )
                 for path in result.paths
             ),
@@ -207,10 +206,51 @@ def canonical_design_to_svg(job: DomainArtworkJob, state: DesignState) -> str:
         up_anchor="edge:0",
         domains=canonical_domains,
     )
-    return serialize_design_result_svg(
+    return _serialize_canonical_results_svg(
         canvas=canvas,
         results=canonical_results,
         view_box=(min_x, min_y, max_x - min_x, max_y - min_y),
+    )
+
+
+def _serialize_canonical_results_svg(
+    *,
+    canvas: CanvasGeometry,
+    results: tuple[DesignResult, ...],
+    view_box: tuple[float, float, float, float],
+) -> str:
+    root_attributes = canvas_root_attributes(canvas)
+    root_attributes["viewBox"] = " ".join(_fmt(value) for value in view_box)
+    root = ET.Element(_tag("svg"), root_attributes)
+    clip_value = append_canvas_clip(root, canvas)
+    _append_domain_metadata(root, canvas)
+
+    current_layer_id: str | None = None
+    current_layer: ET.Element | None = None
+    for result in results:
+        for path in result.paths:
+            if path.layer_id != current_layer_id:
+                current_layer_id = path.layer_id
+                current_layer = ET.SubElement(
+                    root,
+                    _tag("g"),
+                    _logical_layer_attributes(path.layer_id, clip_value),
+                )
+            if current_layer is None:  # pragma: no cover - assigned above for every path
+                raise RuntimeError("canonical path is missing its logical layer")
+            ET.SubElement(
+                current_layer,
+                _tag("path"),
+                {
+                    "d": _vector_path_data(path),
+                    "data-viz-domain-id": path.domain_id,
+                    "data-viz-coordinate-frame": path.coordinate_frame,
+                    "data-viz-serialized-coordinate-frame": "composition",
+                },
+            )
+
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(
+        root, encoding="unicode", short_empty_elements=True
     )
 
 
