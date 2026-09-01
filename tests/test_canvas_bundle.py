@@ -169,6 +169,21 @@ def test_canonical_svg_applies_domain_transform_once_by_path_frame(
         "M 102 52 L 104 54",
         "M 21 2 L 23 4",
     ]
+    assert [path.attrib["data-viz-source-coordinate-frame"] for path in paths] == [
+        "domain",
+        "composition",
+        "domain",
+    ]
+    assert [path.attrib["data-viz-coordinate-frame"] for path in paths] == [
+        "composition",
+        "composition",
+        "domain",
+    ]
+    assert [path.attrib["data-viz-serialized-coordinate-frame"] for path in paths] == [
+        "composition",
+        "composition",
+        "domain",
+    ]
     metadata = json.loads(root.find("svg:metadata", NS).text)
     assert metadata["domains"][0]["vertices"] == [
         [100.0, 50.0],
@@ -209,7 +224,18 @@ def test_canonical_svg_preserves_interleaved_path_order_and_owner_frame_metadata
     )
     groups = root.findall("svg:g", NS)
 
-    assert [group.attrib["id"] for group in groups] == ["ink", "accent", "ink"]
+    assert [group.attrib["id"] for group in groups] == [
+        "ink",
+        "accent",
+        "ink--run-2",
+    ]
+    document_ids = [element.attrib["id"] for element in root.iter() if "id" in element.attrib]
+    assert len(set(document_ids)) == len(document_ids)
+    assert [group.attrib["data-viz-layer"] for group in groups] == [
+        "ink",
+        "accent",
+        "ink",
+    ]
     paths = [group.find("svg:path", NS) for group in groups]
     assert [path.attrib["d"] for path in paths] == [
         "M 102 52 L 104 54",
@@ -221,7 +247,7 @@ def test_canonical_svg_preserves_interleaved_path_order_and_owner_frame_metadata
         first.id,
         first.id,
     ]
-    assert [path.attrib["data-viz-coordinate-frame"] for path in paths] == [
+    assert [path.attrib["data-viz-source-coordinate-frame"] for path in paths] == [
         "domain",
         "composition",
         "domain",

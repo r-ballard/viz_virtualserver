@@ -209,6 +209,7 @@ def canonical_design_to_svg(job: DomainArtworkJob, state: DesignState) -> str:
     return _serialize_canonical_results_svg(
         canvas=canvas,
         results=canonical_results,
+        transformed_domain_ids=frozenset(transforms),
         view_box=(min_x, min_y, max_x - min_x, max_y - min_y),
     )
 
@@ -217,6 +218,7 @@ def _serialize_canonical_results_svg(
     *,
     canvas: CanvasGeometry,
     results: tuple[DesignResult, ...],
+    transformed_domain_ids: frozenset[str],
     view_box: tuple[float, float, float, float],
 ) -> str:
     root_attributes = canvas_root_attributes(canvas)
@@ -227,31 +229,65 @@ def _serialize_canonical_results_svg(
 
     current_layer_id: str | None = None
     current_layer: ET.Element | None = None
+    layer_run_counts: dict[str, int] = {}
+    used_group_ids = {CLIP_ID, "viz-domain-metadata"}
     for result in results:
         for path in result.paths:
             if path.layer_id != current_layer_id:
                 current_layer_id = path.layer_id
+                run_number = layer_run_counts.get(path.layer_id, 0) + 1
+                layer_run_counts[path.layer_id] = run_number
+                group_id = _unique_layer_run_id(
+                    path.layer_id,
+                    run_number=run_number,
+                    used_group_ids=used_group_ids,
+                )
+                attributes = _logical_layer_attributes(path.layer_id, clip_value)
+                attributes["id"] = group_id
                 current_layer = ET.SubElement(
                     root,
                     _tag("g"),
-                    _logical_layer_attributes(path.layer_id, clip_value),
+                    attributes,
                 )
             if current_layer is None:  # pragma: no cover - assigned above for every path
                 raise RuntimeError("canonical path is missing its logical layer")
+            source_frame = path.coordinate_frame
+            serialized_frame = (
+                "composition"
+                if source_frame == "composition" or path.domain_id in transformed_domain_ids
+                else "domain"
+            )
             ET.SubElement(
                 current_layer,
                 _tag("path"),
                 {
                     "d": _vector_path_data(path),
                     "data-viz-domain-id": path.domain_id,
-                    "data-viz-coordinate-frame": path.coordinate_frame,
-                    "data-viz-serialized-coordinate-frame": "composition",
+                    "data-viz-coordinate-frame": serialized_frame,
+                    "data-viz-source-coordinate-frame": source_frame,
+                    "data-viz-serialized-coordinate-frame": serialized_frame,
                 },
             )
 
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(
         root, encoding="unicode", short_empty_elements=True
     )
+
+
+def _unique_layer_run_id(
+    layer_id: str,
+    *,
+    run_number: int,
+    used_group_ids: set[str],
+) -> str:
+    base = layer_id if run_number == 1 else f"{layer_id}--run-{run_number}"
+    candidate = base
+    collision_number = 2
+    while candidate in used_group_ids:
+        candidate = f"{base}--{collision_number}"
+        collision_number += 1
+    used_group_ids.add(candidate)
+    return candidate
 
 
 def _transform_domain(
