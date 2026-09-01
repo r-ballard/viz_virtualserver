@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
-from shapely.geometry import GeometryCollection, LineString, MultiLineString, Point
+from shapely.geometry import GeometryCollection, LineString, MultiLineString
 
 from .design import DesignState, LogicalLayer, VectorPath
 from .frames import AffineTransform, resolve_composition_transforms
+from .geometry import EPSILON
 from .jobs import DomainArtworkJob
 from .models import Point as CanvasPoint
 from .models import PolygonDomain
@@ -147,20 +149,131 @@ def _clip_line_components(
     source = LineString(line_points)
     intersection = source.intersection(_polygon(domain))
     lines = _line_strings(intersection)
-    ordered = sorted(lines, key=lambda line: source.project(Point(line.coords[0])))
 
-    components: list[tuple[tuple[CanvasPoint, ...], bool]] = []
-    for line in ordered:
+    measured_components: list[tuple[float, tuple[CanvasPoint, ...], bool]] = []
+    for line in lines:
         coordinates = tuple((float(x), float(y)) for x, y in line.coords)
-        if source.project(Point(coordinates[0])) > source.project(Point(coordinates[-1])):
+        forward = _traversal_fit(
+            coordinates[0],
+            coordinates[-1],
+            float(line.length),
+            line_points,
+            closed=closed,
+        )
+        reverse = _traversal_fit(
+            coordinates[-1],
+            coordinates[0],
+            float(line.length),
+            line_points,
+            closed=closed,
+        )
+        if abs(forward[0] - reverse[0]) <= EPSILON:
+            forward_direction = _direction_error(coordinates, line_points)
+            reverse_direction = _direction_error(
+                tuple(reversed(coordinates)), line_points
+            )
+            reverse_component = reverse_direction < forward_direction
+        else:
+            reverse_component = reverse[0] < forward[0]
+        if reverse_component:
             coordinates = tuple(reversed(coordinates))
+            source_measure = reverse[1]
+        else:
+            source_measure = forward[1]
         component_closed = closed and coordinates[0] == coordinates[-1]
         if component_closed:
             coordinates = coordinates[:-1]
         minimum = 3 if component_closed else 2
         if len(coordinates) >= minimum:
-            components.append((coordinates, component_closed))
-    return tuple(components)
+            measured_components.append(
+                (source_measure, coordinates, component_closed)
+            )
+    measured_components.sort(key=lambda component: component[0])
+    return tuple(
+        (coordinates, component_closed)
+        for _, coordinates, component_closed in measured_components
+    )
+
+
+def _traversal_fit(
+    start: CanvasPoint,
+    end: CanvasPoint,
+    component_length: float,
+    source_points: tuple[CanvasPoint, ...],
+    *,
+    closed: bool,
+) -> tuple[float, float]:
+    positions, total_length = _source_positions((start, end), source_points)
+    candidates: list[tuple[float, float]] = []
+    for start_measure in positions[0]:
+        for end_measure in positions[1]:
+            distance = end_measure - start_measure
+            if closed:
+                distance %= total_length
+                if distance <= EPSILON and component_length > EPSILON:
+                    distance = total_length
+            candidates.append((abs(distance - component_length), start_measure))
+    if not candidates:
+        raise ValueError("clipped path component does not follow source path")
+    return min(candidates)
+
+
+def _source_positions(
+    points: tuple[CanvasPoint, CanvasPoint],
+    source_points: tuple[CanvasPoint, ...],
+) -> tuple[tuple[tuple[float, ...], tuple[float, ...]], float]:
+    positions: list[list[float]] = [[], []]
+    source_measure = 0.0
+    for segment_start, segment_end in zip(source_points, source_points[1:]):
+        segment_length = math.dist(segment_start, segment_end)
+        for index, point in enumerate(points):
+            parameter = _segment_parameter(point, segment_start, segment_end)
+            if parameter is not None:
+                positions[index].append(source_measure + parameter * segment_length)
+        source_measure += segment_length
+    if not all(positions):
+        raise ValueError("clipped path endpoint does not lie on source path")
+    return (tuple(positions[0]), tuple(positions[1])), source_measure
+
+
+def _direction_error(
+    coordinates: tuple[CanvasPoint, ...], source_points: tuple[CanvasPoint, ...]
+) -> float:
+    for start, end in zip(coordinates, coordinates[1:]):
+        edge_length = math.dist(start, end)
+        if edge_length <= EPSILON:
+            continue
+        midpoint = ((start[0] + end[0]) / 2.0, (start[1] + end[1]) / 2.0)
+        errors: list[float] = []
+        for segment_start, segment_end in zip(source_points, source_points[1:]):
+            if _segment_parameter(midpoint, segment_start, segment_end) is None:
+                continue
+            segment_length = math.dist(segment_start, segment_end)
+            dot = (
+                (end[0] - start[0]) * (segment_end[0] - segment_start[0])
+                + (end[1] - start[1]) * (segment_end[1] - segment_start[1])
+            ) / (edge_length * segment_length)
+            errors.append(1.0 - dot)
+        if errors:
+            return min(errors)
+    return math.inf
+
+
+def _segment_parameter(
+    point: CanvasPoint, start: CanvasPoint, end: CanvasPoint
+) -> float | None:
+    dx = end[0] - start[0]
+    dy = end[1] - start[1]
+    length_squared = dx * dx + dy * dy
+    if length_squared <= EPSILON * EPSILON:
+        return None
+    parameter = ((point[0] - start[0]) * dx + (point[1] - start[1]) * dy) / length_squared
+    if not -EPSILON <= parameter <= 1.0 + EPSILON:
+        return None
+    projected = (start[0] + parameter * dx, start[1] + parameter * dy)
+    if math.dist(point, projected) > EPSILON:
+        return None
+    return min(1.0, max(0.0, parameter))
 
 
 def _line_strings(geometry) -> tuple[LineString, ...]:

@@ -213,6 +213,41 @@ def test_projection_clips_crossing_path_into_concave_components_in_source_order(
     ]
 
 
+def test_projection_preserves_closed_path_direction_across_the_closing_seam() -> None:
+    domain = PolygonDomain("panel", ((0, 0), (10, 0), (10, 10), (0, 10)))
+    state = DesignState(
+        source_domains=(domain,),
+        results=(
+            DesignResult(
+                paths=(
+                    VectorPath(
+                        ((5, 5), (15, 5), (15, 15), (5, 15)),
+                        True,
+                        "ink",
+                        domain.id,
+                        "composition",
+                    ),
+                ),
+                derived_domains=(),
+                producing_pass_id="coordinated",
+            ),
+        ),
+    )
+
+    (projection,) = project_surfaces(
+        _job(
+            domains=(domain,),
+            transforms=(CompositionTransform(domain.id, AffineTransform.identity()),),
+        ),
+        state,
+    )
+
+    assert [path.points for path in projection.paths] == [
+        ((5.0, 5.0), (10.0, 5.0)),
+        ((5.0, 10.0), (5.0, 5.0)),
+    ]
+
+
 def test_projection_preserves_declared_layer_then_source_and_component_order() -> None:
     domain = PolygonDomain(
         "concave",
