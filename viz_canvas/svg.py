@@ -5,6 +5,7 @@ import xml.etree.ElementTree as ET
 
 from .design import DesignResult, VectorPath
 from .geometry import CanvasGeometry
+from .projection import SurfaceProjection
 
 SVG_NS = "http://www.w3.org/2000/svg"
 CLIP_ID = "viz-canvas-clip"
@@ -115,10 +116,7 @@ def serialize_design_result_svg(
 
     root = ET.Element(_tag("svg"), canvas_root_attributes(canvas))
     clip_value = append_canvas_clip(root, canvas)
-    metadata = ET.SubElement(root, _tag("metadata"), {"id": "viz-domain-metadata"})
-    metadata.text = json.dumps(
-        build_domain_metadata_payload(canvas), separators=(",", ":"), sort_keys=False
-    )
+    _append_domain_metadata(root, canvas)
 
     layers: dict[str, ET.Element] = {}
     for result in results:
@@ -146,6 +144,66 @@ def serialize_design_result_svg(
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(
         root, encoding="unicode", short_empty_elements=True
     )
+
+
+def surface_projection_to_svg(projection: SurfaceProjection) -> str:
+    """Serialize one rebased surface projection as an intrinsic polygon SVG."""
+
+    min_x, min_y, max_x, max_y = projection.bounds
+    canvas = CanvasGeometry(
+        shape="polygon",
+        width=max_x - min_x,
+        height=max_y - min_y,
+        polygon=projection.domain.vertices,
+        up_anchor=projection.up_anchor,
+        domains=(projection.domain,),
+    )
+    root = ET.Element(_tag("svg"), canvas_root_attributes(canvas))
+    clip_value = append_canvas_clip(root, canvas)
+    _append_domain_metadata(root, canvas)
+
+    layer_ids = [layer.id for layer in projection.layers]
+    known = set(layer_ids)
+    for path in projection.paths:
+        if path.layer_id not in known:
+            known.add(path.layer_id)
+            layer_ids.append(path.layer_id)
+    for layer_id in layer_ids:
+        paths = tuple(path for path in projection.paths if path.layer_id == layer_id)
+        if not paths:
+            continue
+        layer = ET.SubElement(
+            root,
+            _tag("g"),
+            _logical_layer_attributes(layer_id, clip_value),
+        )
+        for path in paths:
+            ET.SubElement(layer, _tag("path"), {"d": _vector_path_data(path)})
+
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(
+        root, encoding="unicode", short_empty_elements=True
+    )
+
+
+def _append_domain_metadata(root: ET.Element, canvas: CanvasGeometry) -> None:
+    metadata = ET.SubElement(root, _tag("metadata"), {"id": "viz-domain-metadata"})
+    metadata.text = json.dumps(
+        build_domain_metadata_payload(canvas), separators=(",", ":"), sort_keys=False
+    )
+
+
+def _logical_layer_attributes(layer_id: str, clip_value: str) -> dict[str, str]:
+    return {
+        "id": layer_id,
+        "data-viz-role": "logical-layer",
+        "data-viz-layer": layer_id,
+        "clip-path": clip_value,
+        "fill": "none",
+        "stroke": "#000000",
+        "stroke-width": "1",
+        "stroke-linecap": "round",
+        "stroke-linejoin": "round",
+    }
 
 
 def canvas_path_data(canvas: CanvasGeometry) -> str:

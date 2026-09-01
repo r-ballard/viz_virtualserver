@@ -3,15 +3,18 @@ import xml.etree.ElementTree as ET
 
 import pytest
 
-from viz_canvas.design import DesignResult, VectorPath
+from viz_canvas.design import DesignResult, LogicalLayer, VectorPath
 from viz_canvas.geometry import CanvasGeometry, build_canvas
 from viz_canvas.models import CanvasSpec, DomainProvenance, PolygonDomain
+from viz_canvas.projection import SurfaceProjection
+from viz_canvas.semantics import PolygonSurface
 from viz_canvas.svg import (
     CLIP_ID,
     SVG_NS,
     build_domain_metadata_payload,
     canvas_to_svg,
     serialize_design_result_svg,
+    surface_projection_to_svg,
 )
 
 NS = {"svg": SVG_NS}
@@ -250,3 +253,55 @@ def test_design_serializer_supports_empty_domains_and_results() -> None:
     assert metadata is not None
     assert metadata.text == '{"schema":"viz-domain/v1","domains":[]}'
     assert root.findall("svg:g", NS) == []
+
+
+def test_empty_surface_still_serializes_intrinsic_polygon_metadata() -> None:
+    domain = PolygonDomain("panel", ((0, 0), (8, 0), (4, 5)))
+    projection = SurfaceProjection(
+        surface=PolygonSurface("front", domain.id),
+        domain=domain,
+        paths=(),
+        layers=(),
+        bounds=(0, 0, 8, 5),
+        up_anchor="edge:0",
+    )
+
+    root = ET.fromstring(surface_projection_to_svg(projection))
+
+    assert root.attrib["viewBox"] == "0 0 8 5"
+    assert root.attrib["data-viz-canvas-polygon"] == "0,0 8,0 4,5"
+    assert root.attrib["data-viz-canvas-up-anchor"] == "edge:0"
+    assert root.attrib["data-viz-canvas-up-vector"] == "0,-1"
+    assert root.findall("svg:g", NS) == []
+
+
+def test_surface_svg_uses_declared_logical_layers_without_structural_artwork() -> None:
+    domain = PolygonDomain("panel", ((0, 0), (8, 0), (4, 5)))
+    projection = SurfaceProjection(
+        surface=PolygonSurface("front", domain.id),
+        domain=domain,
+        paths=(
+            VectorPath(((0, 1), (2, 1)), False, "ink", domain.id),
+            VectorPath(((0, 2), (2, 2)), False, "underlay", domain.id),
+            VectorPath(((0, 3), (2, 3)), False, "ink", domain.id),
+        ),
+        layers=(LogicalLayer("underlay"), LogicalLayer("ink")),
+        bounds=(0, 0, 8, 5),
+        up_anchor="edge:0",
+    )
+
+    root = ET.fromstring(surface_projection_to_svg(projection))
+    groups = root.findall("svg:g", NS)
+
+    assert [group.attrib["id"] for group in groups] == ["underlay", "ink"]
+    assert all(group.attrib["data-viz-role"] == "logical-layer" for group in groups)
+    assert all(not group.attrib["id"].startswith("pen-") for group in groups)
+    assert [path.attrib["d"] for path in groups[0].findall("svg:path", NS)] == [
+        "M 0 2 L 2 2"
+    ]
+    assert [path.attrib["d"] for path in groups[1].findall("svg:path", NS)] == [
+        "M 0 1 L 2 1",
+        "M 0 3 L 2 3",
+    ]
+    assert root.find("svg:g[@data-viz-role='canvas-guide']", NS) is None
+    assert root.findall("svg:path", NS) == []

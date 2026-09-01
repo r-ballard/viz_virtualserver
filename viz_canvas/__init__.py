@@ -31,6 +31,7 @@ from .geometry import (
 from .job_io import load_domain_artwork_job, read_domain_artwork_job
 from .jobs import DomainArtworkJob, derive_domain_seed
 from .models import CanvasSpec, DomainProvenance, Edge, Point, PolygonDomain
+from .projection import SurfaceProjection, project_surfaces
 from .runner import AlgorithmContext, run_domain_artwork_job
 from .semantics import (
     DomainRef,
@@ -70,6 +71,7 @@ __all__ = [
     "PolygonSurface",
     "RelationEndpoint",
     "RelationType",
+    "SurfaceProjection",
     "VectorPath",
     "build_canvas",
     "execute_design_pass",
@@ -81,6 +83,7 @@ __all__ = [
     "polygon_edges",
     "polygon_signed_area",
     "polygon_winding",
+    "project_surfaces",
     "resolve_composition_transforms",
     "read_domain_artwork_job",
     "run_domain_artwork_job",
