@@ -3,10 +3,13 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Literal, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol
 
 from .geometry import CanvasGeometry as IntrinsicCanvas
 from .models import Point, PolygonDomain
+
+if TYPE_CHECKING:
+    from .runner import AlgorithmContext
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,6 +105,7 @@ class DomainAlgorithm(Protocol):
         canvas: IntrinsicCanvas,
         domains: tuple[PolygonDomain, ...],
         design_pass: DesignPass,
+        context: AlgorithmContext,
     ) -> DesignResult: ...
 
 
@@ -176,6 +180,7 @@ def execute_design_pass(
     state: DesignState,
     design_pass: DesignPass,
     algorithms: Mapping[str, DomainAlgorithm],
+    context: AlgorithmContext | None = None,
 ) -> DesignState:
     algorithm = algorithms.get(design_pass.algorithm)
     if algorithm is None:
@@ -189,7 +194,24 @@ def execute_design_pass(
         if concave:
             raise ValueError(f"algorithm does not support concave domains: {concave}")
 
-    result = algorithm.generate(canvas=canvas, domains=domains, design_pass=design_pass)
+    if context is None:
+        from .runner import AlgorithmContext
+
+        context = AlgorithmContext(
+            job_seed=0,
+            pass_seed=0,
+            domain_seeds={domain.id: 0 for domain in domains},
+            surfaces=(),
+            groups=(),
+            relations=(),
+            composition_transforms={},
+        )
+    result = algorithm.generate(
+        canvas=canvas,
+        domains=domains,
+        design_pass=design_pass,
+        context=context,
+    )
     if result.producing_pass_id != design_pass.id:
         raise ValueError("result pass id does not match design pass")
 

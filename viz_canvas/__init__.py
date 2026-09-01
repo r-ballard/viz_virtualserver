@@ -31,6 +31,7 @@ from .geometry import (
 from .job_io import load_domain_artwork_job, read_domain_artwork_job
 from .jobs import DomainArtworkJob, derive_domain_seed
 from .models import CanvasSpec, DomainProvenance, Edge, Point, PolygonDomain
+from .runner import AlgorithmContext, run_domain_artwork_job
 from .semantics import (
     DomainRef,
     DomainRelation,
@@ -44,6 +45,7 @@ from .semantics import (
 )
 
 __all__ = [
+    "AlgorithmContext",
     "AlgorithmCapabilities",
     "AffineTransform",
     "CanvasError",
@@ -81,6 +83,7 @@ __all__ = [
     "polygon_winding",
     "resolve_composition_transforms",
     "read_domain_artwork_job",
+    "run_domain_artwork_job",
     "validate_simple_polygon",
     "validate_semantics",
     "validate_pass_graph",

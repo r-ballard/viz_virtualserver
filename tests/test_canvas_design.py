@@ -53,7 +53,8 @@ class RecordingAlgorithm:
         self.result = result
         self.calls = []
 
-    def generate(self, *, canvas, domains, design_pass):
+    def generate(self, *, canvas, domains, design_pass, context):
+        del context
         self.calls.append((canvas, domains, design_pass))
         return self.result or DesignResult((), (), design_pass.id)
 
@@ -62,8 +63,8 @@ class DomainAttributionAlgorithm:
     name = "attribute"
     capabilities = AlgorithmCapabilities()
 
-    def generate(self, *, canvas, domains, design_pass):
-        del canvas
+    def generate(self, *, canvas, domains, design_pass, context):
+        del canvas, context
         return DesignResult(
             paths=tuple(
                 VectorPath(

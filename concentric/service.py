@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import random
+from typing import TYPE_CHECKING
 
 from viz_canvas.design import (
     AlgorithmCapabilities,
@@ -13,6 +14,9 @@ from viz_canvas.geometry import CanvasGeometry, build_canvas
 from viz_canvas.models import PolygonDomain
 
 from .models import ConcentricPointsRequest
+
+if TYPE_CHECKING:
+    from viz_canvas.runner import AlgorithmContext
 
 Point = tuple[float, float]
 _CIRCLE_PATH_SEGMENTS = 64
@@ -106,11 +110,13 @@ class ConcentricDomainAlgorithm:
         canvas: CanvasGeometry,
         domains: tuple[PolygonDomain, ...],
         design_pass: DesignPass,
+        context: AlgorithmContext,
     ) -> DesignResult:
         return generate_concentric_design_result(
             canvas=canvas,
             domains=domains,
             design_pass=design_pass,
+            context=context,
         )
 
 
@@ -119,6 +125,7 @@ def generate_concentric_design_result(
     canvas: CanvasGeometry,
     domains: tuple[PolygonDomain, ...],
     design_pass: DesignPass,
+    context: AlgorithmContext,
 ) -> DesignResult:
     """Generate neutral closed vector paths for ordered polygon-domain targets."""
 
@@ -127,7 +134,7 @@ def generate_concentric_design_result(
 
     request_parameters = dict(design_pass.parameters)
     request_parameters.pop("canvas", None)
-    request = ConcentricPointsRequest(
+    request_template = ConcentricPointsRequest(
         canvas={"shape": "rectangle", "width": canvas.width, "height": canvas.height},
         **request_parameters,
     )
@@ -135,6 +142,9 @@ def generate_concentric_design_result(
     paths: list[VectorPath] = []
 
     for domain in domains:
+        request = request_template.model_copy(
+            update={"seed": context.domain_seeds[domain.id]}
+        )
         domain_canvas = CanvasGeometry(
             shape="polygon",
             width=canvas.width,

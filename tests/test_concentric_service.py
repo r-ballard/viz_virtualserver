@@ -13,6 +13,7 @@ from concentric.service import (
 from viz_canvas.design import DesignPass, DesignResult, LogicalLayer
 from viz_canvas.geometry import CanvasGeometry, build_canvas
 from viz_canvas.models import PolygonDomain
+from viz_canvas.runner import AlgorithmContext
 
 
 def _triangle_request(**overrides) -> ConcentricPointsRequest:
@@ -147,6 +148,21 @@ def _domain_canvas(domain: PolygonDomain) -> CanvasGeometry:
     )
 
 
+def _algorithm_context(
+    design_pass: DesignPass, domains: tuple[PolygonDomain, ...]
+) -> AlgorithmContext:
+    seed = int(design_pass.parameters.get("seed", 0))
+    return AlgorithmContext(
+        job_seed=seed,
+        pass_seed=seed,
+        domain_seeds={domain.id: seed for domain in domains},
+        surfaces=(),
+        groups=(),
+        relations=(),
+        composition_transforms={},
+    )
+
+
 def test_concentric_domain_algorithm_returns_design_result() -> None:
     domain = PolygonDomain(
         id="target",
@@ -165,6 +181,7 @@ def test_concentric_domain_algorithm_returns_design_result() -> None:
         canvas=canvas,
         domains=(domain,),
         design_pass=design_pass,
+        context=_algorithm_context(design_pass, (domain,)),
     )
 
     assert isinstance(result, DesignResult)
@@ -199,6 +216,7 @@ def test_concentric_result_is_returned_in_canvas_coordinates() -> None:
         canvas=canvas,
         domains=(domain,),
         design_pass=design_pass,
+        context=_algorithm_context(design_pass, (domain,)),
     )
 
     assert result.paths
@@ -229,6 +247,7 @@ def test_concentric_adapter_requires_one_logical_layer() -> None:
             canvas=canvas,
             domains=(domain,),
             design_pass=design_pass,
+            context=_algorithm_context(design_pass, (domain,)),
         )
 
 
@@ -269,6 +288,7 @@ def test_concentric_adapter_accepts_full_request_parameters_in_domain_order() ->
         canvas=canvas,
         domains=(first, second),
         design_pass=design_pass,
+        context=_algorithm_context(design_pass, (first, second)),
     )
 
     assert len(result.paths) == 2
@@ -327,11 +347,13 @@ def test_concentric_adapter_is_deterministic_neutral_and_does_not_mutate_paramet
         canvas=canvas,
         domains=(first, second),
         design_pass=design_pass,
+        context=_algorithm_context(design_pass, (first, second)),
     )
     second_result = algorithm.generate(
         canvas=canvas,
         domains=(first, second),
         design_pass=design_pass,
+        context=_algorithm_context(design_pass, (first, second)),
     )
 
     assert first_result == second_result
@@ -389,6 +411,68 @@ def test_concentric_adapter_is_deterministic_neutral_and_does_not_mutate_paramet
         assert _domain_canvas(second).contains(path_center)
 
 
+def test_concentric_adapter_uses_each_context_domain_seed() -> None:
+    first = PolygonDomain(
+        id="first",
+        vertices=((0.0, 0.0), (100.0, 0.0), (50.0, 80.0)),
+    )
+    second = PolygonDomain(
+        id="second",
+        vertices=first.vertices,
+    )
+    canvas = CanvasGeometry(
+        shape="rectangle",
+        width=100.0,
+        height=80.0,
+        polygon=((0.0, 0.0), (100.0, 0.0), (100.0, 80.0), (0.0, 80.0)),
+        up_anchor="edge:0",
+        domains=(first, second),
+    )
+    parameters = _design_parameters(
+        seed=999,
+        point_count=1,
+        ring_count=1,
+        boundary_mode="inscribed",
+    )
+    parameters_before = deepcopy(parameters)
+    design_pass = DesignPass(
+        id="seeded",
+        algorithm="concentric",
+        target_domain_ids=("first", "second"),
+        parameters=parameters,
+        logical_layers=(LogicalLayer("artwork"),),
+    )
+    context = AlgorithmContext(
+        job_seed=5,
+        pass_seed=7,
+        domain_seeds={"first": 11, "second": 22},
+        surfaces=(),
+        groups=(),
+        relations=(),
+        composition_transforms={},
+    )
+
+    result = ConcentricDomainAlgorithm().generate(
+        canvas=canvas,
+        domains=(first, second),
+        design_pass=design_pass,
+        context=context,
+    )
+
+    first_center = tuple(
+        sum(point[axis] for point in result.paths[0].points)
+        / len(result.paths[0].points)
+        for axis in (0, 1)
+    )
+    second_center = tuple(
+        sum(point[axis] for point in result.paths[1].points)
+        / len(result.paths[1].points)
+        for axis in (0, 1)
+    )
+    assert first_center != pytest.approx(second_center)
+    assert dict(design_pass.parameters) == parameters_before
+
+
 def test_concentric_adapter_does_not_merge_or_dedupe_overlapping_domain_batches() -> None:
     first = PolygonDomain(
         "first", ((0.0, 0.0), (60.0, 0.0), (60.0, 60.0), (0.0, 60.0))
@@ -421,7 +505,10 @@ def test_concentric_adapter_does_not_merge_or_dedupe_overlapping_domain_batches(
     algorithm = ConcentricDomainAlgorithm()
 
     combined = algorithm.generate(
-        canvas=canvas, domains=(first, second), design_pass=design_pass
+        canvas=canvas,
+        domains=(first, second),
+        design_pass=design_pass,
+        context=_algorithm_context(design_pass, (first, second)),
     )
     assert len(combined.paths) == 4
     path_centers = [
