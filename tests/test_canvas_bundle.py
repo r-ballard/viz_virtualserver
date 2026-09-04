@@ -391,6 +391,21 @@ def test_replacing_existing_bundle_cleans_backup_wrapper(tmp_path: Path) -> None
     assert _bundle_work_directories(tmp_path) == []
 
 
+def test_no_overwrite_policy_preserves_existing_bundle(tmp_path: Path) -> None:
+    job, state = _job()
+    destination = tmp_path / "bundle"
+    destination.mkdir()
+    sentinel = destination / "keep.txt"
+    sentinel.write_text("original", encoding="utf-8")
+
+    with pytest.raises(FileExistsError, match="already exists"):
+        write_design_bundle(job, state, destination, overwrite=False)
+
+    assert sentinel.read_text(encoding="utf-8") == "original"
+    assert tuple(destination.iterdir()) == (sentinel,)
+    assert _bundle_work_directories(tmp_path) == []
+
+
 def test_bundle_rejects_state_from_another_job_before_publication(tmp_path: Path) -> None:
     job, state = _job()
     other = PolygonDomain("other", ((0, 0), (5, 0), (0, 5)))

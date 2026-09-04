@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
+
+import scripts.generate_domain_bundle as cli_module
+import viz_canvas.bundle as bundle_module
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "generate_domain_bundle.py"
@@ -41,6 +47,14 @@ def _run_cli(
         text=True,
         check=False,
     )
+
+
+def _normalized_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8").replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def test_example_declares_twenty_placement_free_semantic_surfaces() -> None:
@@ -146,6 +160,35 @@ def test_cli_refuses_existing_destination_without_overwrite(tmp_path: Path) -> N
     assert tuple(output_dir.iterdir()) == (sentinel,)
 
 
+def test_cli_refuses_destination_created_after_precheck_before_publication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output_dir = tmp_path / "cootie"
+    sentinel = output_dir / "keep.txt"
+    original_verify = bundle_module._verify_staged_bundle
+
+    def verify_then_create_destination(*args: object, **kwargs: object) -> None:
+        original_verify(*args, **kwargs)  # type: ignore[arg-type]
+        output_dir.mkdir()
+        sentinel.write_text("racing writer", encoding="utf-8")
+
+    monkeypatch.setattr(
+        bundle_module,
+        "_verify_staged_bundle",
+        verify_then_create_destination,
+    )
+
+    with pytest.raises(SystemExit) as error:
+        cli_module.main([str(EXAMPLE), "--output-dir", str(output_dir)])
+
+    assert error.value.code == 2
+    assert "already exists" in capsys.readouterr().err
+    assert sentinel.read_text(encoding="utf-8") == "racing writer"
+    assert tuple(output_dir.iterdir()) == (sentinel,)
+
+
 def test_cli_overwrite_atomically_replaces_existing_destination(tmp_path: Path) -> None:
     output_dir = tmp_path / "cootie"
     output_dir.mkdir()
@@ -175,3 +218,43 @@ def test_cli_rejects_an_unregistered_algorithm_without_publishing(tmp_path: Path
     assert result.returncode != 0
     assert "unknown algorithm: not-registered" in result.stderr
     assert not output_dir.exists()
+
+
+def test_cli_regeneration_is_deterministic_for_all_twenty_surfaces(
+    tmp_path: Path,
+) -> None:
+    first_root = tmp_path / "first"
+    second_root = tmp_path / "second"
+
+    first_result = _run_cli(first_root)
+    second_result = _run_cli(second_root)
+
+    assert first_result.returncode == 0, first_result.stderr
+    assert second_result.returncode == 0, second_result.stderr
+    assert _normalized_text(first_root / "design.json") == _normalized_text(
+        second_root / "design.json"
+    )
+    assert _normalized_text(first_root / "design.svg") == _normalized_text(
+        second_root / "design.svg"
+    )
+
+    first_audit = json.loads((first_root / "design.json").read_text(encoding="utf-8"))
+    second_audit = json.loads((second_root / "design.json").read_text(encoding="utf-8"))
+    first_surfaces = first_audit["surfaces"]
+    second_surfaces = second_audit["surfaces"]
+    assert [entry["surface_id"] for entry in first_surfaces] == SEMANTIC_IDS
+    assert [entry["surface_id"] for entry in second_surfaces] == SEMANTIC_IDS
+
+    first_audit_digests = [entry["sha256"] for entry in first_surfaces]
+    second_audit_digests = [entry["sha256"] for entry in second_surfaces]
+    assert len(first_audit_digests) == 20
+    assert first_audit_digests == second_audit_digests
+
+    first_actual_digests = [
+        _sha256(first_root / entry["path"]) for entry in first_surfaces
+    ]
+    second_actual_digests = [
+        _sha256(second_root / entry["path"]) for entry in second_surfaces
+    ]
+    assert first_actual_digests == first_audit_digests
+    assert second_actual_digests == second_audit_digests

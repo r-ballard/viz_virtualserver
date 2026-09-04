@@ -39,9 +39,17 @@ class DesignBundle:
 
 
 def write_design_bundle(
-    job: DomainArtworkJob, state: DesignState, output_dir: Path
+    job: DomainArtworkJob,
+    state: DesignState,
+    output_dir: Path,
+    *,
+    overwrite: bool = True,
 ) -> DesignBundle:
-    """Validate, render, and atomically publish a complete design bundle."""
+    """Validate, render, and atomically publish a complete design bundle.
+
+    Existing callers retain replacement behavior by default. Set ``overwrite=False``
+    to enforce no-clobber publication after staging and verification.
+    """
 
     destination = _absolute_destination(Path(output_dir))
     if destination.is_symlink() or destination.is_junction():
@@ -92,13 +100,22 @@ def write_design_bundle(
             design_digest=design_digest,
         )
 
+        if destination.is_symlink() or destination.is_junction():
+            raise ValueError("bundle destination must not be a link or junction")
+        if destination.exists() and not destination.is_dir():
+            raise ValueError("bundle destination must be a directory")
+        if destination.exists() and not overwrite:
+            raise FileExistsError(f"bundle destination already exists: {destination}")
         if destination.exists():
             backup = _make_sibling_directory(
                 destination, prefix=f".{destination.name}-backup-"
             )
             destination.replace(backup / destination.name)
         try:
-            temporary.replace(destination)
+            if overwrite:
+                temporary.replace(destination)
+            else:
+                temporary.rename(destination)
         except BaseException as publication_error:
             if backup is not None:
                 previous_bundle = backup / destination.name
