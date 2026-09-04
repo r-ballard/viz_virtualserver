@@ -241,6 +241,44 @@ plotter-workflow
 
 `plotter-workflow` should not need to invent triangle-aware generative behavior. It consumes a vector file whose logical domain and orientation are already explicit.
 
+### Generate the placement-free twenty-surface bundle
+
+From the `viz_virtualserver` repository root in Git Bash, generate the example bundle with:
+
+```bash
+uv run python scripts/generate_domain_bundle.py \
+  examples/domain-jobs/cootie-catcher.json \
+  --output-dir output/cootie-design-bundle
+```
+
+The command refuses to replace an existing destination. Regenerate it intentionally with:
+
+```bash
+uv run python scripts/generate_domain_bundle.py \
+  examples/domain-jobs/cootie-catcher.json \
+  --output-dir output/cootie-design-bundle \
+  --overwrite
+```
+
+The command prints the canonical `design.json`, `design.svg`, and `surfaces/` locations. The
+example declares, in order, `outer-1..4`, `selector-1..8`, and `reveal-1..8`. Every surface is
+generated independently in its own local square or triangle coordinates. The job contains no
+sheet dimensions, slot polygons, physical rotations, pen assignments, HP-GL, or transport data.
+
+The resulting surface SVGs are inputs to—not replacements for—the existing cootie-catcher
+imposition. In `plotter-workflow`, author a separate `cootie.json` placement manifest using that
+workflow's existing schema and map each semantic slot to the matching generated projection, for
+example:
+
+```json
+{"slot": "selector-1", "source": "../viz_virtualserver/output/cootie-design-bundle/surfaces/selector-1.svg"}
+```
+
+Repeat that mapping for all twenty semantic slots. Then run the existing `cootie_impose.py`
+workflow against `cootie.json`; it remains responsible for the physical sheet, slot geometry,
+fit, rotation, clipping, and pen planning. Do not copy those placement fields into
+`examples/domain-jobs/cootie-catcher.json`.
+
 ## Repository boundaries
 
 `viz_canvas` owns the generic immutable polygon, semantic-reference, pass-execution, and neutral SVG contracts. Algorithms consume those contracts through adapters and declare their geometry capabilities. HTTP request models and legacy endpoint wrappers remain outside that generic core so existing clients can retain their established API and SVG behavior.
