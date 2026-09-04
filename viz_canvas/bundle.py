@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import ctypes
+import errno
 import hashlib
 import json
+import os
 import re
 import shutil
 import sys
@@ -17,6 +20,8 @@ from .projection import SurfaceProjection, project_surfaces
 from .svg import canonical_design_to_svg, surface_projection_to_svg
 
 _UNSAFE_FILENAME_RUN = re.compile(r"[^a-z0-9._-]+")
+_AT_FDCWD = -100
+_RENAME_NOREPLACE = 1
 _WINDOWS_DEVICE_NAMES = {
     "aux",
     "clock$",
@@ -115,7 +120,7 @@ def write_design_bundle(
             if overwrite:
                 temporary.replace(destination)
             else:
-                temporary.rename(destination)
+                _rename_directory_no_replace(temporary, destination)
         except BaseException as publication_error:
             if backup is not None:
                 previous_bundle = backup / destination.name
@@ -158,6 +163,65 @@ def write_design_bundle(
         design_svg_path=destination / "design.svg",
         surface_paths=tuple(destination / "surfaces" / name for name in filenames),
     )
+
+
+def _rename_directory_no_replace(source: Path, destination: Path) -> None:
+    """Atomically rename a directory while refusing an existing destination."""
+
+    if sys.platform == "win32":
+        try:
+            source.rename(destination)
+        except OSError as error:
+            if destination.exists() or destination.is_symlink():
+                raise FileExistsError(
+                    f"bundle destination already exists: {destination}"
+                ) from error
+            raise
+        return
+
+    if sys.platform.startswith("linux"):
+        _linux_rename_directory_no_replace(source, destination)
+        return
+
+    raise RuntimeError(
+        f"atomic no-replace directory publication is unsupported on {sys.platform}"
+    )
+
+
+def _linux_rename_directory_no_replace(source: Path, destination: Path) -> None:
+    try:
+        renameat2 = ctypes.CDLL(None, use_errno=True).renameat2
+    except AttributeError as error:
+        raise RuntimeError(
+            "atomic no-replace directory publication is unavailable on Linux"
+        ) from error
+
+    renameat2.argtypes = (
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_int,
+        ctypes.c_char_p,
+        ctypes.c_uint,
+    )
+    renameat2.restype = ctypes.c_int
+    result = renameat2(
+        _AT_FDCWD,
+        os.fsencode(source),
+        _AT_FDCWD,
+        os.fsencode(destination),
+        _RENAME_NOREPLACE,
+    )
+    if result == 0:
+        return
+
+    error_number = ctypes.get_errno()
+    if error_number in {errno.EEXIST, errno.ENOTEMPTY}:
+        raise FileExistsError(f"bundle destination already exists: {destination}")
+    if error_number in {errno.ENOSYS, errno.EINVAL}:
+        raise RuntimeError(
+            "atomic no-replace directory publication is unavailable on Linux"
+        )
+    raise OSError(error_number, os.strerror(error_number), destination)
 
 
 def _absolute_destination(output_dir: Path) -> Path:

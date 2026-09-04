@@ -406,6 +406,53 @@ def test_no_overwrite_policy_preserves_existing_bundle(tmp_path: Path) -> None:
     assert _bundle_work_directories(tmp_path) == []
 
 
+def test_no_overwrite_atomically_preserves_destination_created_at_rename_boundary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    job, state = _job()
+    destination = tmp_path / "bundle"
+
+    def fallback(source: Path, target: Path) -> Path:
+        return source.rename(target)
+
+    no_replace = getattr(bundle_module, "_rename_directory_no_replace", fallback)
+
+    def create_competitor_then_rename(source: Path, target: Path) -> None:
+        destination.mkdir()
+        no_replace(source, target)
+
+    monkeypatch.setattr(
+        bundle_module,
+        "_rename_directory_no_replace",
+        create_competitor_then_rename,
+        raising=False,
+    )
+
+    with pytest.raises(FileExistsError, match="already exists"):
+        write_design_bundle(job, state, destination, overwrite=False)
+
+    assert destination.is_dir()
+    assert tuple(destination.iterdir()) == ()
+    assert _bundle_work_directories(tmp_path) == []
+
+
+def test_no_replace_fails_safely_on_unsupported_platform(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    sentinel = source / "keep.txt"
+    sentinel.write_text("staged", encoding="utf-8")
+    destination = tmp_path / "destination"
+    monkeypatch.setattr(bundle_module.sys, "platform", "unsupported-os")
+
+    with pytest.raises(RuntimeError, match="atomic no-replace.*unsupported"):
+        bundle_module._rename_directory_no_replace(source, destination)
+
+    assert sentinel.read_text(encoding="utf-8") == "staged"
+    assert not destination.exists()
+
+
 def test_bundle_rejects_state_from_another_job_before_publication(tmp_path: Path) -> None:
     job, state = _job()
     other = PolygonDomain("other", ((0, 0), (5, 0), (0, 5)))
