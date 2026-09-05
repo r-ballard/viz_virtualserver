@@ -877,6 +877,78 @@ def test_bundle_rejects_coordinated_pass_targeting_prior_derived_domain(
     assert not destination.exists()
 
 
+def test_bundle_rejects_coordinated_pass_targeting_later_derived_domain(
+    tmp_path: Path,
+) -> None:
+    job, _ = _job()
+    first = job.domains[0]
+    passes = (
+        DesignPass(
+            "join",
+            "fixture",
+            ("future",),
+            parameters={"coordinate_frame": "composition"},
+        ),
+        DesignPass("derive", "fixture", (first.id,)),
+    )
+    coordinated_job = dataclasses.replace(job, passes=passes)
+    future = PolygonDomain(
+        "future",
+        first.vertices,
+        DomainProvenance((first.id,), "derive", "copy"),
+    )
+    state = DesignState(
+        source_domains=job.domains,
+        derived_domains=(future,),
+        results=(
+            DesignResult(
+                (
+                    VectorPath(
+                        ((1, 2), (3, 4)),
+                        False,
+                        "ink",
+                        future.id,
+                        "composition",
+                    ),
+                ),
+                (),
+                "join",
+            ),
+            DesignResult((), (future,), "derive"),
+        ),
+    )
+    destination = tmp_path / "bundle"
+
+    with pytest.raises(
+        ValueError,
+        match="design pass join targets unavailable domain: future",
+    ):
+        write_design_bundle(coordinated_job, state, destination)
+
+    assert not destination.exists()
+
+
+def test_bundle_rejects_unknown_target_with_empty_result(tmp_path: Path) -> None:
+    job, _ = _job()
+    invalid_job = dataclasses.replace(
+        job,
+        passes=(DesignPass("draw", "fixture", ("missing",)),),
+    )
+    state = DesignState(
+        source_domains=job.domains,
+        results=(DesignResult((), (), "draw"),),
+    )
+    destination = tmp_path / "bundle"
+
+    with pytest.raises(
+        ValueError,
+        match="design pass draw targets unavailable domain: missing",
+    ):
+        write_design_bundle(invalid_job, state, destination)
+
+    assert not destination.exists()
+
+
 def test_bundle_rejects_coordinated_path_owned_by_new_derived_domain(
     tmp_path: Path,
 ) -> None:

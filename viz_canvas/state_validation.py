@@ -27,8 +27,16 @@ def validate_completed_design_state(
     if len(domain_ids) != len(state.source_domains) + len(state.derived_domains):
         raise ValueError("design state contains duplicate domain ids")
 
+    available_domain_ids = {domain.id for domain in state.source_domains}
     prior_derived_ids: set[str] = set()
     for design_pass, result in zip(job.passes, state.results, strict=True):
+        for domain_id in design_pass.target_domain_ids:
+            if domain_id not in available_domain_ids:
+                raise ValueError(
+                    f"design pass {design_pass.id} targets unavailable domain: "
+                    f"{domain_id}"
+                )
+
         coordinated = _is_coordinated(design_pass)
         if coordinated:
             for domain_id in design_pass.target_domain_ids:
@@ -74,6 +82,7 @@ def validate_completed_design_state(
                 )
 
         prior_derived_ids.update(new_derived_ids)
+        available_domain_ids.update(new_derived_ids)
 
 
 def _is_coordinated(design_pass: DesignPass) -> bool:
