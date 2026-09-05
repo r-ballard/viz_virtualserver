@@ -20,11 +20,22 @@ from .json_values import thaw_json_value
 from .models import PolygonDomain
 from .projection import SurfaceProjection, project_surfaces
 from .semantics import DomainRef, FeatureRef, PolygonSurface
+from .state_validation import validate_completed_design_state
 from .svg import canonical_design_to_svg, surface_projection_to_svg
 
 _UNSAFE_FILENAME_RUN = re.compile(r"[^a-z0-9._-]+")
 _AT_FDCWD = -100
 _RENAME_NOREPLACE = 1
+_JOB_IDENTITY_KEYS = (
+    "schema_version",
+    "seed",
+    "domains",
+    "declared_surfaces",
+    "groups",
+    "relations",
+    "composition_transforms",
+    "passes",
+)
 _WINDOWS_DEVICE_NAMES = {
     "aux",
     "clock$",
@@ -296,33 +307,7 @@ def _sanitize_filename(surface_id: str) -> str:
 
 
 def _validate_state(job: DomainArtworkJob, state: DesignState) -> None:
-    if state.source_domains != job.domains:
-        raise ValueError("design state source domains do not match the job")
-    expected_pass_ids = tuple(design_pass.id for design_pass in job.passes)
-    result_pass_ids = tuple(result.producing_pass_id for result in state.results)
-    if result_pass_ids != expected_pass_ids:
-        raise ValueError("design state results do not match declared pass order")
-    result_derived = tuple(
-        domain for result in state.results for domain in result.derived_domains
-    )
-    if state.derived_domains != result_derived:
-        raise ValueError("design state derived domains do not match result provenance")
-    domain_ids = {domain.id for domain in (*state.source_domains, *state.derived_domains)}
-    if len(domain_ids) != len(state.source_domains) + len(state.derived_domains):
-        raise ValueError("design state contains duplicate domain ids")
-    for design_pass, result in zip(job.passes, state.results, strict=True):
-        allowed_owners = {
-            *design_pass.target_domain_ids,
-            *(domain.id for domain in result.derived_domains),
-        }
-        for path in result.paths:
-            if path.domain_id not in domain_ids:
-                raise ValueError(f"design path references unknown domain: {path.domain_id}")
-            if path.domain_id not in allowed_owners:
-                raise ValueError(
-                    f"design path owner {path.domain_id!r} is not a target or derived "
-                    f"domain of producing pass {result.producing_pass_id!r}"
-                )
+    validate_completed_design_state(job, state)
 
 
 def _validate_projections(
@@ -346,15 +331,7 @@ def _audit_payload(
     return {
         "schema": "viz-design-bundle/v1",
         **job_identity,
-        "job_sha256": hashlib.sha256(
-            json.dumps(
-                job_identity,
-                ensure_ascii=True,
-                allow_nan=False,
-                separators=(",", ":"),
-                sort_keys=True,
-            ).encode("utf-8")
-        ).hexdigest(),
+        "job_sha256": _job_identity_sha256(job_identity),
         "domain_ids": [domain.id for domain in job.domains],
         "group_ids": [group.id for group in job.groups],
         "relation_ids": [relation.id for relation in job.relations],
@@ -467,6 +444,20 @@ def _job_identity_payload(job: DomainArtworkJob) -> dict[str, object]:
     }
 
 
+def _canonical_json_bytes(value: object) -> bytes:
+    return json.dumps(
+        value,
+        ensure_ascii=True,
+        allow_nan=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+
+
+def _job_identity_sha256(job_identity: dict[str, object]) -> str:
+    return hashlib.sha256(_canonical_json_bytes(job_identity)).hexdigest()
+
+
 def _domain_payload(domain: PolygonDomain) -> dict[str, object]:
     provenance = domain.provenance
     return {
@@ -535,6 +526,17 @@ def _verify_staged_bundle(
     if not isinstance(staged_audit, dict):
         raise RuntimeError("malformed staged design.json")
 
+    try:
+        staged_job_identity = {
+            key: staged_audit[key]
+            for key in _JOB_IDENTITY_KEYS
+        }
+        staged_job_digest = _job_identity_sha256(staged_job_identity)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise RuntimeError("staged audit job identity mismatch") from exc
+    if staged_audit.get("job_sha256") != staged_job_digest:
+        raise RuntimeError("staged audit job digest mismatch")
+
     expected_design = expected_audit["design_svg"]
     staged_design = staged_audit.get("design_svg")
     if not isinstance(staged_design, dict) or staged_design.get("path") != "design.svg":
@@ -570,5 +572,10 @@ def _verify_staged_bundle(
             raise RuntimeError("staged audit surface digest mismatch")
         if _sha256(surfaces / filename) != digest:
             raise RuntimeError(f"staged surface SVG digest mismatch: {filename}")
-    if staged_audit != expected_audit:
+    try:
+        staged_audit_bytes = _canonical_json_bytes(staged_audit)
+        expected_audit_bytes = _canonical_json_bytes(expected_audit)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("staged audit payload mismatch") from exc
+    if staged_audit_bytes != expected_audit_bytes:
         raise RuntimeError("staged audit payload mismatch")

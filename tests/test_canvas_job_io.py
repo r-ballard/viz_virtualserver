@@ -316,6 +316,24 @@ def test_loader_rejects_coerced_group_seed(value: object) -> None:
         load_domain_artwork_job(payload)
 
 
+@pytest.mark.parametrize("value", [True, "1", 1.0])
+def test_loader_rejects_coerced_surface_alias_index(value: object) -> None:
+    payload = deepcopy(TWO_DOMAIN_PAYLOAD)
+    payload["surfaces"][0]["feature_aliases"]["base"]["index"] = value  # type: ignore[index]
+
+    with pytest.raises(ValidationError, match="index"):
+        load_domain_artwork_job(payload)
+
+
+@pytest.mark.parametrize("value", [True, "2", 2.0])
+def test_loader_rejects_coerced_relation_endpoint_index(value: object) -> None:
+    payload = deepcopy(TWO_DOMAIN_PAYLOAD)
+    payload["relations"][0]["source"]["index"] = value  # type: ignore[index]
+
+    with pytest.raises(ValidationError, match="index"):
+        load_domain_artwork_job(payload)
+
+
 def test_loader_rejects_malformed_relation_endpoint() -> None:
     payload = deepcopy(TWO_DOMAIN_PAYLOAD)
     payload["relations"][0]["source"] = {  # type: ignore[index]

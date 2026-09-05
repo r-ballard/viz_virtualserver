@@ -50,14 +50,27 @@ def _job(
                 AffineTransform(a=2, b=0, c=0, d=2, e=100, f=50),
             ),
         ),
-        passes=(DesignPass("draw", "fixture", (first.id, second.id)),),
+        passes=(
+            DesignPass("draw-first-local", "fixture", (first.id,)),
+            DesignPass(
+                "draw-first-coordinated",
+                "fixture",
+                (first.id,),
+                parameters={"coordinate_frame": "composition"},
+            ),
+            DesignPass("draw-second-local", "fixture", (second.id,)),
+        ),
     )
     state = DesignState(
         source_domains=job.domains,
         results=(
             DesignResult(
-                paths=(
-                    VectorPath(((1, 2), (3, 4)), False, "ink", first.id),
+                (VectorPath(((1, 2), (3, 4)), False, "ink", first.id),),
+                (),
+                "draw-first-local",
+            ),
+            DesignResult(
+                (
                     VectorPath(
                         ((102, 52), (104, 54)),
                         False,
@@ -65,10 +78,14 @@ def _job(
                         first.id,
                         "composition",
                     ),
-                    VectorPath(((21, 2), (23, 4)), False, "ink", second.id),
                 ),
-                derived_domains=(),
-                producing_pass_id="draw",
+                (),
+                "draw-first-coordinated",
+            ),
+            DesignResult(
+                (VectorPath(((21, 2), (23, 4)), False, "ink", second.id),),
+                (),
+                "draw-second-local",
             ),
         ),
     )
@@ -406,9 +423,9 @@ def test_canonical_svg_applies_domain_transform_once_by_path_frame(
         "domain",
     ]
     assert [path.attrib["data-viz-producing-pass-id"] for path in paths] == [
-        "draw",
-        "draw",
-        "draw",
+        "draw-first-local",
+        "draw-first-coordinated",
+        "draw-second-local",
     ]
     assert [path.attrib["data-viz-coordinate-frame"] for path in paths] == [
         "composition",
@@ -431,14 +448,31 @@ def test_canonical_svg_applies_domain_transform_once_by_path_frame(
 def test_canonical_svg_preserves_interleaved_path_order_and_owner_frame_metadata(
     tmp_path: Path,
 ) -> None:
-    job, state = _job()
+    job, _ = _job()
     first = job.domains[0]
-    ordered_state = dataclasses.replace(
-        state,
+    ordered_job = dataclasses.replace(
+        job,
+        passes=(
+            DesignPass("first", "fixture", (first.id,)),
+            DesignPass(
+                "accent",
+                "fixture",
+                (first.id,),
+                parameters={"coordinate_frame": "composition"},
+            ),
+            DesignPass("last", "fixture", (first.id,)),
+        ),
+    )
+    ordered_state = DesignState(
+        source_domains=job.domains,
         results=(
             DesignResult(
-                paths=(
-                    VectorPath(((1, 1), (2, 2)), False, "ink", first.id),
+                (VectorPath(((1, 1), (2, 2)), False, "ink", first.id),),
+                (),
+                "first",
+            ),
+            DesignResult(
+                (
                     VectorPath(
                         ((102, 52), (104, 54)),
                         False,
@@ -446,16 +480,20 @@ def test_canonical_svg_preserves_interleaved_path_order_and_owner_frame_metadata
                         first.id,
                         "composition",
                     ),
-                    VectorPath(((3, 3), (4, 4)), False, "ink", first.id),
                 ),
-                derived_domains=(),
-                producing_pass_id="draw",
+                (),
+                "accent",
+            ),
+            DesignResult(
+                (VectorPath(((3, 3), (4, 4)), False, "ink", first.id),),
+                (),
+                "last",
             ),
         ),
     )
 
     root = ET.fromstring(
-        write_design_bundle(job, ordered_state, tmp_path / "bundle")
+        write_design_bundle(ordered_job, ordered_state, tmp_path / "bundle")
         .design_svg_path.read_text(encoding="utf-8")
     )
     groups = root.findall("svg:g", NS)
@@ -702,15 +740,190 @@ def test_bundle_rejects_state_from_another_job_before_publication(tmp_path: Path
 
 
 def test_bundle_rejects_path_owned_by_unrelated_state_domain(tmp_path: Path) -> None:
-    job, state = _job()
+    job, _ = _job()
     restricted_job = dataclasses.replace(
         job,
         passes=(DesignPass("draw", "fixture", (job.domains[0].id,)),),
+    )
+    state = DesignState(
+        source_domains=job.domains,
+        results=(
+            DesignResult(
+                (
+                    VectorPath(
+                        ((21, 2), (23, 4)),
+                        False,
+                        "ink",
+                        job.domains[1].id,
+                    ),
+                ),
+                (),
+                "draw",
+            ),
+        ),
     )
     destination = tmp_path / "bundle"
 
     with pytest.raises(ValueError, match="path owner.*producing pass"):
         write_design_bundle(restricted_job, state, destination)
+
+    assert not destination.exists()
+
+
+def test_bundle_rejects_provenance_source_outside_producing_pass_targets(
+    tmp_path: Path,
+) -> None:
+    job, _ = _job()
+    first, second = job.domains
+    restricted_job = dataclasses.replace(
+        job,
+        passes=(DesignPass("draw", "fixture", (first.id,)),),
+    )
+    derived = PolygonDomain(
+        "derived",
+        first.vertices,
+        DomainProvenance((second.id,), "draw", "copy"),
+    )
+    state = DesignState(
+        source_domains=job.domains,
+        derived_domains=(derived,),
+        results=(
+            DesignResult(
+                (VectorPath(((1, 2), (3, 4)), False, "ink", first.id),),
+                (derived,),
+                "draw",
+            ),
+        ),
+    )
+    destination = tmp_path / "bundle"
+
+    with pytest.raises(ValueError, match="provenance source.*pass target"):
+        write_design_bundle(restricted_job, state, destination)
+
+    assert not destination.exists()
+
+
+def test_bundle_rejects_path_frame_that_disagrees_with_declared_pass(
+    tmp_path: Path,
+) -> None:
+    job, _ = _job()
+    first = job.domains[0]
+    coordinated_job = dataclasses.replace(
+        job,
+        passes=(
+            DesignPass(
+                "draw",
+                "fixture",
+                (first.id,),
+                parameters={"coordinate_frame": "composition"},
+            ),
+        ),
+    )
+    state = DesignState(
+        source_domains=job.domains,
+        results=(
+            DesignResult(
+                (VectorPath(((1, 2), (3, 4)), False, "ink", first.id),),
+                (),
+                "draw",
+            ),
+        ),
+    )
+    destination = tmp_path / "bundle"
+
+    with pytest.raises(ValueError, match="composition pass returned non-composition"):
+        write_design_bundle(coordinated_job, state, destination)
+
+    assert not destination.exists()
+
+
+def test_bundle_rejects_coordinated_pass_targeting_prior_derived_domain(
+    tmp_path: Path,
+) -> None:
+    job, _ = _job()
+    first = job.domains[0]
+    passes = (
+        DesignPass("derive", "fixture", (first.id,)),
+        DesignPass(
+            "join",
+            "fixture",
+            ("derived",),
+            parameters={"coordinate_frame": "composition"},
+            depends_on=("derive",),
+        ),
+    )
+    coordinated_job = dataclasses.replace(job, passes=passes)
+    derived = PolygonDomain(
+        "derived",
+        first.vertices,
+        DomainProvenance((first.id,), "derive", "copy"),
+    )
+    state = DesignState(
+        source_domains=job.domains,
+        derived_domains=(derived,),
+        results=(
+            DesignResult((), (derived,), "derive"),
+            DesignResult((), (), "join"),
+        ),
+    )
+    destination = tmp_path / "bundle"
+
+    with pytest.raises(
+        ValueError,
+        match="composition frame is unavailable for derived target domain: derived",
+    ):
+        write_design_bundle(coordinated_job, state, destination)
+
+    assert not destination.exists()
+
+
+def test_bundle_rejects_coordinated_path_owned_by_new_derived_domain(
+    tmp_path: Path,
+) -> None:
+    job, _ = _job()
+    first = job.domains[0]
+    coordinated_job = dataclasses.replace(
+        job,
+        passes=(
+            DesignPass(
+                "derive",
+                "fixture",
+                (first.id,),
+                parameters={"coordinate_frame": "composition"},
+            ),
+        ),
+    )
+    derived = PolygonDomain(
+        "derived",
+        first.vertices,
+        DomainProvenance((first.id,), "derive", "copy"),
+    )
+    state = DesignState(
+        source_domains=job.domains,
+        derived_domains=(derived,),
+        results=(
+            DesignResult(
+                (
+                    VectorPath(
+                        ((1, 2), (3, 4)),
+                        False,
+                        "ink",
+                        derived.id,
+                        "composition",
+                    ),
+                ),
+                (derived,),
+                "derive",
+            ),
+        ),
+    )
+    destination = tmp_path / "bundle"
+
+    with pytest.raises(
+        ValueError,
+        match="coordinated pass cannot return.*derived domain.*derived",
+    ):
+        write_design_bundle(coordinated_job, state, destination)
 
     assert not destination.exists()
 
@@ -740,8 +953,10 @@ def test_malformed_staged_audit_is_rejected_before_publication(
         ("design-digest", "design SVG digest"),
         ("surface-digest", "surface digest"),
         ("surface-order", "surface entries"),
-        ("job-seed", "audit payload"),
-        ("pass-parameters", "audit payload"),
+        ("job-seed", "job digest"),
+        ("pass-parameters", "job digest"),
+        ("summary-path-count-type", "audit payload"),
+        ("job-schema-type", "job digest"),
     ],
 )
 def test_inconsistent_staged_audit_is_rejected_before_publication(
@@ -766,8 +981,12 @@ def test_inconsistent_staged_audit_is_rejected_before_publication(
                 audit["surfaces"].reverse()
             elif corruption == "job-seed":
                 audit["seed"] = -1
-            else:
+            elif corruption == "pass-parameters":
                 audit["passes"][0]["parameters"] = {"changed": True}
+            elif corruption == "summary-path-count-type":
+                audit["pass_summaries"][0]["path_count"] = True
+            else:
+                audit["schema_version"] = True
             content = json.dumps(audit, separators=(",", ":"))
         original_write(path, content)
 

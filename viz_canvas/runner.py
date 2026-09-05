@@ -13,6 +13,7 @@ from .frames import AffineTransform, resolve_composition_transforms
 from .geometry import CanvasGeometry
 from .jobs import DomainArtworkJob, derive_domain_seed
 from .semantics import DomainRelation, PolygonGroup, PolygonSurface
+from .state_validation import validate_completed_design_state
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,6 +101,7 @@ def run_domain_artwork_job(
                 )
         completed.add(design_pass.id)
 
+    validate_completed_design_state(job, state)
     return state
 
 

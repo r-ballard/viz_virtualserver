@@ -54,13 +54,13 @@ class _DomainRequest(_RequestModel):
 class _FeatureRefRequest(_RequestModel):
     domain_id: str
     feature_type: FeatureType
-    index: int
+    index: StrictInt
 
 
 class _RelationEndpointRequest(_RequestModel):
     domain_id: str
     feature_type: FeatureType | None = None
-    index: int | None = None
+    index: StrictInt | None = None
 
     @model_validator(mode="before")
     @classmethod
