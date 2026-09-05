@@ -10,11 +10,19 @@ import pytest
 
 import viz_canvas.bundle as bundle_module
 from viz_canvas.bundle import write_design_bundle
-from viz_canvas.design import DesignPass, DesignResult, DesignState, VectorPath
+from viz_canvas.design import DesignPass, DesignResult, DesignState, LogicalLayer, VectorPath
 from viz_canvas.frames import AffineTransform, CompositionTransform
 from viz_canvas.jobs import DomainArtworkJob
-from viz_canvas.models import PolygonDomain
-from viz_canvas.semantics import PolygonSurface
+from viz_canvas.models import DomainProvenance, PolygonDomain
+from viz_canvas.semantics import (
+    DomainRef,
+    DomainRelation,
+    FeatureRef,
+    FeatureType,
+    PolygonGroup,
+    PolygonSurface,
+    RelationType,
+)
 from viz_canvas.svg import SVG_NS
 
 NS = {"svg": SVG_NS}
@@ -155,6 +163,229 @@ def test_bundle_writes_ordered_surface_files_and_verified_digests(
     assert _bundle_work_directories(tmp_path) == []
 
 
+def test_audit_captures_complete_validated_job_and_result_identity(
+    tmp_path: Path,
+) -> None:
+    first = PolygonDomain("first", ((0, 0), (10, 0), (0, 10)))
+    second = PolygonDomain("second", ((20, 0), (30, 0), (20, 10)))
+    surfaces = (
+        PolygonSurface(
+            "front",
+            first.id,
+            {"corner": FeatureRef(first.id, FeatureType.VERTEX, 0)},
+        ),
+        PolygonSurface("back", second.id),
+    )
+    passes = (
+        DesignPass(
+            "underpaint",
+            "fixture",
+            (first.id,),
+            parameters={"style": {"dash": [3, 1]}},
+            logical_layers=(LogicalLayer("ink", "Ink"),),
+        ),
+        DesignPass(
+            "finish",
+            "fixture",
+            (second.id,),
+            parameters={"width": 2},
+            logical_layers=(LogicalLayer("accent", "Accent"),),
+            group_context_ids=("pair",),
+            relation_context_ids=("correspondence",),
+            depends_on=("underpaint",),
+        ),
+    )
+    job = DomainArtworkJob(
+        schema_version=1,
+        seed=42,
+        domains=(first, second),
+        surfaces=surfaces,
+        groups=(
+            PolygonGroup(
+                "pair",
+                ("back", "front"),
+                seed=9,
+                metadata={"style": {"tags": ["paired"]}},
+            ),
+        ),
+        relations=(
+            DomainRelation(
+                "correspondence",
+                RelationType.CORRESPONDS_TO,
+                FeatureRef(first.id, FeatureType.EDGE, 0),
+                DomainRef(second.id),
+                {"weight": 0.5, "labels": ["top"]},
+            ),
+        ),
+        composition_transforms=(
+            CompositionTransform(
+                first.id,
+                AffineTransform(1, 0, 0, 1, 5, 6),
+            ),
+        ),
+        passes=passes,
+    )
+    derived = PolygonDomain(
+        "derived",
+        second.vertices,
+        DomainProvenance((second.id,), "finish", "copy"),
+    )
+    state = DesignState(
+        source_domains=job.domains,
+        derived_domains=(derived,),
+        results=(
+            DesignResult(
+                (VectorPath(((1, 1), (2, 2)), False, "ink", first.id),),
+                (),
+                "underpaint",
+            ),
+            DesignResult(
+                (VectorPath(((21, 1), (22, 2)), False, "accent", second.id),),
+                (derived,),
+                "finish",
+            ),
+        ),
+    )
+
+    audit = json.loads(
+        write_design_bundle(job, state, tmp_path / "bundle")
+        .audit_path.read_text(encoding="utf-8")
+    )
+
+    assert audit["domains"] == [
+        {
+            "id": "first",
+            "vertices": [[0.0, 0.0], [10.0, 0.0], [0.0, 10.0]],
+            "provenance": None,
+        },
+        {
+            "id": "second",
+            "vertices": [[20.0, 0.0], [30.0, 0.0], [20.0, 10.0]],
+            "provenance": None,
+        },
+    ]
+    assert audit["declared_surfaces"] == [
+        {
+            "id": "front",
+            "domain_id": "first",
+            "feature_aliases": {
+                "corner": {
+                    "domain_id": "first",
+                    "feature_type": "vertex",
+                    "index": 0,
+                }
+            },
+        },
+        {"id": "back", "domain_id": "second", "feature_aliases": {}},
+    ]
+    assert audit["groups"] == [
+        {
+            "id": "pair",
+            "surface_ids": ["back", "front"],
+            "seed": 9,
+            "metadata": {"style": {"tags": ["paired"]}},
+        }
+    ]
+    assert audit["relations"] == [
+        {
+            "id": "correspondence",
+            "relation_type": "corresponds_to",
+            "source": {"domain_id": "first", "feature_type": "edge", "index": 0},
+            "target": {"domain_id": "second"},
+            "metadata": {"weight": 0.5, "labels": ["top"]},
+        }
+    ]
+    assert audit["composition_transforms"] == [
+        {"domain_id": "first", "matrix": [1.0, 0.0, 0.0, 1.0, 5.0, 6.0]}
+    ]
+    assert audit["passes"] == [
+        {
+            "id": "underpaint",
+            "algorithm": "fixture",
+            "target_domain_ids": ["first"],
+            "parameters": {"style": {"dash": [3, 1]}},
+            "logical_layers": [{"id": "ink", "label": "Ink"}],
+            "group_context_ids": [],
+            "relation_context_ids": [],
+            "depends_on": [],
+        },
+        {
+            "id": "finish",
+            "algorithm": "fixture",
+            "target_domain_ids": ["second"],
+            "parameters": {"width": 2},
+            "logical_layers": [{"id": "accent", "label": "Accent"}],
+            "group_context_ids": ["pair"],
+            "relation_context_ids": ["correspondence"],
+            "depends_on": ["underpaint"],
+        },
+    ]
+    canonical_job = {
+        key: audit[key]
+        for key in (
+            "schema_version",
+            "seed",
+            "domains",
+            "declared_surfaces",
+            "groups",
+            "relations",
+            "composition_transforms",
+            "passes",
+        )
+    }
+    canonical_bytes = json.dumps(
+        canonical_job,
+        ensure_ascii=True,
+        allow_nan=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    assert audit["job_sha256"] == hashlib.sha256(canonical_bytes).hexdigest()
+    assert audit["derived_domains"] == [
+        {
+            "id": "derived",
+            "vertices": [[20.0, 0.0], [30.0, 0.0], [20.0, 10.0]],
+            "provenance": {
+                "source_domain_ids": ["second"],
+                "generating_pass_id": "finish",
+                "operation": "copy",
+            },
+        }
+    ]
+    assert audit["pass_summaries"] == [
+        {
+            "producing_pass_id": "underpaint",
+            "path_count": 1,
+            "derived_domain_ids": [],
+            "paths": [
+                {
+                    "domain_id": "first",
+                    "layer_id": "ink",
+                    "coordinate_frame": "domain",
+                    "producing_pass_id": "underpaint",
+                }
+            ],
+        },
+        {
+            "producing_pass_id": "finish",
+            "path_count": 1,
+            "derived_domain_ids": ["derived"],
+            "paths": [
+                {
+                    "domain_id": "second",
+                    "layer_id": "accent",
+                    "coordinate_frame": "domain",
+                    "producing_pass_id": "finish",
+                }
+            ],
+        },
+    ]
+    assert [surface["producing_pass_ids"] for surface in audit["surfaces"]] == [
+        ["underpaint"],
+        ["finish"],
+    ]
+
+
 def test_canonical_svg_applies_domain_transform_once_by_path_frame(
     tmp_path: Path,
 ) -> None:
@@ -173,6 +404,11 @@ def test_canonical_svg_applies_domain_transform_once_by_path_frame(
         "domain",
         "composition",
         "domain",
+    ]
+    assert [path.attrib["data-viz-producing-pass-id"] for path in paths] == [
+        "draw",
+        "draw",
+        "draw",
     ]
     assert [path.attrib["data-viz-coordinate-frame"] for path in paths] == [
         "composition",
@@ -504,6 +740,8 @@ def test_malformed_staged_audit_is_rejected_before_publication(
         ("design-digest", "design SVG digest"),
         ("surface-digest", "surface digest"),
         ("surface-order", "surface entries"),
+        ("job-seed", "audit payload"),
+        ("pass-parameters", "audit payload"),
     ],
 )
 def test_inconsistent_staged_audit_is_rejected_before_publication(
@@ -524,8 +762,12 @@ def test_inconsistent_staged_audit_is_rejected_before_publication(
                 audit["design_svg"]["sha256"] = "0" * 64
             elif corruption == "surface-digest":
                 audit["surfaces"][0]["sha256"] = "0" * 64
-            else:
+            elif corruption == "surface-order":
                 audit["surfaces"].reverse()
+            elif corruption == "job-seed":
+                audit["seed"] = -1
+            else:
+                audit["passes"][0]["parameters"] = {"changed": True}
             content = json.dumps(audit, separators=(",", ":"))
         original_write(path, content)
 

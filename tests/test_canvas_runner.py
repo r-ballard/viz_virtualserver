@@ -12,7 +12,7 @@ from viz_canvas.design import (
 )
 from viz_canvas.frames import AffineTransform, CompositionTransform
 from viz_canvas.jobs import DomainArtworkJob
-from viz_canvas.models import PolygonDomain
+from viz_canvas.models import DomainProvenance, PolygonDomain
 from viz_canvas.runner import AlgorithmContext, run_domain_artwork_job
 from viz_canvas.semantics import (
     DomainRef,
@@ -74,6 +74,68 @@ class RecordingAlgorithm:
         )
 
 
+@dataclass
+class DerivingAlgorithm:
+    returned_frame: str = "domain"
+    include_derived_path: bool = False
+    name: str = "derive"
+    capabilities: AlgorithmCapabilities = field(default_factory=AlgorithmCapabilities)
+
+    def generate(self, *, canvas, domains, design_pass, context):
+        del canvas, context
+        source = domains[0]
+        derived = PolygonDomain(
+            "derived",
+            source.vertices,
+            DomainProvenance((source.id,), design_pass.id, "copy"),
+        )
+        paths = (
+            (
+                VectorPath(
+                    (derived.vertices[0], derived.vertices[1]),
+                    False,
+                    "ink",
+                    derived.id,
+                    self.returned_frame,  # type: ignore[arg-type]
+                ),
+            )
+            if self.include_derived_path
+            else ()
+        )
+        return DesignResult(paths, (derived,), design_pass.id)
+
+
+@dataclass
+class NestedParameterMutationAlgorithm:
+    mutation_rejections: list[bool] = field(default_factory=list)
+    name: str = "nested"
+    capabilities: AlgorithmCapabilities = field(default_factory=AlgorithmCapabilities)
+
+    def generate(self, *, canvas, domains, design_pass, context):
+        del canvas, context
+        options = design_pass.parameters["options"]
+        weights = options["weights"]
+        try:
+            weights[0] = 99
+        except TypeError:
+            self.mutation_rejections.append(True)
+        else:
+            self.mutation_rejections.append(False)
+        value = float(weights[0])
+        return DesignResult(
+            (
+                VectorPath(
+                    ((value, 0.0), (value + 1.0, 0.0)),
+                    False,
+                    "ink",
+                    domains[0].id,
+                ),
+            ),
+            (),
+            design_pass.id,
+        )
+
+
 def _job(
     domains: tuple[PolygonDomain, ...],
     design_passes: tuple[DesignPass, ...],
@@ -117,6 +179,26 @@ def test_independent_results_survive_unrelated_domain_reordering() -> None:
 
     assert _paths_for(first, "a") == _paths_for(second, "a")
     assert _paths_for(first, "b") == _paths_for(second, "b")
+
+
+def test_nested_parameter_mutations_cannot_change_job_or_repeated_output() -> None:
+    domain = _domain("a")
+    weights = [1, 2]
+    parameters = {"options": {"weights": weights}}
+    job = _job(
+        (domain,),
+        (DesignPass("draw", "nested", (domain.id,), parameters=parameters),),
+    )
+    algorithm = NestedParameterMutationAlgorithm()
+    weights[0] = 7
+
+    first = run_domain_artwork_job(job, {"nested": algorithm})
+    second = run_domain_artwork_job(job, {"nested": algorithm})
+
+    assert first == second
+    assert job.passes[0].parameters["options"]["weights"] == (1, 2)
+    assert first.results[0].paths[0].points[0] == (1.0, 0.0)
+    assert algorithm.mutation_rejections == [True, True]
 
 
 def test_runner_canvas_is_numeric_source_bounds_carrier() -> None:
@@ -203,6 +285,92 @@ def test_coordinated_seed_depends_on_ordered_target_ids() -> None:
     assert first_algorithm.contexts[0].pass_seed != second_algorithm.contexts[0].pass_seed
 
 
+def test_coordinated_pass_rejects_path_owned_by_new_derived_domain() -> None:
+    source = _domain("source")
+    coordinated = DesignPass(
+        "derive",
+        "derive",
+        (source.id,),
+        parameters={"coordinate_frame": "composition"},
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="coordinated pass cannot return.*derived domain.*derived",
+    ):
+        run_domain_artwork_job(
+            _job(
+                (source,),
+                (coordinated,),
+                transforms=(
+                    CompositionTransform(source.id, AffineTransform.identity()),
+                ),
+            ),
+            {
+                "derive": DerivingAlgorithm(
+                    returned_frame="composition",
+                    include_derived_path=True,
+                )
+            },
+        )
+
+
+def test_coordinated_pass_rejects_later_derived_target_without_declared_transform() -> None:
+    source = _domain("source")
+    passes = (
+        DesignPass("derive", "derive", (source.id,)),
+        DesignPass(
+            "join",
+            "record",
+            ("derived",),
+            parameters={"coordinate_frame": "composition"},
+            depends_on=("derive",),
+        ),
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="composition frame is unavailable for derived target domain: derived",
+    ):
+        run_domain_artwork_job(
+            _job(
+                (source,),
+                passes,
+                transforms=(
+                    CompositionTransform(source.id, AffineTransform.identity()),
+                ),
+            ),
+            {
+                "derive": DerivingAlgorithm(),
+                "record": RecordingAlgorithm(returned_frame="composition"),
+            },
+        )
+
+
+def test_later_derived_target_remains_available_to_domain_local_pass() -> None:
+    source = _domain("source")
+    recorder = RecordingAlgorithm()
+    passes = (
+        DesignPass("derive", "derive", (source.id,)),
+        DesignPass(
+            "decorate",
+            "record",
+            ("derived",),
+            depends_on=("derive",),
+        ),
+    )
+
+    state = run_domain_artwork_job(
+        _job((source,), passes),
+        {"derive": DerivingAlgorithm(), "record": recorder},
+    )
+
+    assert recorder.calls[0][1] == (state.resolve_domain("derived"),)
+    assert state.results[1].paths[0].domain_id == "derived"
+    assert state.results[1].paths[0].coordinate_frame == "domain"
+    assert recorder.contexts[0].composition_transforms == {}
+
+
 def test_runner_filters_requested_semantic_context_and_reserved_parameters() -> None:
     a = _domain("a")
     b = _domain("b", 20.0)
@@ -251,6 +419,23 @@ def test_runner_filters_requested_semantic_context_and_reserved_parameters() -> 
         "coordinate_frame": "composition",
         "custom": 7,
     }
+
+
+@pytest.mark.parametrize("coordinate_frame", ["physical", "compositon", "", True])
+def test_runner_rejects_unknown_coordinate_frame(coordinate_frame: object) -> None:
+    domain = _domain("a")
+    design_pass = DesignPass(
+        "draw",
+        "record",
+        (domain.id,),
+        parameters={"coordinate_frame": coordinate_frame},
+    )
+
+    with pytest.raises(ValueError, match="coordinate_frame.*domain.*composition"):
+        run_domain_artwork_job(
+            _job((domain,), (design_pass,)),
+            {"record": RecordingAlgorithm()},
+        )
 
 
 def test_runner_requires_declared_semantic_context_ids() -> None:

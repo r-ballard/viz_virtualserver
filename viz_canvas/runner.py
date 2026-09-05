@@ -60,6 +60,14 @@ def run_domain_artwork_job(
             )
 
         algorithm_pass, coordinated = _algorithm_pass(design_pass)
+        if coordinated:
+            derived_ids = {domain.id for domain in state.derived_domains}
+            for domain_id in design_pass.target_domain_ids:
+                if domain_id in derived_ids:
+                    raise ValueError(
+                        "composition frame is unavailable for derived target domain: "
+                        f"{domain_id}"
+                    )
         context = _algorithm_context(
             job=job,
             design_pass=design_pass,
@@ -73,8 +81,17 @@ def run_domain_artwork_job(
             algorithms=algorithms,
             context=context,
         )
+        result = state.results[-1]
+        if coordinated:
+            new_derived_ids = {domain.id for domain in result.derived_domains}
+            for path in result.paths:
+                if path.domain_id in new_derived_ids:
+                    raise ValueError(
+                        "coordinated pass cannot return a path owned by derived "
+                        f"domain without a declared composition transform: {path.domain_id}"
+                    )
         expected_frame = "composition" if coordinated else "domain"
-        for path in state.results[-1].paths:
+        for path in result.paths:
             if path.coordinate_frame != expected_frame:
                 pass_kind = "composition" if coordinated else "domain-local"
                 raise ValueError(
@@ -109,7 +126,11 @@ def _source_bounds_canvas(job: DomainArtworkJob) -> CanvasGeometry:
 
 def _algorithm_pass(design_pass: DesignPass) -> tuple[DesignPass, bool]:
     parameters = dict(design_pass.parameters)
-    coordinate_frame = parameters.pop("coordinate_frame", None)
+    coordinate_frame = parameters.pop("coordinate_frame", "domain")
+    if coordinate_frame not in {"domain", "composition"}:
+        raise ValueError(
+            "coordinate_frame must be exactly 'domain' or 'composition'"
+        )
     return dataclasses.replace(design_pass, parameters=parameters), (
         coordinate_frame == "composition"
     )

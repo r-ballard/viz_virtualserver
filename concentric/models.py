@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from viz_canvas.models import CanvasSpec
 
@@ -14,6 +14,8 @@ CenterBias = Literal["uniform", "centroid", "boundary", "vertices"]
 
 class ConcentricPointsRequest(BaseModel):
     """Configuration for deterministic concentric-circle vector generation."""
+
+    model_config = ConfigDict(extra="forbid")
 
     canvas: CanvasSpec = Field(default_factory=CanvasSpec)
     seed: int = 0

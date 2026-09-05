@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -190,7 +191,7 @@ def test_loader_builds_ordered_two_domain_job() -> None:
     assert job.passes[0].group_context_ids == ("paired",)
     assert job.passes[0].relation_context_ids == ("topology",)
     assert job.passes[0].depends_on == ()
-    assert job.passes[0].parameters == {"spacing": 2, "style": {"dash": [3, 1]}}
+    assert job.passes[0].parameters == {"spacing": 2, "style": {"dash": (3, 1)}}
     assert [(design_pass.id, design_pass.algorithm) for design_pass in job.passes] == [
         ("paired-lines", "record"),
         ("finishing", "record-final"),
@@ -218,7 +219,7 @@ def test_loader_builds_ordered_two_domain_job() -> None:
             ("paired",),
             ("topology",),
             (),
-            [("spacing", 2), ("style", {"dash": [3, 1]})],
+            [("spacing", 2), ("style", {"dash": (3, 1)})],
         ),
         (
             "finishing",
@@ -243,6 +244,35 @@ def test_reader_loads_versioned_json_job(tmp_path: Path) -> None:
     ]
 
 
+def test_loader_defaults_optional_semantic_and_transform_collections() -> None:
+    job = load_domain_artwork_job(
+        {
+            "schema_version": 1,
+            "seed": 7,
+            "domains": [
+                {
+                    "id": "triangle",
+                    "vertices": [[0, 0.5], [10.25, 0], [0, 10]],
+                }
+            ],
+            "passes": [
+                {
+                    "id": "draw",
+                    "algorithm": "record",
+                    "target_domain_ids": ["triangle"],
+                }
+            ],
+        }
+    )
+
+    assert job.groups == ()
+    assert job.relations == ()
+    assert job.composition_transforms == ()
+    assert [(surface.id, surface.domain_id) for surface in job.resolved_surfaces] == [
+        ("triangle", "triangle")
+    ]
+
+
 def test_loader_rejects_unsupported_schema_version() -> None:
     payload = deepcopy(TWO_DOMAIN_PAYLOAD)
     payload["schema_version"] = 2
@@ -256,6 +286,33 @@ def test_loader_rejects_boolean_schema_version() -> None:
     payload["schema_version"] = True
 
     with pytest.raises(ValidationError, match="schema_version"):
+        load_domain_artwork_job(payload)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("schema_version", "1"),
+        ("schema_version", 1.0),
+        ("seed", True),
+        ("seed", "42"),
+        ("seed", 42.0),
+    ],
+)
+def test_loader_rejects_coerced_job_integer_fields(field: str, value: object) -> None:
+    payload = deepcopy(TWO_DOMAIN_PAYLOAD)
+    payload[field] = value
+
+    with pytest.raises(ValidationError, match=field):
+        load_domain_artwork_job(payload)
+
+
+@pytest.mark.parametrize("value", [True, "7", 7.0])
+def test_loader_rejects_coerced_group_seed(value: object) -> None:
+    payload = deepcopy(TWO_DOMAIN_PAYLOAD)
+    payload["groups"][0]["seed"] = value  # type: ignore[index]
+
+    with pytest.raises(ValidationError, match="seed"):
         load_domain_artwork_job(payload)
 
 
@@ -301,6 +358,23 @@ def test_loader_rejects_nonnumeric_affine_matrix() -> None:
 def test_loader_rejects_boolean_affine_matrix_entry() -> None:
     payload = deepcopy(TWO_DOMAIN_PAYLOAD)
     payload["composition_transforms"][0]["matrix"][4] = True  # type: ignore[index]
+
+    with pytest.raises(ValidationError, match="matrix"):
+        load_domain_artwork_job(payload)
+
+
+@pytest.mark.parametrize("value", [True, "5", Decimal("5")])
+def test_loader_rejects_coerced_polygon_vertex_coordinate(value: object) -> None:
+    payload = deepcopy(TWO_DOMAIN_PAYLOAD)
+    payload["domains"][0]["vertices"][1][0] = value  # type: ignore[index]
+
+    with pytest.raises(ValidationError, match="vertices"):
+        load_domain_artwork_job(payload)
+
+
+def test_loader_rejects_non_json_numeric_affine_matrix_entry() -> None:
+    payload = deepcopy(TWO_DOMAIN_PAYLOAD)
+    payload["composition_transforms"][0]["matrix"][4] = Decimal("3")  # type: ignore[index]
 
     with pytest.raises(ValidationError, match="matrix"):
         load_domain_artwork_job(payload)

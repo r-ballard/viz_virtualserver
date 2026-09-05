@@ -3,6 +3,7 @@ from copy import deepcopy
 from dataclasses import fields
 
 import pytest
+from pydantic import ValidationError
 
 from concentric.models import ConcentricPointsRequest
 from concentric.service import (
@@ -12,8 +13,9 @@ from concentric.service import (
 )
 from viz_canvas.design import DesignPass, DesignResult, LogicalLayer
 from viz_canvas.geometry import CanvasGeometry, build_canvas
+from viz_canvas.jobs import DomainArtworkJob
 from viz_canvas.models import PolygonDomain
-from viz_canvas.runner import AlgorithmContext
+from viz_canvas.runner import AlgorithmContext, run_domain_artwork_job
 
 
 def _triangle_request(**overrides) -> ConcentricPointsRequest:
@@ -27,6 +29,50 @@ def _triangle_request(**overrides) -> ConcentricPointsRequest:
     }
     payload.update(overrides)
     return ConcentricPointsRequest(**payload)
+
+
+def test_concentric_request_rejects_unknown_fields() -> None:
+    with pytest.raises(ValidationError, match="point_counnt"):
+        ConcentricPointsRequest(point_counnt=2)
+
+
+def test_concentric_adapter_name_matches_registered_algorithm() -> None:
+    assert ConcentricDomainAlgorithm.name == "concentric-points"
+
+
+def test_concentric_runner_removes_frame_but_rejects_unknown_algorithm_parameter() -> None:
+    domain = PolygonDomain(
+        id="target",
+        vertices=((0.0, 0.0), (100.0, 0.0), (50.0, 80.0)),
+    )
+    design_pass = DesignPass(
+        id="concentric",
+        algorithm="concentric-points",
+        target_domain_ids=(domain.id,),
+        parameters={
+            "coordinate_frame": "domain",
+            "point_count": 1,
+            "ring_count": 1,
+            "point_counnt": 2,
+        },
+        logical_layers=(LogicalLayer(id="artwork"),),
+    )
+    job = DomainArtworkJob(
+        schema_version=1,
+        seed=42,
+        domains=(domain,),
+        surfaces=None,
+        groups=(),
+        relations=(),
+        composition_transforms=(),
+        passes=(design_pass,),
+    )
+
+    with pytest.raises(ValidationError, match="point_counnt"):
+        run_domain_artwork_job(
+            job,
+            {"concentric-points": ConcentricDomainAlgorithm()},
+        )
 
 
 def test_generation_is_deterministic_and_centers_are_inside_triangle() -> None:
@@ -370,6 +416,7 @@ def test_concentric_adapter_is_deterministic_neutral_and_does_not_mutate_paramet
         "layer_id",
         "domain_id",
         "coordinate_frame",
+        "producing_pass_id",
     }
     assert {path.layer_id for path in first_result.paths} == {"artwork"}
     assert all(path.closed and len(path.points) == 64 for path in first_result.paths)

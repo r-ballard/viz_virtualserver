@@ -266,6 +266,7 @@ def _serialize_canonical_results_svg(
                     "data-viz-coordinate-frame": serialized_frame,
                     "data-viz-source-coordinate-frame": source_frame,
                     "data-viz-serialized-coordinate-frame": serialized_frame,
+                    "data-viz-producing-pass-id": path.producing_pass_id or "",
                 },
             )
 
@@ -317,23 +318,42 @@ def surface_projection_to_svg(projection: SurfaceProjection) -> str:
     clip_value = append_canvas_clip(root, canvas)
     _append_domain_metadata(root, canvas)
 
-    layer_ids = [layer.id for layer in projection.layers]
-    known = set(layer_ids)
+    layer_ids: list[str] = []
+    known: set[str] = set()
+    for layer in projection.layers:
+        if layer.id not in known:
+            known.add(layer.id)
+            layer_ids.append(layer.id)
     for path in projection.paths:
         if path.layer_id not in known:
             known.add(path.layer_id)
             layer_ids.append(path.layer_id)
+    used_group_ids = {CLIP_ID, "viz-domain-metadata"}
     for layer_id in layer_ids:
         paths = tuple(path for path in projection.paths if path.layer_id == layer_id)
         if not paths:
             continue
+        group_id = _unique_layer_run_id(
+            layer_id,
+            run_number=1,
+            used_group_ids=used_group_ids,
+        )
+        attributes = _logical_layer_attributes(layer_id, clip_value)
+        attributes["id"] = group_id
         layer = ET.SubElement(
             root,
             _tag("g"),
-            _logical_layer_attributes(layer_id, clip_value),
+            attributes,
         )
         for path in paths:
-            ET.SubElement(layer, _tag("path"), {"d": _vector_path_data(path)})
+            attributes = {
+                "d": _vector_path_data(path),
+                "data-viz-domain-id": path.domain_id,
+                "data-viz-coordinate-frame": path.coordinate_frame,
+            }
+            if path.producing_pass_id is not None:
+                attributes["data-viz-producing-pass-id"] = path.producing_pass_id
+            ET.SubElement(layer, _tag("path"), attributes)
 
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(
         root, encoding="unicode", short_empty_elements=True

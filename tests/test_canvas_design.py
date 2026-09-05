@@ -27,10 +27,14 @@ def make_domain(domain_id: str, *, concave: bool = False) -> PolygonDomain:
     return PolygonDomain(id=domain_id, vertices=vertices)
 
 
-def make_derived_domain(domain_id: str, producing_pass_id: str) -> PolygonDomain:
+def make_derived_domain(
+    domain_id: str, producing_pass_id: str, source_domain_id: str = "source"
+) -> PolygonDomain:
     return dataclasses.replace(
         make_domain(domain_id),
-        provenance=DomainProvenance(("source",), producing_pass_id, "copy-for-test"),
+        provenance=DomainProvenance(
+            (source_domain_id,), producing_pass_id, "copy-for-test"
+        ),
     )
 
 
@@ -128,6 +132,17 @@ def test_vector_path_rejects_coordinates_without_exactly_two_values(point) -> No
         )
 
 
+@pytest.mark.parametrize("coordinate", [float("nan"), float("inf"), float("-inf")])
+def test_vector_path_rejects_non_finite_coordinates(coordinate: float) -> None:
+    with pytest.raises(ValueError, match="coordinates must be finite"):
+        VectorPath(
+            points=((0.0, 0.0), (coordinate, 1.0)),
+            closed=False,
+            layer_id="layer",
+            domain_id="source",
+        )
+
+
 def test_design_result_is_neutral_and_copies_sequences() -> None:
     paths = [VectorPath(((10.0, 20.0), (30.0, 40.0)), False, "linework", "source")]
     result = DesignResult(paths, [], "pass-a")
@@ -159,11 +174,46 @@ def test_design_result_requires_provenance_for_derived_domains() -> None:
         DesignResult((), (make_domain("derived"),), "pass-a")
 
 
-def test_design_pass_copies_inputs_and_preserves_nested_parameter_types() -> None:
+def test_design_result_requires_derived_provenance_to_match_producing_pass() -> None:
+    with pytest.raises(ValueError, match="provenance.*producing pass"):
+        DesignResult(
+            (),
+            (make_derived_domain("derived", "another-pass"),),
+            "pass-a",
+        )
+
+
+def test_design_result_stamps_each_path_with_its_producing_pass() -> None:
+    result = DesignResult(
+        (VectorPath(((0, 0), (1, 1)), False, "ink", "source"),),
+        (),
+        "pass-a",
+    )
+
+    assert result.paths[0].producing_pass_id == "pass-a"
+
+
+def test_design_result_rejects_non_string_producing_pass() -> None:
+    with pytest.raises(ValueError, match="producing pass id must be a string"):
+        DesignResult((), (), 1)  # type: ignore[arg-type]
+
+
+def test_vector_path_rejects_non_string_producing_pass() -> None:
+    with pytest.raises(ValueError, match="producing pass id must be a string"):
+        VectorPath(
+            ((0, 0), (1, 1)),
+            False,
+            "ink",
+            "source",
+            producing_pass_id=1,  # type: ignore[arg-type]
+        )
+
+
+def test_design_pass_recursively_freezes_json_parameters() -> None:
     targets = ["b", "a"]
     weights = [1, 2]
-    options = {"weights": weights}
-    parameters = {"options": options, "choices": {1, 2}, "span": range(3)}
+    options = {"weights": weights, "style": {"enabled": True}}
+    parameters = {"options": options, "label": "original"}
     design_pass = DesignPass(
         "pass-a",
         "fake",
@@ -176,18 +226,35 @@ def test_design_pass_copies_inputs_and_preserves_nested_parameter_types() -> Non
     )
     targets.reverse()
     parameters["new"] = True
+    options["style"]["enabled"] = False
+    weights[0] = 99
     assert design_pass.target_domain_ids == ("b", "a")
     assert "new" not in design_pass.parameters
     assert isinstance(design_pass.parameters, MappingProxyType)
-    assert design_pass.parameters["options"] is options
-    assert isinstance(design_pass.parameters["options"], dict)
-    assert design_pass.parameters["options"]["weights"] is weights
-    assert isinstance(design_pass.parameters["choices"], set)
-    assert isinstance(design_pass.parameters["span"], range)
+    frozen_options = design_pass.parameters["options"]
+    assert isinstance(frozen_options, MappingProxyType)
+    assert frozen_options == {"weights": (1, 2), "style": {"enabled": True}}
+    assert frozen_options["weights"] == (1, 2)
+    assert isinstance(frozen_options["style"], MappingProxyType)
     with pytest.raises(TypeError):
         design_pass.parameters["new"] = True
+    with pytest.raises(TypeError):
+        frozen_options["style"]["enabled"] = False
+    with pytest.raises(TypeError):
+        frozen_options["weights"][0] = 99
     with pytest.raises(dataclasses.FrozenInstanceError):
         design_pass.algorithm = "changed"
+
+
+@pytest.mark.parametrize("unsupported", [{1, 2}, range(3), object()])
+def test_design_pass_rejects_values_outside_json_vocabulary(unsupported: object) -> None:
+    with pytest.raises(TypeError, match="JSON"):
+        DesignPass(
+            "pass-a",
+            "fake",
+            ("source",),
+            parameters={"unsupported": unsupported},
+        )
 
 
 @pytest.mark.parametrize(
@@ -396,7 +463,7 @@ def test_design_executor_rejects_path_for_undeclared_domain() -> None:
 
 def test_design_executor_accepts_path_for_domain_derived_by_same_result() -> None:
     target = make_domain("target")
-    derived = make_derived_domain("derived", "pass-1")
+    derived = make_derived_domain("derived", "pass-1", "target")
     result = DesignResult(
         paths=(VectorPath(((0, 0), (1, 1)), False, "ink", "derived"),),
         derived_domains=(derived,),
@@ -412,6 +479,20 @@ def test_design_executor_accepts_path_for_domain_derived_by_same_result() -> Non
 
     assert state.results == (result,)
     assert state.derived_domains == (derived,)
+
+
+def test_design_executor_rejects_derived_provenance_source_outside_pass_targets() -> None:
+    target = make_domain("target")
+    derived = make_derived_domain("derived", "pass-1", "missing")
+    result = DesignResult((), (derived,), "pass-1")
+
+    with pytest.raises(ValueError, match="provenance source.*pass target: missing"):
+        execute_design_pass(
+            canvas=make_canvas(target),
+            state=DesignState((target,)),
+            design_pass=DesignPass("pass-1", "record", ("target",)),
+            algorithms={"record": RecordingAlgorithm(result)},
+        )
 
 
 def test_execute_pass_rejects_derived_collision_without_mutating_state_or_domain() -> None:

@@ -98,7 +98,7 @@ def _generate_concentric_points(
 class ConcentricDomainAlgorithm:
     """Domain-algorithm adapter for the established concentric generator."""
 
-    name = "concentric"
+    name = "concentric-points"
     capabilities = AlgorithmCapabilities(
         supports_simple_polygon=True,
         supports_concave_polygon=False,

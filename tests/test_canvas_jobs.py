@@ -64,6 +64,23 @@ def test_job_rejects_omitted_surfaces_without_domains() -> None:
         )
 
 
+@pytest.mark.parametrize("schema_version", [2, 0, True, 1.0])
+def test_direct_job_requires_exact_integer_schema_version_one(
+    schema_version: object,
+) -> None:
+    with pytest.raises(ValueError, match="unsupported schema version"):
+        DomainArtworkJob(
+            schema_version=schema_version,  # type: ignore[arg-type]
+            seed=42,
+            domains=(make_domain("triangle"),),
+            surfaces=None,
+            groups=(),
+            relations=(),
+            composition_transforms=(),
+            passes=(make_pass(),),
+        )
+
+
 def test_domain_seed_is_stable_across_unrelated_reordering() -> None:
     before = derive_domain_seed(42, "pass", "algorithm", "stable")
     after = derive_domain_seed(42, "pass", "algorithm", "stable")

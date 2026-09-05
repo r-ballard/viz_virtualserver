@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
-from types import MappingProxyType
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Literal, Protocol
 
 from .geometry import CanvasGeometry as IntrinsicCanvas
+from .json_values import freeze_json_object
 from .models import Point, PolygonDomain
 
 if TYPE_CHECKING:
@@ -25,15 +26,31 @@ class VectorPath:
     layer_id: str
     domain_id: str
     coordinate_frame: Literal["domain", "composition"] = "domain"
+    producing_pass_id: str | None = None
 
     def __post_init__(self) -> None:
         if not self.domain_id:
             raise ValueError("vector path domain id must not be empty")
         if self.coordinate_frame not in {"domain", "composition"}:
             raise ValueError("unknown vector path coordinate frame")
+        if self.producing_pass_id is not None:
+            if not isinstance(self.producing_pass_id, str):
+                raise ValueError("vector path producing pass id must be a string")
+            if not self.producing_pass_id.strip():
+                raise ValueError("vector path producing pass id must not be empty")
         points = tuple(tuple(point) for point in self.points)
         if any(len(point) != 2 for point in points):
             raise ValueError("vector path points require exactly two coordinates")
+        try:
+            finite = all(
+                math.isfinite(coordinate)
+                for point in points
+                for coordinate in point
+            )
+        except TypeError as exc:
+            raise ValueError("vector path coordinates must be numeric") from exc
+        if not finite:
+            raise ValueError("vector path coordinates must be finite")
         minimum = 3 if self.closed else 2
         if len(points) < minimum:
             kind = "closed" if self.closed else "open"
@@ -55,13 +72,32 @@ class DesignResult:
     producing_pass_id: str
 
     def __post_init__(self) -> None:
-        paths = tuple(self.paths)
+        if not isinstance(self.producing_pass_id, str):
+            raise ValueError("design result producing pass id must be a string")
+        if not self.producing_pass_id.strip():
+            raise ValueError("design result producing pass id must not be empty")
+        paths = tuple(
+            replace(path, producing_pass_id=self.producing_pass_id)
+            if path.producing_pass_id is None
+            else path
+            for path in self.paths
+        )
+        if any(path.producing_pass_id != self.producing_pass_id for path in paths):
+            raise ValueError("vector path producing pass does not match design result")
         derived_domains = tuple(self.derived_domains)
         domain_ids = [domain.id for domain in derived_domains]
         if len(domain_ids) != len(set(domain_ids)):
             raise ValueError("duplicate derived domain id in design result")
         if any(domain.provenance is None for domain in derived_domains):
             raise ValueError("derived domain requires provenance")
+        if any(
+            domain.provenance is not None
+            and domain.provenance.generating_pass_id != self.producing_pass_id
+            for domain in derived_domains
+        ):
+            raise ValueError(
+                "derived domain provenance does not match result producing pass"
+            )
         object.__setattr__(self, "paths", paths)
         object.__setattr__(self, "derived_domains", derived_domains)
 
@@ -88,7 +124,11 @@ class DesignPass:
         if any(not domain_id for domain_id in target_domain_ids):
             raise ValueError("design pass target domain ids must not be empty")
         object.__setattr__(self, "target_domain_ids", target_domain_ids)
-        object.__setattr__(self, "parameters", MappingProxyType(dict(self.parameters)))
+        object.__setattr__(
+            self,
+            "parameters",
+            freeze_json_object(self.parameters, context=f"design pass {self.id} parameters"),
+        )
         object.__setattr__(self, "logical_layers", tuple(self.logical_layers))
         object.__setattr__(self, "group_context_ids", tuple(self.group_context_ids))
         object.__setattr__(self, "relation_context_ids", tuple(self.relation_context_ids))
@@ -227,6 +267,15 @@ def execute_design_pass(
         domain.id for domain in (*state.source_domains, *state.derived_domains)
     }
     for domain in result.derived_domains:
+        provenance = domain.provenance
+        if provenance is None:  # pragma: no cover - DesignResult validates this
+            raise ValueError("derived domain requires provenance")
+        for source_domain_id in provenance.source_domain_ids:
+            if source_domain_id not in design_pass.target_domain_ids:
+                raise ValueError(
+                    f"derived domain {domain.id} provenance source is not a pass "
+                    f"target: {source_domain_id}"
+                )
         if domain.id in existing_ids:
             raise ValueError(f"duplicate derived domain id: {domain.id}")
         existing_ids.add(domain.id)

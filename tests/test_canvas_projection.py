@@ -58,6 +58,7 @@ def test_projection_rebases_paths_and_preserves_surface_order() -> None:
     assert [item.surface.id for item in projections] == ["first", "second"]
     assert projections[0].domain.vertices[0] == pytest.approx((0, 0))
     assert projections[0].paths[0].points[0] == pytest.approx((0, 0))
+    assert projections[0].paths[0].producing_pass_id == "draw"
     assert projections[0].bounds == pytest.approx((0, 0, 10, 10))
     assert projections[1].domain.vertices[0] == pytest.approx((0, 0))
     assert projections[1].paths[0].points[0] == pytest.approx((0, 0))
@@ -118,6 +119,7 @@ def test_projection_inverse_maps_composition_paths_before_rebasing() -> None:
     assert projection.paths[0].coordinate_frame == "domain"
     assert projection.paths[0].points[0] == pytest.approx((0, 0))
     assert projection.paths[0].points[1] == pytest.approx((5, 5))
+    assert projection.paths[0].producing_pass_id == "coordinated"
 
 
 def test_projection_rejects_composition_path_without_owning_transform() -> None:

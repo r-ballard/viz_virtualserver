@@ -220,6 +220,29 @@ def test_cli_rejects_an_unregistered_algorithm_without_publishing(tmp_path: Path
     assert not output_dir.exists()
 
 
+def test_cli_formats_unsupported_platform_runtime_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    output_dir = tmp_path / "cootie"
+
+    def fail_publication(*args: object, **kwargs: object) -> object:
+        raise RuntimeError(
+            "atomic no-replace directory publication is unsupported on test-os"
+        )
+
+    monkeypatch.setattr(cli_module, "write_design_bundle", fail_publication)
+
+    with pytest.raises(SystemExit) as error:
+        cli_module.main([str(EXAMPLE), "--output-dir", str(output_dir)])
+
+    captured = capsys.readouterr()
+    assert error.value.code == 2
+    assert "error: atomic no-replace directory publication is unsupported" in captured.err
+    assert "Traceback" not in captured.err
+
+
 def test_cli_regeneration_is_deterministic_for_all_twenty_surfaces(
     tmp_path: Path,
 ) -> None:

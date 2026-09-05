@@ -42,7 +42,7 @@ def main(argv: list[str] | None = None) -> int:
         job = read_domain_artwork_job(args.job)
         state = run_domain_artwork_job(job, ALGORITHMS)
         bundle = write_design_bundle(job, state, output_dir, overwrite=args.overwrite)
-    except (OSError, ValueError) as error:
+    except (OSError, RuntimeError, ValueError) as error:
         parser.error(str(error))
 
     print(f"design.json: {bundle.audit_path}")

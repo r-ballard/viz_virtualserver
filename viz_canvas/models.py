@@ -19,7 +19,24 @@ class DomainProvenance:
     operation: str
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "source_domain_ids", tuple(self.source_domain_ids))
+        source_domain_ids = tuple(self.source_domain_ids)
+        if not source_domain_ids:
+            raise ValueError("domain provenance requires at least one source domain")
+        if (
+            any(not isinstance(source_domain_id, str) for source_domain_id in source_domain_ids)
+            or not isinstance(self.generating_pass_id, str)
+            or not isinstance(self.operation, str)
+        ):
+            raise ValueError("domain provenance identity parts must be strings")
+        if any(not source_domain_id.strip() for source_domain_id in source_domain_ids):
+            raise ValueError("domain provenance source domain ids must not be empty")
+        if len(source_domain_ids) != len(set(source_domain_ids)):
+            raise ValueError("domain provenance contains duplicate source domain ids")
+        if not self.generating_pass_id.strip():
+            raise ValueError("domain provenance generating pass id must not be empty")
+        if not self.operation.strip():
+            raise ValueError("domain provenance operation must not be empty")
+        object.__setattr__(self, "source_domain_ids", source_domain_ids)
 
 
 @dataclass(frozen=True, slots=True)

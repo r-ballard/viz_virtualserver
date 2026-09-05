@@ -52,6 +52,105 @@ The overlap between these domains is legal and has no additional meaning unless 
 
 This fragment illustrates the domain collection, not an HTTP request body. The current `CanvasSpec` request model still resolves one legacy canvas polygon; generic multi-domain canvases are assembled through the internal `CanvasGeometry` and design-pass interfaces.
 
+## Domain artwork job v1
+
+The generic bundle CLI consumes a strict JSON document with `schema_version: 1`.
+Unknown fields are rejected. `schema_version`, the job and group seeds, polygon
+coordinates, and affine matrix entries must be JSON numbers of the documented
+kind; booleans and numeric strings are not coerced. Integer and floating-point
+JSON coordinates and matrix entries are both accepted.
+
+This example shows every v1 collection and the two relation-endpoint forms:
+
+```json
+{
+  "schema_version": 1,
+  "seed": 42,
+  "domains": [
+    {"id": "a", "vertices": [[0, 0], [100, 0], [0, 100]]},
+    {"id": "b", "vertices": [[0.0, 0.0], [80.5, 0.0], [0.0, 80.5]]}
+  ],
+  "surfaces": [
+    {
+      "id": "front",
+      "domain_id": "a",
+      "feature_aliases": {
+        "base": {"domain_id": "a", "feature_type": "edge", "index": 0}
+      }
+    },
+    {"id": "back", "domain_id": "b"}
+  ],
+  "groups": [
+    {
+      "id": "pair",
+      "surface_ids": ["back", "front"],
+      "seed": 7,
+      "metadata": {"purpose": "coordinated artwork"}
+    }
+  ],
+  "relations": [
+    {
+      "id": "paired-edges",
+      "relation_type": "corresponds_to",
+      "source": {"domain_id": "a", "feature_type": "edge", "index": 0},
+      "target": {"domain_id": "b"},
+      "metadata": {"weight": 1.0}
+    }
+  ],
+  "composition_transforms": [
+    {"domain_id": "a", "matrix": [1, 0, 0, 1, 0, 0]},
+    {"domain_id": "b", "matrix": [1, 0, 0, 1, 120, 0]}
+  ],
+  "passes": [
+    {
+      "id": "join",
+      "algorithm": "some-registered-algorithm",
+      "target_domain_ids": ["a", "b"],
+      "parameters": {"coordinate_frame": "composition", "spacing": 4},
+      "logical_layers": [{"id": "ink", "label": "Ink"}],
+      "group_context_ids": ["pair"],
+      "relation_context_ids": ["paired-edges"],
+      "depends_on": []
+    }
+  ]
+}
+```
+
+`domains` and `passes` are required. `groups`, `relations`, and
+`composition_transforms` may be omitted and then mean empty collections.
+Omitting `surfaces` creates one surface per source domain in domain order, with
+the domain ID reused as the surface ID. An explicitly empty `surfaces` array is
+invalid. All IDs and list orders are preserved.
+
+Pass parameters are recursively copied into immutable JSON values. JSON objects
+become read-only mappings and JSON arrays become tuples internally; audit and
+request serialization converts them back to ordinary JSON objects and arrays.
+This prevents a caller or algorithm from changing a validated job through a
+nested list or object reference.
+
+### Pass coordinate frames
+
+`parameters.coordinate_frame` is runner-owned and accepts exactly `"domain"`
+or `"composition"`; omission means `"domain"`. The runner removes this key
+before constructing the algorithm-specific request, so it is not an algorithm
+option. Values such as `"physical"`, alternate casing, and misspellings are
+errors. Physical placement is never a design-job coordinate frame.
+
+A composition-frame pass requires an explicit, invertible SVG affine matrix
+`[a, b, c, d, e, f]` for every target domain. The matrix maps domain-local
+coordinates as `(x, y) -> (a*x + c*y + e, b*x + d*y + f)`. No transform is
+inferred from polygon position or list order.
+
+Derived domains are intentionally domain-local in v1 and do not inherit or
+infer a composition transform from their provenance. They may be targeted by a
+later domain-frame pass. A composition-frame pass may not target a derived
+domain, and it may not return a composition-frame path owned by a newly derived
+domain, because no declared inverse exists for a coherent surface projection.
+The runner rejects both cases before bundle publication.
+
+Derived provenance names at least one source among the producing pass's target
+domains, repeats that producing pass ID, and includes a nonempty operation.
+
 ## Geometry model
 
 A resolved canvas contains:
@@ -223,6 +322,37 @@ canvas.polygon
 This is the intended foundation for shape-aware algorithms. For example, a concentric-circle generator can choose centers only inside a triangle and use distance-to-boundary to choose radii or density, instead of drawing into a rectangle and discarding most of the result afterward.
 
 Final clipping remains useful as a defensive SVG boundary even when an algorithm is shape-aware.
+
+## Bundle audit and filename contract
+
+A published bundle contains only `design.json`, `design.svg`, and the
+`surfaces/` directory. `design.json` uses schema `viz-design-bundle/v1` and
+records the complete validated job identity:
+
+- source domain IDs, ordered vertices, and provenance;
+- whether surfaces were omitted or explicitly declared, including feature aliases;
+- ordered group members, seeds, and recursively serialized metadata;
+- relation types, typed endpoints, and metadata;
+- ordered composition matrices;
+- every pass algorithm, target, parameter, logical layer, semantic context, and dependency;
+- ordered derived-domain geometry and provenance;
+- per-pass result summaries, including each path's owner, logical layer,
+  coordinate frame, and `producing_pass_id`; and
+- canonical and surface output paths, SHA-256 digests, and the producing pass
+  IDs represented in each surface.
+
+`job_sha256` is the SHA-256 digest of the job-identity fields serialized as
+UTF-8 JSON with sorted object keys, compact separators, ASCII escaping, and no
+non-finite numbers. Array order remains significant. Before publication, the
+writer parses the staged audit and compares the entire value with the expected
+audit, then independently rehashes `design.svg` and every surface SVG.
+
+Surface filenames derive from surface IDs. The writer lowercases ASCII, keeps
+`a-z`, `0-9`, `.`, `_`, and `-`, replaces each other run with `-`, and trims
+leading/trailing `-`. It rejects empty, dot-only, trailing-dot, Windows device
+names, and collisions after sanitization. For example, `"Panel A"` becomes
+`surfaces/panel-a.svg`; declaring both `"Panel A"` and `"panel-a"` is an error.
+Filename validation happens before an existing bundle can be replaced.
 
 ## Cootie-catcher use
 

@@ -6,6 +6,7 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import Protocol
 
+from .json_values import freeze_json_object
 from .models import PolygonDomain
 
 
@@ -60,7 +61,11 @@ class PolygonGroup:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "surface_ids", tuple(self.surface_ids))
-        object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata)))
+        object.__setattr__(
+            self,
+            "metadata",
+            freeze_json_object(self.metadata, context=f"group {self.id} metadata"),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,7 +77,11 @@ class DomainRelation:
     metadata: Mapping[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata)))
+        object.__setattr__(
+            self,
+            "metadata",
+            freeze_json_object(self.metadata, context=f"relation {self.id} metadata"),
+        )
 
 
 class _HasId(Protocol):

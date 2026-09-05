@@ -216,8 +216,8 @@ def test_semantic_ids_must_be_non_empty(kind, item):
 
 def test_mapping_inputs_are_defensively_copied_and_read_only():
     aliases = {"corner": FeatureRef("a", FeatureType.VERTEX, 0)}
-    group_metadata = {"label": "original"}
-    relation_metadata = {"weight": 1}
+    group_metadata = {"style": {"dash": [3, 1]}}
+    relation_metadata = {"attributes": {"tags": ["paired"]}}
     surface = PolygonSurface("surface", "a", aliases)
     group = PolygonGroup("group", ("surface",), metadata=group_metadata)
     relation = DomainRelation(
@@ -229,18 +229,22 @@ def test_mapping_inputs_are_defensively_copied_and_read_only():
     )
 
     aliases["other"] = FeatureRef("a", FeatureType.VERTEX, 1)
-    group_metadata["label"] = "changed"
-    relation_metadata["weight"] = 2
+    group_metadata["style"]["dash"][0] = 99
+    relation_metadata["attributes"]["tags"].append("changed")
 
     assert tuple(surface.feature_aliases) == ("corner",)
-    assert group.metadata["label"] == "original"
-    assert relation.metadata["weight"] == 1
+    assert group.metadata["style"]["dash"] == (3, 1)
+    assert relation.metadata["attributes"]["tags"] == ("paired",)
     with pytest.raises(TypeError):
         surface.feature_aliases["new"] = FeatureRef("a", FeatureType.VERTEX, 2)
     with pytest.raises(TypeError):
         group.metadata["new"] = True
     with pytest.raises(TypeError):
         relation.metadata["new"] = True
+    with pytest.raises(TypeError):
+        group.metadata["style"]["dash"][0] = 99
+    with pytest.raises(TypeError):
+        relation.metadata["attributes"]["tags"][0] = "changed"
     with pytest.raises(FrozenInstanceError):
         group.id = "changed"
 

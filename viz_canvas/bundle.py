@@ -16,7 +16,10 @@ from pathlib import Path
 
 from .design import DesignState
 from .jobs import DomainArtworkJob
+from .json_values import thaw_json_value
+from .models import PolygonDomain
 from .projection import SurfaceProjection, project_surfaces
+from .semantics import DomainRef, FeatureRef, PolygonSurface
 from .svg import canonical_design_to_svg, surface_projection_to_svg
 
 _UNSAFE_FILENAME_RUN = re.compile(r"[^a-z0-9._-]+")
@@ -339,31 +342,41 @@ def _audit_payload(
     surface_digests: tuple[str, ...],
     design_digest: str,
 ) -> dict[str, object]:
+    job_identity = _job_identity_payload(job)
     return {
         "schema": "viz-design-bundle/v1",
-        "schema_version": job.schema_version,
-        "seed": job.seed,
+        **job_identity,
+        "job_sha256": hashlib.sha256(
+            json.dumps(
+                job_identity,
+                ensure_ascii=True,
+                allow_nan=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode("utf-8")
+        ).hexdigest(),
         "domain_ids": [domain.id for domain in job.domains],
         "group_ids": [group.id for group in job.groups],
         "relation_ids": [relation.id for relation in job.relations],
-        "passes": [
+        "pass_summaries": [
             {
-                "id": design_pass.id,
-                "algorithm": design_pass.algorithm,
-                "target_domain_ids": list(design_pass.target_domain_ids),
-                "depends_on": list(design_pass.depends_on),
+                "producing_pass_id": result.producing_pass_id,
+                "path_count": len(result.paths),
+                "derived_domain_ids": [domain.id for domain in result.derived_domains],
+                "paths": [
+                    {
+                        "domain_id": path.domain_id,
+                        "layer_id": path.layer_id,
+                        "coordinate_frame": path.coordinate_frame,
+                        "producing_pass_id": path.producing_pass_id,
+                    }
+                    for path in result.paths
+                ],
             }
-            for design_pass in job.passes
+            for result in state.results
         ],
         "derived_domains": [
-            {
-                "id": domain.id,
-                "provenance": {
-                    "source_domain_ids": list(domain.provenance.source_domain_ids),
-                    "generating_pass_id": domain.provenance.generating_pass_id,
-                    "operation": domain.provenance.operation,
-                },
-            }
+            _domain_payload(domain)
             for domain in state.derived_domains
         ],
         "design_svg": {"path": "design.svg", "sha256": design_digest},
@@ -373,12 +386,125 @@ def _audit_payload(
                 "domain_id": projection.surface.domain_id,
                 "path": f"surfaces/{filename}",
                 "sha256": digest,
+                "feature_aliases": {
+                    alias: _endpoint_payload(reference)
+                    for alias, reference in projection.surface.feature_aliases.items()
+                },
+                "producing_pass_ids": list(
+                    dict.fromkeys(
+                        path.producing_pass_id
+                        for path in projection.paths
+                        if path.producing_pass_id is not None
+                    )
+                ),
             }
             for projection, filename, digest in zip(
                 projections, filenames, surface_digests, strict=True
             )
         ],
     }
+
+
+def _job_identity_payload(job: DomainArtworkJob) -> dict[str, object]:
+    return {
+        "schema_version": job.schema_version,
+        "seed": job.seed,
+        "domains": [_domain_payload(domain) for domain in job.domains],
+        "declared_surfaces": (
+            None
+            if job.surfaces is None
+            else [_surface_payload(surface) for surface in job.surfaces]
+        ),
+        "groups": [
+            {
+                "id": group.id,
+                "surface_ids": list(group.surface_ids),
+                "seed": group.seed,
+                "metadata": thaw_json_value(group.metadata),
+            }
+            for group in job.groups
+        ],
+        "relations": [
+            {
+                "id": relation.id,
+                "relation_type": relation.relation_type.value,
+                "source": _endpoint_payload(relation.source),
+                "target": _endpoint_payload(relation.target),
+                "metadata": thaw_json_value(relation.metadata),
+            }
+            for relation in job.relations
+        ],
+        "composition_transforms": [
+            {
+                "domain_id": composition.domain_id,
+                "matrix": [
+                    composition.transform.a,
+                    composition.transform.b,
+                    composition.transform.c,
+                    composition.transform.d,
+                    composition.transform.e,
+                    composition.transform.f,
+                ],
+            }
+            for composition in job.composition_transforms
+        ],
+        "passes": [
+            {
+                "id": design_pass.id,
+                "algorithm": design_pass.algorithm,
+                "target_domain_ids": list(design_pass.target_domain_ids),
+                "parameters": thaw_json_value(design_pass.parameters),
+                "logical_layers": [
+                    {"id": layer.id, "label": layer.label}
+                    for layer in design_pass.logical_layers
+                ],
+                "group_context_ids": list(design_pass.group_context_ids),
+                "relation_context_ids": list(design_pass.relation_context_ids),
+                "depends_on": list(design_pass.depends_on),
+            }
+            for design_pass in job.passes
+        ],
+    }
+
+
+def _domain_payload(domain: PolygonDomain) -> dict[str, object]:
+    provenance = domain.provenance
+    return {
+        "id": domain.id,
+        "vertices": [[float(x), float(y)] for x, y in domain.vertices],
+        "provenance": (
+            None
+            if provenance is None
+            else {
+                "source_domain_ids": list(provenance.source_domain_ids),
+                "generating_pass_id": provenance.generating_pass_id,
+                "operation": provenance.operation,
+            }
+        ),
+    }
+
+
+def _surface_payload(surface: PolygonSurface) -> dict[str, object]:
+    return {
+        "id": surface.id,
+        "domain_id": surface.domain_id,
+        "feature_aliases": {
+            alias: _endpoint_payload(reference)
+            for alias, reference in surface.feature_aliases.items()
+        },
+    }
+
+
+def _endpoint_payload(endpoint: DomainRef | FeatureRef) -> dict[str, object]:
+    payload: dict[str, object] = {"domain_id": endpoint.domain_id}
+    if isinstance(endpoint, FeatureRef):
+        payload.update(
+            {
+                "feature_type": endpoint.feature_type.value,
+                "index": endpoint.index,
+            }
+        )
+    return payload
 
 
 def _write_utf8(path: Path, content: str) -> None:
@@ -444,3 +570,5 @@ def _verify_staged_bundle(
             raise RuntimeError("staged audit surface digest mismatch")
         if _sha256(surfaces / filename) != digest:
             raise RuntimeError(f"staged surface SVG digest mismatch: {filename}")
+    if staged_audit != expected_audit:
+        raise RuntimeError("staged audit payload mismatch")

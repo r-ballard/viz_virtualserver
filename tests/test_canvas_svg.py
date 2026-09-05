@@ -281,7 +281,13 @@ def test_surface_svg_uses_declared_logical_layers_without_structural_artwork() -
         surface=PolygonSurface("front", domain.id),
         domain=domain,
         paths=(
-            VectorPath(((0, 1), (2, 1)), False, "ink", domain.id),
+            VectorPath(
+                ((0, 1), (2, 1)),
+                False,
+                "ink",
+                domain.id,
+                producing_pass_id="draw",
+            ),
             VectorPath(((0, 2), (2, 2)), False, "underlay", domain.id),
             VectorPath(((0, 3), (2, 3)), False, "ink", domain.id),
         ),
@@ -303,5 +309,50 @@ def test_surface_svg_uses_declared_logical_layers_without_structural_artwork() -
         "M 0 1 L 2 1",
         "M 0 3 L 2 3",
     ]
+    assert groups[1].findall("svg:path", NS)[0].attrib[
+        "data-viz-producing-pass-id"
+    ] == "draw"
     assert root.find("svg:g[@data-viz-role='canvas-guide']", NS) is None
     assert root.findall("svg:path", NS) == []
+
+
+def test_surface_svg_disambiguates_structural_and_repeated_logical_layer_ids() -> None:
+    domain = PolygonDomain("panel", ((0, 0), (8, 0), (4, 5)))
+    projection = SurfaceProjection(
+        surface=PolygonSurface("front", domain.id),
+        domain=domain,
+        paths=(
+            VectorPath(((0, 1), (2, 1)), False, CLIP_ID, domain.id),
+            VectorPath(
+                ((0, 2), (2, 2)),
+                False,
+                "viz-domain-metadata",
+                domain.id,
+            ),
+        ),
+        layers=(
+            LogicalLayer(CLIP_ID),
+            LogicalLayer("viz-domain-metadata"),
+            LogicalLayer(CLIP_ID),
+        ),
+        bounds=(0, 0, 8, 5),
+        up_anchor="edge:0",
+    )
+
+    first = surface_projection_to_svg(projection)
+    second = surface_projection_to_svg(projection)
+    root = ET.fromstring(first)
+    groups = root.findall("svg:g", NS)
+    document_ids = [element.attrib["id"] for element in root.iter() if "id" in element.attrib]
+
+    assert first == second
+    assert len(document_ids) == len(set(document_ids))
+    assert [group.attrib["id"] for group in groups] == [
+        "viz-canvas-clip--2",
+        "viz-domain-metadata--2",
+    ]
+    assert [group.attrib["data-viz-layer"] for group in groups] == [
+        CLIP_ID,
+        "viz-domain-metadata",
+    ]
+    assert [len(group.findall("svg:path", NS)) for group in groups] == [1, 1]

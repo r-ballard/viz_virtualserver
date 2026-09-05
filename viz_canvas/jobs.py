@@ -46,6 +46,8 @@ class DomainArtworkJob:
     passes: tuple[DesignPass, ...]
 
     def __post_init__(self) -> None:
+        if type(self.schema_version) is not int or self.schema_version != 1:
+            raise ValueError(f"unsupported schema version: {self.schema_version!r}")
         domains = tuple(self.domains)
         surfaces = None if self.surfaces is None else tuple(self.surfaces)
         groups = tuple(self.groups)

@@ -5,10 +5,11 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Self
+from typing import Annotated, Self
 
 from pydantic import (
     BaseModel,
+    BeforeValidator,
     ConfigDict,
     Field,
     StrictInt,
@@ -32,13 +33,22 @@ from .semantics import (
 )
 
 
+def _require_json_number(value: object) -> object:
+    if type(value) not in {int, float}:
+        raise ValueError("value must be a JSON integer or floating-point number")
+    return value
+
+
+type _JsonNumber = Annotated[float, BeforeValidator(_require_json_number)]
+
+
 class _RequestModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
 class _DomainRequest(_RequestModel):
     id: str
-    vertices: list[tuple[float, float]]
+    vertices: list[tuple[_JsonNumber, _JsonNumber]]
 
 
 class _FeatureRefRequest(_RequestModel):
@@ -83,7 +93,7 @@ class _SurfaceRequest(_RequestModel):
 class _GroupRequest(_RequestModel):
     id: str
     surface_ids: list[str]
-    seed: int | None = None
+    seed: StrictInt | None = None
     metadata: dict[str, object] = Field(default_factory=dict)
 
 
@@ -97,7 +107,14 @@ class _RelationRequest(_RequestModel):
 
 class _CompositionTransformRequest(_RequestModel):
     domain_id: str
-    matrix: tuple[float, float, float, float, float, float]
+    matrix: tuple[
+        _JsonNumber,
+        _JsonNumber,
+        _JsonNumber,
+        _JsonNumber,
+        _JsonNumber,
+        _JsonNumber,
+    ]
 
     @field_validator("matrix", mode="before")
     @classmethod
@@ -127,12 +144,14 @@ class _PassRequest(_RequestModel):
 
 class _JobRequest(_RequestModel):
     schema_version: StrictInt
-    seed: int
+    seed: StrictInt
     domains: list[_DomainRequest]
     surfaces: list[_SurfaceRequest] | None = None
-    groups: list[_GroupRequest]
-    relations: list[_RelationRequest]
-    composition_transforms: list[_CompositionTransformRequest]
+    groups: list[_GroupRequest] = Field(default_factory=list)
+    relations: list[_RelationRequest] = Field(default_factory=list)
+    composition_transforms: list[_CompositionTransformRequest] = Field(
+        default_factory=list
+    )
     passes: list[_PassRequest]
 
     @model_validator(mode="after")

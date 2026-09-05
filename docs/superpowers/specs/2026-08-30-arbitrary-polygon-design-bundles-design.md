@@ -175,6 +175,15 @@ Each pass returns neutral vector paths in logical layers through `DesignResult`.
 Operations that create geometry domains return new immutable derived domains
 with provenance. Algorithms do not assign physical pens.
 
+In schema v1, derived domains remain domain-local and do not inherit or infer a
+composition transform from provenance. A later domain-local pass may target a
+derived domain. A coordinated pass must reject a derived target, and must reject
+a composition-frame path owned by a domain created in that result, because no
+declared inverse exists for deterministic surface projection. Supporting such
+paths requires a future schema to declare a derived-domain composition transform
+explicitly. Derived provenance must name one or more targets of its producing
+pass, repeat that pass ID, and include a nonempty operation.
+
 Every returned path must be associated with exactly one source or derived
 domain ID. The current neutral `VectorPath` representation does not yet carry
 that association, so implementation must extend the neutral result contract

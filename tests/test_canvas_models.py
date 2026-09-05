@@ -77,6 +77,47 @@ def test_domain_provenance_copies_mutable_source_ids() -> None:
     assert provenance.source_domain_ids == ("source",)
 
 
+@pytest.mark.parametrize(
+    ("source_domain_ids", "generating_pass_id", "operation", "message"),
+    [
+        ((), "pass-a", "copy", "at least one source"),
+        (("",), "pass-a", "copy", "source domain ids"),
+        (("source", "source"), "pass-a", "copy", "duplicate source"),
+        (("source",), "", "copy", "generating pass"),
+        (("source",), "pass-a", "   ", "operation"),
+    ],
+)
+def test_domain_provenance_rejects_incomplete_identity(
+    source_domain_ids: tuple[str, ...],
+    generating_pass_id: str,
+    operation: str,
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        DomainProvenance(source_domain_ids, generating_pass_id, operation)
+
+
+@pytest.mark.parametrize(
+    ("source_domain_ids", "generating_pass_id", "operation"),
+    [
+        ((1,), "pass-a", "copy"),
+        (("source",), 1, "copy"),
+        (("source",), "pass-a", 1),
+    ],
+)
+def test_domain_provenance_rejects_non_string_identity_parts(
+    source_domain_ids: object,
+    generating_pass_id: object,
+    operation: object,
+) -> None:
+    with pytest.raises(ValueError, match="provenance.*string"):
+        DomainProvenance(  # type: ignore[arg-type]
+            source_domain_ids,
+            generating_pass_id,
+            operation,
+        )
+
+
 def test_polygon_domain_accepts_clockwise_and_counterclockwise_order() -> None:
     ccw = PolygonDomain(
         id="ccw",
