@@ -1,0 +1,24 @@
+{
+  "axiom": "A",
+  "rules": {
+    "A": "F[+A]FB",
+    "B": "F[-B]FA",
+    "F": "FF"
+  },
+  "generations": 8,
+  "angle": 30,
+  "step": 5,
+  "initial_heading": 90,
+  "draw_symbols": ["F"],
+  "growth_mode": "cumulative",
+  "pen_layers": [
+    {"pen": 1, "start_generation": 0, "end_generation": 1, "color": "#000000"},
+    {"pen": 2, "start_generation": 2, "end_generation": 2, "color": "#D62728"},
+    {"pen": 3, "start_generation": 3, "end_generation": 3, "color": "#1F77B4"},
+    {"pen": 4, "start_generation": 4, "end_generation": 4, "color": "#2CA02C"},
+    {"pen": 5, "start_generation": 5, "end_generation": 5, "color": "#9467BD"},
+    {"pen": 6, "start_generation": 6, "end_generation": 6, "color": "#17BECF"},
+    {"pen": 7, "start_generation": 7, "end_generation": 7, "color": "#FF7F0E"},
+    {"pen": 8, "start_generation": 8, "end_generation": 8, "color": "#7F7F7F"}
+  ]
+}

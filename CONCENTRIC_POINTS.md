@@ -1,11 +1,20 @@
 # Concentric-point generator
 
-The concentric-point generator is the first algorithm in `viz-virtualserver` to consume the
-intrinsic `CanvasGeometry` abstraction directly. It samples deterministic centers inside the
-logical canvas and emits concentric vector rings around each center.
+The concentric-point generator consumes generic polygon-domain geometry through its design
+adapter. The adapter receives domains owned by `viz_canvas`, invokes the existing concentric
+algorithm for a supported target, and returns neutral canvas-coordinate vector paths internally.
+The generic polygon model is not owned by the concentric package; see [CANVAS.md](CANVAS.md) for
+the shared domain grammar, semantics, metadata, and repository boundaries.
 
 The generator is intentionally canvas-aware. A triangular source is generated as a triangular
 composition rather than as rectangular artwork that is cropped only during imposition.
+
+The adapter declares the algorithm's actual capability: it supports simple convex polygon
+domains and does not claim support for concave polygons. When invoked through the generic
+design-pass executor, unsupported geometry is rejected before the algorithm runs. The
+compatibility wrappers preserve the established JSON response and SVG surface, including circles
+and top-level physical `pen-N` groups, while the internal `DesignResult` remains independent of
+HTTP models and plotter-slot assignment.
 
 ## API
 
@@ -27,9 +36,11 @@ curl --fail-with-body -sS \
   'http://localhost:5699/ConcentricPointsSvg?stroke_width=1'
 ```
 
-The SVG keeps the intrinsic canvas metadata established by `viz_canvas`, defines the same
-polygonal clip under `<defs>`, and places all drawable geometry in a top-level strict `pen-N`
-group for downstream `plotter-workflow` compatibility.
+The SVG keeps the intrinsic canvas metadata established by `viz_canvas`, adds the versioned
+polygon-domain metadata described in [CANVAS.md](CANVAS.md), defines the same polygonal clip under
+`<defs>`, and places all drawable geometry in a top-level strict `pen-N` group for downstream
+`plotter-workflow` compatibility. These are compatibility guarantees of the public endpoint; the
+adapter's neutral internal paths use logical layers instead of physical pen groups.
 
 ## Request fields
 

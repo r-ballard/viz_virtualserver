@@ -44,6 +44,51 @@ def result_to_svg(result: dict, *, padding: float = 10.0, stroke_width: float = 
     return "\n".join(lines)
 
 
+def result_to_generation_svgs(
+    result: dict,
+    *,
+    generation_numbers: tuple[int, ...],
+    padding: float = 10.0,
+    stroke_width: float = 1.0,
+) -> dict[int, str]:
+    """Render selected generations as separate pages with shared result bounds."""
+
+    generations = {
+        generation["generation"]: (layer, generation)
+        for layer in result["layers"]
+        for generation in layer["generations"]
+    }
+    pages: dict[int, str] = {}
+    for generation_number in generation_numbers:
+        if generation_number not in generations:
+            raise ValueError(f"generation {generation_number} is not present in result")
+        layer, generation = generations[generation_number]
+        page_result = {
+            "bounds": result["bounds"],
+            "layers": [{**layer, "generations": [generation]}],
+        }
+        pages[generation_number] = result_to_svg(
+            page_result, padding=padding, stroke_width=stroke_width
+        )
+    return pages
+
+
+def growth_pages_to_svgs(
+    pages: dict[int, dict],
+    *,
+    padding: float = 0.0,
+    stroke_width: float = 1.0,
+) -> dict[int, str]:
+    """Render independently bounded cumulative or delta growth pages."""
+
+    return {
+        generation: result_to_svg(
+            page, padding=padding, stroke_width=stroke_width
+        )
+        for generation, page in pages.items()
+    }
+
+
 def _path_data(path: list, *, min_x: float, max_y: float, padding: float) -> str:
     transformed = [
         (float(x) - min_x + padding, max_y - float(y) + padding)

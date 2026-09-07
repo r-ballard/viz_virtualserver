@@ -3,7 +3,15 @@ import random
 
 import pytest
 
-from viz_canvas.geometry import CanvasError, build_canvas
+from viz_canvas.geometry import (
+    CanvasError,
+    build_canvas,
+    is_convex_polygon,
+    polygon_centroid,
+    polygon_edges,
+    polygon_winding,
+    validate_simple_polygon,
+)
 from viz_canvas.models import CanvasSpec
 
 
@@ -58,3 +66,67 @@ def test_distance_to_boundary_is_available_to_generators() -> None:
 def test_invalid_up_anchor_index_is_rejected() -> None:
     with pytest.raises(CanvasError, match="outside polygon vertex range"):
         build_canvas(CanvasSpec(shape="triangle", up_anchor="vertex:7"))
+
+
+def test_polygon_edges_wrap_last_vertex_to_first() -> None:
+    vertices = ((0.0, 0.0), (5.0, 0.0), (5.0, 5.0), (0.0, 5.0))
+
+    assert polygon_edges(vertices) == (
+        ((0.0, 0.0), (5.0, 0.0)),
+        ((5.0, 0.0), (5.0, 5.0)),
+        ((5.0, 5.0), (0.0, 5.0)),
+        ((0.0, 5.0), (0.0, 0.0)),
+    )
+
+
+def test_polygon_winding_does_not_reorder_vertices() -> None:
+    vertices = ((0.0, 0.0), (0.0, 5.0), (5.0, 0.0))
+    before = tuple(vertices)
+
+    winding = polygon_winding(vertices)
+
+    assert winding in {"clockwise", "counterclockwise"}
+    assert vertices == before
+
+
+@pytest.mark.parametrize(
+    "vertices",
+    [
+        ((0.0, 0.0), (1.0, 0.0)),
+        ((0.0, 0.0), (1.0, 0.0), (2.0, 0.0)),
+        ((0.0, 0.0), (1.0, 0.0), (1.0, 0.0), (0.0, 1.0)),
+        ((0.0, 0.0), (2.0, 2.0), (0.0, 2.0), (2.0, 0.0)),
+    ],
+)
+def test_validate_simple_polygon_rejects_invalid_geometry(vertices) -> None:
+    with pytest.raises(ValueError):
+        validate_simple_polygon(vertices)
+
+
+def test_validate_simple_polygon_rejects_non_finite_coordinates() -> None:
+    with pytest.raises(ValueError, match="finite"):
+        validate_simple_polygon(((0.0, 0.0), (1.0, 0.0), (math.inf, 1.0)))
+
+
+def test_validate_simple_polygon_rejects_zero_length_closing_edge() -> None:
+    with pytest.raises(ValueError, match="zero-length"):
+        validate_simple_polygon(((0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (0.0, 0.0)))
+
+
+def test_validate_simple_polygon_accepts_concave_polygon() -> None:
+    vertices = (
+        (0.0, 0.0),
+        (4.0, 0.0),
+        (4.0, 4.0),
+        (2.0, 2.0),
+        (0.0, 4.0),
+    )
+
+    validate_simple_polygon(vertices)
+    assert is_convex_polygon(vertices) is False
+
+
+def test_polygon_centroid_for_square() -> None:
+    vertices = ((0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0))
+
+    assert polygon_centroid(vertices) == pytest.approx((5.0, 5.0))

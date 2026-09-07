@@ -1,12 +1,34 @@
+import json
 import xml.etree.ElementTree as ET
 
 import pytest
 
-from viz_canvas.geometry import build_canvas
-from viz_canvas.models import CanvasSpec
-from viz_canvas.svg import CLIP_ID, SVG_NS, canvas_to_svg
+from viz_canvas.design import DesignResult, LogicalLayer, VectorPath
+from viz_canvas.geometry import CanvasGeometry, build_canvas
+from viz_canvas.models import CanvasSpec, DomainProvenance, PolygonDomain
+from viz_canvas.projection import SurfaceProjection
+from viz_canvas.semantics import PolygonSurface
+from viz_canvas.svg import (
+    CLIP_ID,
+    SVG_NS,
+    build_domain_metadata_payload,
+    canvas_to_svg,
+    serialize_design_result_svg,
+    surface_projection_to_svg,
+)
 
 NS = {"svg": SVG_NS}
+
+
+def make_canvas(*domains: PolygonDomain) -> CanvasGeometry:
+    return CanvasGeometry(
+        shape="triangle",
+        width=100.0,
+        height=80.0,
+        polygon=((50.0, 0.0), (100.0, 80.0), (0.0, 80.0)),
+        up_anchor="vertex:0",
+        domains=domains,
+    )
 
 
 def test_triangle_svg_carries_intrinsic_canvas_contract() -> None:
@@ -46,3 +68,291 @@ def test_boundary_stroke_width_must_be_positive() -> None:
     canvas = build_canvas(CanvasSpec(shape="triangle"))
     with pytest.raises(ValueError, match="positive"):
         canvas_to_svg(canvas, boundary_stroke_width=0)
+
+
+def test_design_serializer_preserves_exact_legacy_canvas_metadata_and_clip() -> None:
+    canvas = make_canvas(
+        PolygonDomain("unrelated", ((10.0, 10.0), (20.0, 10.0), (10.0, 20.0)))
+    )
+
+    root = ET.fromstring(serialize_design_result_svg(canvas=canvas, results=()))
+
+    assert root.attrib == {
+        "viewBox": "0 0 100 80",
+        "width": "100",
+        "height": "80",
+        "data-viz-canvas-version": "1",
+        "data-viz-canvas-shape": "triangle",
+        "data-viz-canvas-coordinate-system": "svg-y-down",
+        "data-viz-canvas-up-anchor": "vertex:0",
+        "data-viz-canvas-up-vector": "0,-1",
+        "data-viz-canvas-polygon": "50,0 100,80 0,80",
+        "data-viz-canvas-clip-id": "viz-canvas-clip",
+    }
+    clip = root.find("svg:defs/svg:clipPath", NS)
+    assert clip is not None
+    assert clip.attrib == {
+        "id": "viz-canvas-clip",
+        "clipPathUnits": "userSpaceOnUse",
+    }
+    assert clip.find("svg:path", NS).attrib == {
+        "d": "M 50 0 L 100 80 L 0 80 Z"
+    }
+
+
+def test_domain_metadata_payload_preserves_domain_vertex_order_and_provenance() -> None:
+    canvas = make_canvas(
+        PolygonDomain("a", ((0.0, 0.0), (10.0, 0.0), (0.0, 10.0))),
+        PolygonDomain(
+            "b",
+            ((2.0, 2.0), (8.0, 2.0), (2.0, 8.0)),
+            DomainProvenance(("source",), "pass-a", "offset"),
+        ),
+    )
+
+    assert build_domain_metadata_payload(canvas) == {
+        "schema": "viz-domain/v1",
+        "domains": [
+            {
+                "id": "a",
+                "vertices": [[0.0, 0.0], [10.0, 0.0], [0.0, 10.0]],
+                "provenance": None,
+            },
+            {
+                "id": "b",
+                "vertices": [[2.0, 2.0], [8.0, 2.0], [2.0, 8.0]],
+                "provenance": {
+                    "source_domain_ids": ["source"],
+                    "generating_pass_id": "pass-a",
+                    "operation": "offset",
+                },
+            },
+        ],
+    }
+
+
+def test_design_serializer_emits_one_deterministic_compact_metadata_node() -> None:
+    canvas = make_canvas(
+        PolygonDomain("a", ((0.0, 0.0), (10.0, 0.0), (0.0, 10.0)))
+    )
+
+    root = ET.fromstring(serialize_design_result_svg(canvas=canvas, results=()))
+    metadata = root.findall("svg:metadata", NS)
+
+    assert len(metadata) == 1
+    assert metadata[0].attrib == {"id": "viz-domain-metadata"}
+    assert metadata[0].text == (
+        '{"schema":"viz-domain/v1","domains":[{"id":"a","vertices":'
+        '[[0.0,0.0],[10.0,0.0],[0.0,10.0]],"provenance":null}]}'
+    )
+    assert json.loads(metadata[0].text) == build_domain_metadata_payload(canvas)
+
+
+def test_design_paths_compose_repeated_layers_in_first_seen_order() -> None:
+    results = (
+        DesignResult(
+            (
+                VectorPath(((0.0, 0.0), (10.0, 10.0)), False, "a", "canvas"),
+                VectorPath(
+                    ((10.0, 0.0), (0.0, 10.0), (5.0, 5.0)), True, "b", "canvas"
+                ),
+            ),
+            (),
+            "first",
+        ),
+        DesignResult(
+            (VectorPath(((2.0, 3.0), (4.0, 5.0)), False, "a", "canvas"),),
+            (),
+            "second",
+        ),
+    )
+
+    root = ET.fromstring(serialize_design_result_svg(canvas=make_canvas(), results=results))
+    layers = root.findall("svg:g", NS)
+
+    assert [layer.attrib for layer in layers] == [
+        {
+            "id": "a",
+            "data-viz-role": "logical-layer",
+            "data-viz-layer": "a",
+            "clip-path": "url(#viz-canvas-clip)",
+            "fill": "none",
+            "stroke": "#000000",
+            "stroke-width": "1",
+            "stroke-linecap": "round",
+            "stroke-linejoin": "round",
+        },
+        {
+            "id": "b",
+            "data-viz-role": "logical-layer",
+            "data-viz-layer": "b",
+            "clip-path": "url(#viz-canvas-clip)",
+            "fill": "none",
+            "stroke": "#000000",
+            "stroke-width": "1",
+            "stroke-linecap": "round",
+            "stroke-linejoin": "round",
+        },
+    ]
+    assert [path.attrib for path in layers[0].findall("svg:path", NS)] == [
+        {"d": "M 0 0 L 10 10"},
+        {"d": "M 2 3 L 4 5"},
+    ]
+    assert [path.attrib for path in layers[1].findall("svg:path", NS)] == [
+        {"d": "M 10 0 L 0 10 L 5 5 Z"}
+    ]
+
+
+def test_design_serializer_draws_no_structural_domain_outlines() -> None:
+    root = ET.fromstring(
+        serialize_design_result_svg(
+            canvas=make_canvas(
+                PolygonDomain("a", ((0.0, 0.0), (10.0, 0.0), (0.0, 10.0)))
+            ),
+            results=(),
+        )
+    )
+
+    assert root.findall("svg:g", NS) == []
+    assert root.findall("svg:path", NS) == []
+
+
+def test_overlapping_domains_remain_separate_ordered_metadata_not_union_artwork() -> None:
+    canvas = make_canvas(
+        PolygonDomain("a", ((0.0, 0.0), (60.0, 0.0), (60.0, 60.0), (0.0, 60.0))),
+        PolygonDomain("b", ((40.0, 20.0), (90.0, 20.0), (90.0, 70.0), (40.0, 70.0))),
+    )
+
+    root = ET.fromstring(serialize_design_result_svg(canvas=canvas, results=()))
+    metadata = json.loads(root.find("svg:metadata", NS).text)
+
+    assert metadata == {
+        "schema": "viz-domain/v1",
+        "domains": [
+            {
+                "id": "a",
+                "vertices": [[0.0, 0.0], [60.0, 0.0], [60.0, 60.0], [0.0, 60.0]],
+                "provenance": None,
+            },
+            {
+                "id": "b",
+                "vertices": [[40.0, 20.0], [90.0, 20.0], [90.0, 70.0], [40.0, 70.0]],
+                "provenance": None,
+            },
+        ],
+    }
+    assert [domain["id"] for domain in metadata["domains"]] == ["a", "b"]
+    assert root.findall("svg:g", NS) == []
+    assert root.findall("svg:path", NS) == []
+
+
+def test_design_serializer_supports_empty_domains_and_results() -> None:
+    root = ET.fromstring(serialize_design_result_svg(canvas=make_canvas(), results=()))
+    metadata = root.find("svg:metadata[@id='viz-domain-metadata']", NS)
+
+    assert metadata is not None
+    assert metadata.text == '{"schema":"viz-domain/v1","domains":[]}'
+    assert root.findall("svg:g", NS) == []
+
+
+def test_empty_surface_still_serializes_intrinsic_polygon_metadata() -> None:
+    domain = PolygonDomain("panel", ((0, 0), (8, 0), (4, 5)))
+    projection = SurfaceProjection(
+        surface=PolygonSurface("front", domain.id),
+        domain=domain,
+        paths=(),
+        layers=(),
+        bounds=(0, 0, 8, 5),
+        up_anchor="edge:0",
+    )
+
+    root = ET.fromstring(surface_projection_to_svg(projection))
+
+    assert root.attrib["viewBox"] == "0 0 8 5"
+    assert root.attrib["data-viz-canvas-polygon"] == "0,0 8,0 4,5"
+    assert root.attrib["data-viz-canvas-up-anchor"] == "edge:0"
+    assert root.attrib["data-viz-canvas-up-vector"] == "0,-1"
+    assert root.findall("svg:g", NS) == []
+
+
+def test_surface_svg_uses_declared_logical_layers_without_structural_artwork() -> None:
+    domain = PolygonDomain("panel", ((0, 0), (8, 0), (4, 5)))
+    projection = SurfaceProjection(
+        surface=PolygonSurface("front", domain.id),
+        domain=domain,
+        paths=(
+            VectorPath(
+                ((0, 1), (2, 1)),
+                False,
+                "ink",
+                domain.id,
+                producing_pass_id="draw",
+            ),
+            VectorPath(((0, 2), (2, 2)), False, "underlay", domain.id),
+            VectorPath(((0, 3), (2, 3)), False, "ink", domain.id),
+        ),
+        layers=(LogicalLayer("underlay"), LogicalLayer("ink")),
+        bounds=(0, 0, 8, 5),
+        up_anchor="edge:0",
+    )
+
+    root = ET.fromstring(surface_projection_to_svg(projection))
+    groups = root.findall("svg:g", NS)
+
+    assert [group.attrib["id"] for group in groups] == ["underlay", "ink"]
+    assert all(group.attrib["data-viz-role"] == "logical-layer" for group in groups)
+    assert all(not group.attrib["id"].startswith("pen-") for group in groups)
+    assert [path.attrib["d"] for path in groups[0].findall("svg:path", NS)] == [
+        "M 0 2 L 2 2"
+    ]
+    assert [path.attrib["d"] for path in groups[1].findall("svg:path", NS)] == [
+        "M 0 1 L 2 1",
+        "M 0 3 L 2 3",
+    ]
+    assert groups[1].findall("svg:path", NS)[0].attrib[
+        "data-viz-producing-pass-id"
+    ] == "draw"
+    assert root.find("svg:g[@data-viz-role='canvas-guide']", NS) is None
+    assert root.findall("svg:path", NS) == []
+
+
+def test_surface_svg_disambiguates_structural_and_repeated_logical_layer_ids() -> None:
+    domain = PolygonDomain("panel", ((0, 0), (8, 0), (4, 5)))
+    projection = SurfaceProjection(
+        surface=PolygonSurface("front", domain.id),
+        domain=domain,
+        paths=(
+            VectorPath(((0, 1), (2, 1)), False, CLIP_ID, domain.id),
+            VectorPath(
+                ((0, 2), (2, 2)),
+                False,
+                "viz-domain-metadata",
+                domain.id,
+            ),
+        ),
+        layers=(
+            LogicalLayer(CLIP_ID),
+            LogicalLayer("viz-domain-metadata"),
+            LogicalLayer(CLIP_ID),
+        ),
+        bounds=(0, 0, 8, 5),
+        up_anchor="edge:0",
+    )
+
+    first = surface_projection_to_svg(projection)
+    second = surface_projection_to_svg(projection)
+    root = ET.fromstring(first)
+    groups = root.findall("svg:g", NS)
+    document_ids = [element.attrib["id"] for element in root.iter() if "id" in element.attrib]
+
+    assert first == second
+    assert len(document_ids) == len(set(document_ids))
+    assert [group.attrib["id"] for group in groups] == [
+        "viz-canvas-clip--2",
+        "viz-domain-metadata--2",
+    ]
+    assert [group.attrib["data-viz-layer"] for group in groups] == [
+        CLIP_ID,
+        "viz-domain-metadata",
+    ]
+    assert [len(group.findall("svg:path", NS)) for group in groups] == [1, 1]

@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+import dataclasses
+import json
 import xml.etree.ElementTree as ET
 
+from .design import DesignResult, DesignState, VectorPath
+from .frames import AffineTransform, resolve_composition_transforms
 from .geometry import CanvasGeometry
+from .jobs import DomainArtworkJob
+from .models import PolygonDomain
+from .projection import SurfaceProjection
 
 SVG_NS = "http://www.w3.org/2000/svg"
 CLIP_ID = "viz-canvas-clip"
@@ -82,12 +89,313 @@ def canvas_to_svg(
     )
 
 
+def build_domain_metadata_payload(canvas: CanvasGeometry) -> dict[str, object]:
+    """Build canonical, versioned metadata for every declared polygon domain."""
+
+    domains: list[dict[str, object]] = []
+    for domain in canvas.domains:
+        provenance = domain.provenance
+        domains.append(
+            {
+                "id": domain.id,
+                "vertices": [[float(x), float(y)] for x, y in domain.vertices],
+                "provenance": (
+                    None
+                    if provenance is None
+                    else {
+                        "source_domain_ids": list(provenance.source_domain_ids),
+                        "generating_pass_id": provenance.generating_pass_id,
+                        "operation": provenance.operation,
+                    }
+                ),
+            }
+        )
+    return {"schema": "viz-domain/v1", "domains": domains}
+
+
+def serialize_design_result_svg(
+    *,
+    canvas: CanvasGeometry,
+    results: tuple[DesignResult, ...],
+    view_box: tuple[float, float, float, float] | None = None,
+) -> str:
+    """Serialize neutral design paths with domain metadata and logical layers."""
+
+    root_attributes = canvas_root_attributes(canvas)
+    if view_box is not None:
+        min_x, min_y, width, height = view_box
+        root_attributes["viewBox"] = " ".join(
+            _fmt(value) for value in (min_x, min_y, width, height)
+        )
+    root = ET.Element(_tag("svg"), root_attributes)
+    clip_value = append_canvas_clip(root, canvas)
+    _append_domain_metadata(root, canvas)
+
+    layers: dict[str, ET.Element] = {}
+    for result in results:
+        for path in result.paths:
+            layer = layers.get(path.layer_id)
+            if layer is None:
+                layer = ET.SubElement(
+                    root,
+                    _tag("g"),
+                    {
+                        "id": path.layer_id,
+                        "data-viz-role": "logical-layer",
+                        "data-viz-layer": path.layer_id,
+                        "clip-path": clip_value,
+                        "fill": "none",
+                        "stroke": "#000000",
+                        "stroke-width": "1",
+                        "stroke-linecap": "round",
+                        "stroke-linejoin": "round",
+                    },
+                )
+                layers[path.layer_id] = layer
+            ET.SubElement(layer, _tag("path"), {"d": _vector_path_data(path)})
+
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(
+        root, encoding="unicode", short_empty_elements=True
+    )
+
+
+def canonical_design_to_svg(job: DomainArtworkJob, state: DesignState) -> str:
+    """Serialize completed paths in the job's explicitly declared canonical frame."""
+
+    transforms = resolve_composition_transforms(job.domains, job.composition_transforms)
+    canonical_domains = tuple(
+        _transform_domain(domain, transforms.get(domain.id))
+        for domain in (*state.source_domains, *state.derived_domains)
+    )
+    canonical_results = tuple(
+        dataclasses.replace(
+            result,
+            paths=tuple(
+                dataclasses.replace(
+                    path,
+                    points=(
+                        tuple(transforms[path.domain_id].apply(point) for point in path.points)
+                        if path.coordinate_frame == "domain" and path.domain_id in transforms
+                        else path.points
+                    ),
+                )
+                for path in result.paths
+            ),
+        )
+        for result in state.results
+    )
+    points = tuple(
+        point
+        for domain in canonical_domains
+        for point in domain.vertices
+    ) + tuple(
+        point
+        for result in canonical_results
+        for path in result.paths
+        for point in path.points
+    )
+    min_x = min(x for x, _ in points)
+    min_y = min(y for _, y in points)
+    max_x = max(x for x, _ in points)
+    max_y = max(y for _, y in points)
+    canvas = CanvasGeometry(
+        shape="rectangle",
+        width=max_x - min_x,
+        height=max_y - min_y,
+        polygon=((min_x, min_y), (max_x, min_y), (max_x, max_y), (min_x, max_y)),
+        up_anchor="edge:0",
+        domains=canonical_domains,
+    )
+    return _serialize_canonical_results_svg(
+        canvas=canvas,
+        results=canonical_results,
+        transformed_domain_ids=frozenset(transforms),
+        view_box=(min_x, min_y, max_x - min_x, max_y - min_y),
+    )
+
+
+def _serialize_canonical_results_svg(
+    *,
+    canvas: CanvasGeometry,
+    results: tuple[DesignResult, ...],
+    transformed_domain_ids: frozenset[str],
+    view_box: tuple[float, float, float, float],
+) -> str:
+    root_attributes = canvas_root_attributes(canvas)
+    root_attributes["viewBox"] = " ".join(_fmt(value) for value in view_box)
+    root = ET.Element(_tag("svg"), root_attributes)
+    clip_value = append_canvas_clip(root, canvas)
+    _append_domain_metadata(root, canvas)
+
+    current_layer_id: str | None = None
+    current_layer: ET.Element | None = None
+    layer_run_counts: dict[str, int] = {}
+    used_group_ids = {CLIP_ID, "viz-domain-metadata"}
+    for result in results:
+        for path in result.paths:
+            if path.layer_id != current_layer_id:
+                current_layer_id = path.layer_id
+                run_number = layer_run_counts.get(path.layer_id, 0) + 1
+                layer_run_counts[path.layer_id] = run_number
+                group_id = _unique_layer_run_id(
+                    path.layer_id,
+                    run_number=run_number,
+                    used_group_ids=used_group_ids,
+                )
+                attributes = _logical_layer_attributes(path.layer_id, clip_value)
+                attributes["id"] = group_id
+                current_layer = ET.SubElement(
+                    root,
+                    _tag("g"),
+                    attributes,
+                )
+            if current_layer is None:  # pragma: no cover - assigned above for every path
+                raise RuntimeError("canonical path is missing its logical layer")
+            source_frame = path.coordinate_frame
+            serialized_frame = (
+                "composition"
+                if source_frame == "composition" or path.domain_id in transformed_domain_ids
+                else "domain"
+            )
+            ET.SubElement(
+                current_layer,
+                _tag("path"),
+                {
+                    "d": _vector_path_data(path),
+                    "data-viz-domain-id": path.domain_id,
+                    "data-viz-coordinate-frame": serialized_frame,
+                    "data-viz-source-coordinate-frame": source_frame,
+                    "data-viz-serialized-coordinate-frame": serialized_frame,
+                    "data-viz-producing-pass-id": path.producing_pass_id or "",
+                },
+            )
+
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(
+        root, encoding="unicode", short_empty_elements=True
+    )
+
+
+def _unique_layer_run_id(
+    layer_id: str,
+    *,
+    run_number: int,
+    used_group_ids: set[str],
+) -> str:
+    base = layer_id if run_number == 1 else f"{layer_id}--run-{run_number}"
+    candidate = base
+    collision_number = 2
+    while candidate in used_group_ids:
+        candidate = f"{base}--{collision_number}"
+        collision_number += 1
+    used_group_ids.add(candidate)
+    return candidate
+
+
+def _transform_domain(
+    domain: PolygonDomain, transform: AffineTransform | None
+) -> PolygonDomain:
+    if transform is None:
+        return domain
+    return dataclasses.replace(
+        domain,
+        vertices=tuple(transform.apply(point) for point in domain.vertices),
+    )
+
+
+def surface_projection_to_svg(projection: SurfaceProjection) -> str:
+    """Serialize one rebased surface projection as an intrinsic polygon SVG."""
+
+    min_x, min_y, max_x, max_y = projection.bounds
+    canvas = CanvasGeometry(
+        shape="polygon",
+        width=max_x - min_x,
+        height=max_y - min_y,
+        polygon=projection.domain.vertices,
+        up_anchor=projection.up_anchor,
+        domains=(projection.domain,),
+    )
+    root = ET.Element(_tag("svg"), canvas_root_attributes(canvas))
+    clip_value = append_canvas_clip(root, canvas)
+    _append_domain_metadata(root, canvas)
+
+    layer_ids: list[str] = []
+    known: set[str] = set()
+    for layer in projection.layers:
+        if layer.id not in known:
+            known.add(layer.id)
+            layer_ids.append(layer.id)
+    for path in projection.paths:
+        if path.layer_id not in known:
+            known.add(path.layer_id)
+            layer_ids.append(path.layer_id)
+    used_group_ids = {CLIP_ID, "viz-domain-metadata"}
+    for layer_id in layer_ids:
+        paths = tuple(path for path in projection.paths if path.layer_id == layer_id)
+        if not paths:
+            continue
+        group_id = _unique_layer_run_id(
+            layer_id,
+            run_number=1,
+            used_group_ids=used_group_ids,
+        )
+        attributes = _logical_layer_attributes(layer_id, clip_value)
+        attributes["id"] = group_id
+        layer = ET.SubElement(
+            root,
+            _tag("g"),
+            attributes,
+        )
+        for path in paths:
+            attributes = {
+                "d": _vector_path_data(path),
+                "data-viz-domain-id": path.domain_id,
+                "data-viz-coordinate-frame": path.coordinate_frame,
+            }
+            if path.producing_pass_id is not None:
+                attributes["data-viz-producing-pass-id"] = path.producing_pass_id
+            ET.SubElement(layer, _tag("path"), attributes)
+
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(
+        root, encoding="unicode", short_empty_elements=True
+    )
+
+
+def _append_domain_metadata(root: ET.Element, canvas: CanvasGeometry) -> None:
+    metadata = ET.SubElement(root, _tag("metadata"), {"id": "viz-domain-metadata"})
+    metadata.text = json.dumps(
+        build_domain_metadata_payload(canvas), separators=(",", ":"), sort_keys=False
+    )
+
+
+def _logical_layer_attributes(layer_id: str, clip_value: str) -> dict[str, str]:
+    return {
+        "id": layer_id,
+        "data-viz-role": "logical-layer",
+        "data-viz-layer": layer_id,
+        "clip-path": clip_value,
+        "fill": "none",
+        "stroke": "#000000",
+        "stroke-width": "1",
+        "stroke-linecap": "round",
+        "stroke-linejoin": "round",
+    }
+
+
 def canvas_path_data(canvas: CanvasGeometry) -> str:
     points = list(canvas.polygon)
     first_x, first_y = points[0]
     commands = [f"M {_fmt(first_x)} {_fmt(first_y)}"]
     commands.extend(f"L {_fmt(x)} {_fmt(y)}" for x, y in points[1:])
     commands.append("Z")
+    return " ".join(commands)
+
+
+def _vector_path_data(path: VectorPath) -> str:
+    first_x, first_y = path.points[0]
+    commands = [f"M {_fmt(first_x)} {_fmt(first_y)}"]
+    commands.extend(f"L {_fmt(x)} {_fmt(y)}" for x, y in path.points[1:])
+    if path.closed:
+        commands.append("Z")
     return " ".join(commands)
 
 

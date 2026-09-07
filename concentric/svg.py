@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 
-from viz_canvas.geometry import build_canvas
-from viz_canvas.svg import SVG_NS, append_canvas_clip, canvas_root_attributes
+from viz_canvas.design import DesignResult
+from viz_canvas.geometry import CanvasGeometry, build_canvas
+from viz_canvas.models import PolygonDomain
+from viz_canvas.svg import SVG_NS, serialize_design_result_svg
 
 from .models import ConcentricPointsRequest
+from .service import _payload_vector_paths
 
 ET.register_namespace("", SVG_NS)
 
@@ -21,9 +24,25 @@ def result_to_svg(
     if stroke_width <= 0:
         raise ValueError("stroke_width must be positive")
 
-    canvas = build_canvas(data.canvas)
-    root_attributes = canvas_root_attributes(canvas)
-    root_attributes.update(
+    legacy_canvas = build_canvas(data.canvas)
+    source_domain = PolygonDomain(id="concentric-source", vertices=legacy_canvas.polygon)
+    canvas = CanvasGeometry(
+        shape=legacy_canvas.shape,
+        width=legacy_canvas.width,
+        height=legacy_canvas.height,
+        polygon=legacy_canvas.polygon,
+        up_anchor=legacy_canvas.up_anchor,
+        domains=(source_domain,),
+    )
+    neutral_result = DesignResult(
+        paths=tuple(_payload_vector_paths(result, layer_id="concentric")),
+        derived_domains=(),
+        producing_pass_id="concentric",
+    )
+    root = ET.fromstring(
+        serialize_design_result_svg(canvas=canvas, results=(neutral_result,))
+    )
+    root.attrib.update(
         {
             "data-viz-algorithm": "concentric-points",
             "data-viz-seed": str(result["seed"]),
@@ -33,8 +52,10 @@ def result_to_svg(
             "data-viz-center-bias": str(result["settings"]["center_bias"]),
         }
     )
-    root = ET.Element(_tag("svg"), root_attributes)
-    clip_url = append_canvas_clip(root, canvas)
+
+    for child in list(root):
+        if child.tag == _tag("g") and child.attrib.get("data-viz-role") == "logical-layer":
+            root.remove(child)
 
     layer = ET.SubElement(
         root,
@@ -49,7 +70,7 @@ def result_to_svg(
             "stroke-width": _fmt(stroke_width),
             "stroke-linecap": "round",
             "stroke-linejoin": "round",
-            "clip-path": clip_url,
+            "clip-path": "url(#viz-canvas-clip)",
         },
     )
 

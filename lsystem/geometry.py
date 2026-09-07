@@ -126,6 +126,48 @@ def commands_to_geometry(
     )
 
 
+def tagged_commands_to_geometries(
+    commands: tuple[tuple[str, int], ...],
+    *,
+    generation: int,
+    step: float,
+    angle_degrees: float,
+    initial_heading_degrees: float,
+    draw_symbols: set[str],
+    move_symbols: set[str],
+) -> dict[int, GenerationGeometry]:
+    """Render one geometry layer for each drawable symbol birth generation."""
+
+    hidden_draw_symbol = "\0"
+    birth_generations = sorted(
+        {
+            birth_generation
+            for symbol, birth_generation in commands
+            if symbol in draw_symbols
+        }
+    )
+    geometries: dict[int, GenerationGeometry] = {}
+    for birth_generation in birth_generations:
+        filtered = "".join(
+            (
+                hidden_draw_symbol
+                if symbol in draw_symbols and symbol_birth != birth_generation
+                else symbol
+            )
+            for symbol, symbol_birth in commands
+        )
+        geometries[birth_generation] = commands_to_geometry(
+            filtered,
+            generation=generation,
+            step=step,
+            angle_degrees=angle_degrees,
+            initial_heading_degrees=initial_heading_degrees,
+            draw_symbols=draw_symbols,
+            move_symbols=move_symbols | {hidden_draw_symbol},
+        )
+    return geometries
+
+
 def bounds_for_paths(paths: list[Path]) -> Bounds:
     points = [point for path in paths for point in path]
     if not points:

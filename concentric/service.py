@@ -2,12 +2,24 @@ from __future__ import annotations
 
 import math
 import random
+from typing import TYPE_CHECKING
 
+from viz_canvas.design import (
+    AlgorithmCapabilities,
+    DesignPass,
+    DesignResult,
+    VectorPath,
+)
 from viz_canvas.geometry import CanvasGeometry, build_canvas
+from viz_canvas.models import PolygonDomain
 
 from .models import ConcentricPointsRequest
 
+if TYPE_CHECKING:
+    from viz_canvas.runner import AlgorithmContext
+
 Point = tuple[float, float]
+_CIRCLE_PATH_SEGMENTS = 64
 
 
 class ConcentricError(ValueError):
@@ -18,6 +30,15 @@ def generate_concentric_points(data: ConcentricPointsRequest) -> dict:
     """Generate deterministic circle centers and radii inside an intrinsic canvas."""
 
     canvas = build_canvas(data.canvas)
+    return _generate_concentric_points(data, canvas)
+
+
+def _generate_concentric_points(
+    data: ConcentricPointsRequest,
+    canvas: CanvasGeometry,
+) -> dict:
+    """Run the established generator against supplied canonical domain geometry."""
+
     rng = random.Random(data.seed)
     point_count = _resolve_point_count(data, rng)
     centers = _sample_centers(canvas, data, rng, point_count)
@@ -72,6 +93,105 @@ def generate_concentric_points(data: ConcentricPointsRequest) -> dict:
         },
         "points": point_payloads,
     }
+
+
+class ConcentricDomainAlgorithm:
+    """Domain-algorithm adapter for the established concentric generator."""
+
+    name = "concentric-points"
+    capabilities = AlgorithmCapabilities(
+        supports_simple_polygon=True,
+        supports_concave_polygon=False,
+    )
+
+    def generate(
+        self,
+        *,
+        canvas: CanvasGeometry,
+        domains: tuple[PolygonDomain, ...],
+        design_pass: DesignPass,
+        context: AlgorithmContext,
+    ) -> DesignResult:
+        return generate_concentric_design_result(
+            canvas=canvas,
+            domains=domains,
+            design_pass=design_pass,
+            context=context,
+        )
+
+
+def generate_concentric_design_result(
+    *,
+    canvas: CanvasGeometry,
+    domains: tuple[PolygonDomain, ...],
+    design_pass: DesignPass,
+    context: AlgorithmContext,
+) -> DesignResult:
+    """Generate neutral closed vector paths for ordered polygon-domain targets."""
+
+    if len(design_pass.logical_layers) != 1:
+        raise ValueError("concentric design pass requires exactly one logical layer")
+
+    request_parameters = dict(design_pass.parameters)
+    request_parameters.pop("canvas", None)
+    request_template = ConcentricPointsRequest(
+        canvas={"shape": "rectangle", "width": canvas.width, "height": canvas.height},
+        **request_parameters,
+    )
+    layer_id = design_pass.logical_layers[0].id
+    paths: list[VectorPath] = []
+
+    for domain in domains:
+        request = request_template.model_copy(
+            update={"seed": context.domain_seeds[domain.id]}
+        )
+        domain_canvas = CanvasGeometry(
+            shape="polygon",
+            width=canvas.width,
+            height=canvas.height,
+            polygon=domain.vertices,
+            up_anchor="edge:0",
+            domains=(domain,),
+        )
+        payload = _generate_concentric_points(request, domain_canvas)
+        paths.extend(
+            _payload_vector_paths(
+                payload,
+                layer_id=layer_id,
+                domain_id=domain.id,
+            )
+        )
+
+    return DesignResult(
+        paths=tuple(paths),
+        derived_domains=(),
+        producing_pass_id=design_pass.id,
+    )
+
+
+def _payload_vector_paths(
+    result: dict, *, layer_id: str, domain_id: str = "concentric-source"
+) -> list[VectorPath]:
+    paths: list[VectorPath] = []
+    for point in result["points"]:
+        center_x, center_y = point["center"]
+        for radius in point["radii"]:
+            points = tuple(
+                (
+                    center_x + radius * math.cos(math.tau * index / _CIRCLE_PATH_SEGMENTS),
+                    center_y + radius * math.sin(math.tau * index / _CIRCLE_PATH_SEGMENTS),
+                )
+                for index in range(_CIRCLE_PATH_SEGMENTS)
+            )
+            paths.append(
+                VectorPath(
+                    points=points,
+                    closed=True,
+                    layer_id=layer_id,
+                    domain_id=domain_id,
+                )
+            )
+    return paths
 
 
 def _resolve_point_count(data: ConcentricPointsRequest, rng: random.Random) -> int:
