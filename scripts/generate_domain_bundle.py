@@ -8,7 +8,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from concentric.service import ConcentricDomainAlgorithm  # noqa: E402
+from concentric.service import (  # noqa: E402
+    ConcentricDomainAlgorithm,
+    OrbitalConcentricDomainAlgorithm,
+)
 from radial_tiles.service import RadialTilesDomainAlgorithm  # noqa: E402
 from viz_canvas.bundle import write_design_bundle  # noqa: E402
 from viz_canvas.job_io import read_domain_artwork_job  # noqa: E402
@@ -16,6 +19,7 @@ from viz_canvas.runner import run_domain_artwork_job  # noqa: E402
 
 ALGORITHMS = {
     "concentric-points": ConcentricDomainAlgorithm(),
+    "orbital-concentric": OrbitalConcentricDomainAlgorithm(),
     "radial-tiles": RadialTilesDomainAlgorithm(),
 }
 

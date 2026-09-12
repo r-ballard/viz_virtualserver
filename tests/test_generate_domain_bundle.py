@@ -15,6 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "generate_domain_bundle.py"
 EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "cootie-catcher.json"
 RADIAL_TILES_EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "radial-tiles-three-polygons.json"
+ORBITAL_EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "orbital-concentric-three-polygons.json"
 SEMANTIC_IDS = [
     *(f"outer-{index}" for index in range(1, 5)),
     *(f"selector-{index}" for index in range(1, 9)),
@@ -35,6 +36,10 @@ def test_cli_registers_radial_tiles_algorithm() -> None:
     assert "radial-tiles" in cli_module.ALGORITHMS
 
 
+def test_cli_registers_orbital_concentric_algorithm() -> None:
+    assert "orbital-concentric" in cli_module.ALGORITHMS
+
+
 def test_radial_tiles_example_generates_three_surface_bundle(tmp_path: Path) -> None:
     output_dir = tmp_path / "radial-tiles"
 
@@ -52,6 +57,17 @@ def test_radial_tiles_example_generates_three_surface_bundle(tmp_path: Path) -> 
         "triangle.svg",
         "concave.svg",
     }
+
+
+def test_orbital_example_generates_three_layer_surface_bundle(tmp_path: Path) -> None:
+    output_dir = tmp_path / "orbital"
+
+    result = _run_cli(output_dir, job=ORBITAL_EXAMPLE)
+
+    assert result.returncode == 0, result.stderr
+    svg = (output_dir / "surfaces" / "triangle.svg").read_text(encoding="utf-8")
+    assert svg.index('id="orbits"') < svg.index('id="primary-bodies"')
+    assert svg.index('id="primary-bodies"') < svg.index('id="accent-bodies"')
 
 
 def _run_cli(
@@ -252,9 +268,7 @@ def test_cli_formats_unsupported_platform_runtime_error(
     output_dir = tmp_path / "cootie"
 
     def fail_publication(*args: object, **kwargs: object) -> object:
-        raise RuntimeError(
-            "atomic no-replace directory publication is unsupported on test-os"
-        )
+        raise RuntimeError("atomic no-replace directory publication is unsupported on test-os")
 
     monkeypatch.setattr(cli_module, "write_design_bundle", fail_publication)
 
@@ -297,11 +311,7 @@ def test_cli_regeneration_is_deterministic_for_all_twenty_surfaces(
     assert len(first_audit_digests) == 20
     assert first_audit_digests == second_audit_digests
 
-    first_actual_digests = [
-        _sha256(first_root / entry["path"]) for entry in first_surfaces
-    ]
-    second_actual_digests = [
-        _sha256(second_root / entry["path"]) for entry in second_surfaces
-    ]
+    first_actual_digests = [_sha256(first_root / entry["path"]) for entry in first_surfaces]
+    second_actual_digests = [_sha256(second_root / entry["path"]) for entry in second_surfaces]
     assert first_actual_digests == first_audit_digests
     assert second_actual_digests == second_audit_digests
