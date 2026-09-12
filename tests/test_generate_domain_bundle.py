@@ -14,6 +14,7 @@ import viz_canvas.bundle as bundle_module
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "generate_domain_bundle.py"
 EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "cootie-catcher.json"
+RADIAL_TILES_EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "radial-tiles-three-polygons.json"
 SEMANTIC_IDS = [
     *(f"outer-{index}" for index in range(1, 5)),
     *(f"selector-{index}" for index in range(1, 9)),
@@ -28,6 +29,29 @@ PARAMETERS = {
     "overlap_mode": "allow",
     "coordinate_frame": "domain",
 }
+
+
+def test_cli_registers_radial_tiles_algorithm() -> None:
+    assert "radial-tiles" in cli_module.ALGORITHMS
+
+
+def test_radial_tiles_example_generates_three_surface_bundle(tmp_path: Path) -> None:
+    output_dir = tmp_path / "radial-tiles"
+
+    result = _run_cli(output_dir, job=RADIAL_TILES_EXAMPLE)
+
+    assert result.returncode == 0, result.stderr
+    audit = json.loads((output_dir / "design.json").read_text(encoding="utf-8"))
+    assert [surface["surface_id"] for surface in audit["surfaces"]] == [
+        "square",
+        "triangle",
+        "concave",
+    ]
+    assert {path.name for path in (output_dir / "surfaces").glob("*.svg")} == {
+        "square.svg",
+        "triangle.svg",
+        "concave.svg",
+    }
 
 
 def _run_cli(

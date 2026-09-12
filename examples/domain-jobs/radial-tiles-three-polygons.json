@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "seed": 20260912,
+  "domains": [
+    {
+      "id": "square",
+      "vertices": [[0, 0], [100, 0], [100, 100], [0, 100]]
+    },
+    {
+      "id": "triangle",
+      "vertices": [[0, 0], [100, 0], [50, 86.6]]
+    },
+    {
+      "id": "concave",
+      "vertices": [[0, 0], [100, 0], [100, 100], [50, 65], [0, 100]]
+    }
+  ],
+  "surfaces": [
+    {"id": "square", "domain_id": "square"},
+    {"id": "triangle", "domain_id": "triangle"},
+    {"id": "concave", "domain_id": "concave"}
+  ],
+  "groups": [],
+  "relations": [],
+  "composition_transforms": [],
+  "passes": [
+    {
+      "id": "generate-radial-tiles",
+      "algorithm": "radial-tiles",
+      "target_domain_ids": ["square", "triangle", "concave"],
+      "parameters": {
+        "motif_count": 3,
+        "ring_count": 4,
+        "tile_density": 18,
+        "center_drift": 0.06,
+        "angular_jitter": 0.12,
+        "radial_jitter": 0.08,
+        "omission_rate": 0.12,
+        "closed_tiles": true
+      },
+      "logical_layers": [
+        {"id": "structural-rings", "label": "Structural rings"},
+        {"id": "primary-tiles", "label": "Primary tiles"},
+        {"id": "accent-tiles", "label": "Accent tiles"}
+      ]
+    }
+  ]
+}
