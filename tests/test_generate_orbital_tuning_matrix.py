@@ -52,6 +52,7 @@ def test_matrix_outputs_are_byte_deterministic(tmp_path: Path) -> None:
     assert [path.name for path in first_outputs] == [path.name for path in second_outputs]
     assert _sha256(first_root / "matrix.json") == _sha256(second_root / "matrix.json")
     for first_output, second_output in zip(first_outputs, second_outputs, strict=True):
+        assert _sha256(first_output / "design.json") == _sha256(second_output / "design.json")
         assert _sha256(first_output / "design.svg") == _sha256(second_output / "design.svg")
         for surface_name in ("square.svg", "triangle.svg", "pentagon.svg"):
             assert _sha256(first_output / "surfaces" / surface_name) == _sha256(
@@ -84,6 +85,32 @@ def test_cli_overwrite_replaces_an_existing_matrix(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     assert not sentinel.exists()
     assert (output_root / "matrix.json").is_file()
+
+
+def test_overwrite_preserves_backup_when_publication_and_restoration_fail(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_root = tmp_path / "matrix"
+    generate_matrix(BASE_JOB, output_root)
+    original_manifest_digest = _sha256(output_root / "matrix.json")
+    original_replace = Path.replace
+
+    def fail_final_publication_and_restore(source: Path, destination: Path) -> Path:
+        if destination == output_root and source.parent.name.startswith(".matrix-backup-"):
+            raise OSError("restoration failure")
+        if destination == output_root and source.name.startswith(".matrix-"):
+            raise OSError("publication failure")
+        return original_replace(source, destination)
+
+    monkeypatch.setattr(Path, "replace", fail_final_publication_and_restore)
+
+    with pytest.raises(OSError, match="publication failure"):
+        generate_matrix(BASE_JOB, output_root, overwrite=True)
+
+    backups = sorted(tmp_path.glob(".matrix-backup-*"))
+    assert len(backups) == 1
+    assert _sha256(backups[0] / "matrix" / "matrix.json") == original_manifest_digest
 
 
 def _run_cli(base_job: Path, output_root: Path, *extra: str) -> subprocess.CompletedProcess[str]:

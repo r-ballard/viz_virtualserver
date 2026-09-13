@@ -214,6 +214,7 @@ def _verify_staged_matrix(root: Path) -> None:
 def _publish_matrix(temporary: Path, destination: Path, *, overwrite: bool) -> None:
     _refuse_existing_destination(destination, overwrite=overwrite)
     backup: Path | None = None
+    retain_backup = False
     try:
         if destination.exists():
             backup = bundle_module._make_sibling_directory(
@@ -232,6 +233,7 @@ def _publish_matrix(temporary: Path, destination: Path, *, overwrite: bool) -> N
                 try:
                     previous_matrix.replace(destination)
                 except BaseException as restore_error:
+                    retain_backup = True
                     publication_error.add_note(
                         "restoring the previous matrix also failed; recover it from "
                         f"{previous_matrix}: {restore_error}"
@@ -239,7 +241,7 @@ def _publish_matrix(temporary: Path, destination: Path, *, overwrite: bool) -> N
                     raise publication_error from restore_error
             raise
     finally:
-        if backup is not None and backup.exists():
+        if backup is not None and backup.exists() and not retain_backup:
             _remove_matrix_work_directory(backup, destination.parent)
 
 
