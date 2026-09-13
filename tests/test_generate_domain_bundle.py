@@ -4,6 +4,7 @@ import hashlib
 import json
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
@@ -18,6 +19,9 @@ RADIAL_TILES_EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "radial-tiles-th
 ORBITAL_EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "orbital-concentric-three-polygons.json"
 CIRCULAR_EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "orbital-concentric-circular.json"
 ELLIPTICAL_EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "orbital-concentric-elliptical.json"
+COOTIE_CATCHER_ORBITAL_EXAMPLE = (
+    REPO_ROOT / "examples" / "domain-jobs" / "cootie-catcher-orbital.json"
+)
 SEMANTIC_IDS = [
     *(f"outer-{index}" for index in range(1, 5)),
     *(f"selector-{index}" for index in range(1, 9)),
@@ -157,6 +161,36 @@ def test_orbital_preset_explicitly_declares_all_algorithm_parameters(
         "orbit_gaps",
         "gap_clearance",
     }
+
+
+def test_cootie_catcher_orbital_generates_twenty_owned_orbital_surfaces(
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / "cootie-catcher-orbital"
+
+    result = _run_cli(output_dir, job=COOTIE_CATCHER_ORBITAL_EXAMPLE)
+
+    assert result.returncode == 0, result.stderr
+    audit = json.loads((output_dir / "design.json").read_text(encoding="utf-8"))
+    assert [surface["surface_id"] for surface in audit["surfaces"]] == SEMANTIC_IDS
+    assert {path.name for path in (output_dir / "surfaces").glob("*.svg")} == {
+        f"{surface_id}.svg" for surface_id in SEMANTIC_IDS
+    }
+    for domain_id in SEMANTIC_IDS:
+        svg = (output_dir / "surfaces" / f"{domain_id}.svg").read_text(encoding="utf-8")
+        root = ET.fromstring(svg)
+        namespace = {"svg": "http://www.w3.org/2000/svg"}
+        layers = {
+            layer.attrib["id"]: layer
+            for layer in root.findall("svg:g[@data-viz-role='logical-layer']", namespace)
+        }
+        assert layers["orbits"].findall("svg:path", namespace)
+        assert layers["primary-bodies"].findall("svg:path", namespace)
+        paths = root.findall(
+            "svg:g[@data-viz-role='logical-layer']/svg:path", namespace
+        )
+        assert paths
+        assert all(path.attrib["data-viz-domain-id"] == domain_id for path in paths)
 
 
 def _run_cli(

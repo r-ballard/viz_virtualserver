@@ -64,3 +64,16 @@ uv run python scripts/generate_domain_bundle.py \
   examples/domain-jobs/orbital-concentric-elliptical.json \
   --output-dir artifacts/orbital-concentric-elliptical
 ```
+
+## Cootie-catcher orbital surfaces
+
+`cootie-catcher-orbital.json` applies the elliptical preset independently to the
+twenty semantic square and triangular cootie-catcher domains. It intentionally
+contains no placement transforms; arrange and plot the resulting surfaces with
+`plotter-workflow`.
+
+```bash
+uv run python scripts/generate_domain_bundle.py \
+  examples/domain-jobs/cootie-catcher-orbital.json \
+  --output-dir artifacts/cootie-catcher-orbital
+```
