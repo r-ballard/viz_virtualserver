@@ -16,6 +16,8 @@ SCRIPT = REPO_ROOT / "scripts" / "generate_domain_bundle.py"
 EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "cootie-catcher.json"
 RADIAL_TILES_EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "radial-tiles-three-polygons.json"
 ORBITAL_EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "orbital-concentric-three-polygons.json"
+CIRCULAR_EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "orbital-concentric-circular.json"
+ELLIPTICAL_EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "orbital-concentric-elliptical.json"
 SEMANTIC_IDS = [
     *(f"outer-{index}" for index in range(1, 5)),
     *(f"selector-{index}" for index in range(1, 9)),
@@ -68,6 +70,93 @@ def test_orbital_example_generates_three_layer_surface_bundle(tmp_path: Path) ->
     svg = (output_dir / "surfaces" / "triangle.svg").read_text(encoding="utf-8")
     assert svg.index('id="orbits"') < svg.index('id="primary-bodies"')
     assert svg.index('id="primary-bodies"') < svg.index('id="accent-bodies"')
+
+
+@pytest.mark.parametrize("example", [CIRCULAR_EXAMPLE, ELLIPTICAL_EXAMPLE])
+def test_orbital_preset_generates_three_surfaces_and_layers(
+    example: Path, tmp_path: Path
+) -> None:
+    output_dir = tmp_path / example.stem
+
+    result = _run_cli(output_dir, job=example)
+
+    assert result.returncode == 0, result.stderr
+    assert {path.name for path in (output_dir / "surfaces").glob("*.svg")} == {
+        "square.svg",
+        "triangle.svg",
+        "pentagon.svg",
+    }
+    svg = (output_dir / "surfaces" / "triangle.svg").read_text(encoding="utf-8")
+    assert all(
+        f'id="{layer}"' in svg
+        for layer in ("orbits", "primary-bodies", "accent-bodies")
+    )
+
+
+@pytest.mark.parametrize(
+    ("example", "expected_ellipse_parameters"),
+    [
+        (
+            CIRCULAR_EXAMPLE,
+            {
+                "orbit_eccentricity": 0.0,
+                "orbit_eccentricity_variation": 0.0,
+                "orbit_rotation": 0.0,
+                "orbit_rotation_variation": 0.0,
+            },
+        ),
+        (
+            ELLIPTICAL_EXAMPLE,
+            {
+                "orbit_eccentricity": 0.18,
+                "orbit_eccentricity_variation": 0.06,
+                "orbit_rotation": 0.25,
+                "orbit_rotation_variation": 0.55,
+            },
+        ),
+    ],
+)
+def test_orbital_preset_declares_selected_ellipse_parameters(
+    example: Path, expected_ellipse_parameters: dict[str, float]
+) -> None:
+    payload = json.loads(example.read_text(encoding="utf-8"))
+
+    parameters = payload["passes"][0]["parameters"]
+    assert {
+        "orbit_eccentricity": parameters["orbit_eccentricity"],
+        "orbit_eccentricity_variation": parameters["orbit_eccentricity_variation"],
+        "orbit_rotation": parameters["orbit_rotation"],
+        "orbit_rotation_variation": parameters["orbit_rotation_variation"],
+    } == expected_ellipse_parameters
+
+
+@pytest.mark.parametrize("example", [CIRCULAR_EXAMPLE, ELLIPTICAL_EXAMPLE])
+def test_orbital_preset_explicitly_declares_all_algorithm_parameters(
+    example: Path,
+) -> None:
+    payload = json.loads(example.read_text(encoding="utf-8"))
+
+    assert set(payload["passes"][0]["parameters"]) == {
+        "system_count",
+        "orbit_count",
+        "ring_spacing",
+        "ring_spacing_power",
+        "boundary_mode",
+        "radius_scale",
+        "center_margin",
+        "min_center_spacing",
+        "orbit_eccentricity",
+        "orbit_eccentricity_variation",
+        "orbit_rotation",
+        "orbit_rotation_variation",
+        "bodies_per_orbit_range",
+        "body_radius_range",
+        "central_body_radius",
+        "accent_probability",
+        "minimum_body_separation",
+        "orbit_gaps",
+        "gap_clearance",
+    }
 
 
 def _run_cli(

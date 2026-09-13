@@ -35,3 +35,26 @@ polygons are supported; concave domains are rejected by the capability check.
 Set both ellipse variation parameters to zero to share eccentricity and orientation across all
 orbits. An impossible body count/separation combination fails explicitly. SVG stroke width is
 preview styling; physical HP-GL line width remains determined by the installed plotter pen.
+
+## Starting-point presets
+
+The committed `circular` and `elliptical` jobs are deterministic starting-point examples, not
+global algorithm defaults. Both use the same seed, square/triangle/pentagon domains, body and gap
+settings, and eight orbits; the circular job fixes all ellipse values to zero, while the elliptical
+job uses subtle eccentricity and deterministic axis variation.
+
+Generate the circular example into its own directory:
+
+```bash
+uv run python scripts/generate_domain_bundle.py \
+  examples/domain-jobs/orbital-concentric-circular.json \
+  --output-dir artifacts/orbital-concentric-circular
+```
+
+Generate the elliptical example into a separate directory:
+
+```bash
+uv run python scripts/generate_domain_bundle.py \
+  examples/domain-jobs/orbital-concentric-elliptical.json \
+  --output-dir artifacts/orbital-concentric-elliptical
+```
