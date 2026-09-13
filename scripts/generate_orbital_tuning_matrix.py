@@ -17,7 +17,7 @@ from viz_canvas import bundle as bundle_module  # noqa: E402
 from viz_canvas.job_io import read_domain_artwork_job  # noqa: E402
 from viz_canvas.runner import run_domain_artwork_job  # noqa: E402
 
-VARIANTS: dict[str, dict[str, int | float]] = {
+VARIANTS: dict[str, dict[str, int | float | list[int | float]]] = {
     "density-low": {"orbit_count": 5},
     "density-medium": {"orbit_count": 8},
     "density-high": {"orbit_count": 12},
@@ -33,6 +33,18 @@ VARIANTS: dict[str, dict[str, int | float]] = {
         "orbit_eccentricity": 0.32,
         "orbit_eccentricity_variation": 0.22,
     },
+    "bodies-sparse": {
+        "bodies_per_orbit_range": [0, 2],
+        "body_radius_range": [0.8, 1.8],
+    },
+    "bodies-clustered": {
+        "bodies_per_orbit_range": [2, 5],
+        "minimum_body_separation": 0.0,
+    },
+    "accents-low": {"accent_probability": 0.1},
+    "accents-high": {"accent_probability": 0.35},
+    "gaps-tight": {"gap_clearance": 0.35},
+    "gaps-generous": {"gap_clearance": 1.25},
 }
 
 

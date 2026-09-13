@@ -35,7 +35,7 @@
         "bodies_per_orbit_range": [1, 4],
         "body_radius_range": [1.0, 2.8],
         "central_body_radius": 5.0,
-        "accent_probability": 0.25,
+        "accent_probability": 0.35,
         "minimum_body_separation": 0.0,
         "orbit_gaps": true,
         "gap_clearance": 0.8

@@ -25,6 +25,12 @@ def test_matrix_generates_named_deterministic_variants(tmp_path: Path) -> None:
         "eccentricity-circular",
         "eccentricity-subtle",
         "eccentricity-varied",
+        "bodies-sparse",
+        "bodies-clustered",
+        "accents-low",
+        "accents-high",
+        "gaps-tight",
+        "gaps-generous",
     ]
     manifest = json.loads((tmp_path / "matrix" / "matrix.json").read_text(encoding="utf-8"))
     assert [item["name"] for item in manifest["variants"]] == [path.name for path in outputs]
@@ -35,8 +41,14 @@ def test_matrix_generates_named_deterministic_variants(tmp_path: Path) -> None:
         {"orbit_eccentricity": 0.0, "orbit_eccentricity_variation": 0.0},
         {"orbit_eccentricity": 0.18, "orbit_eccentricity_variation": 0.06},
         {"orbit_eccentricity": 0.32, "orbit_eccentricity_variation": 0.22},
+        {"bodies_per_orbit_range": [0, 2], "body_radius_range": [0.8, 1.8]},
+        {"bodies_per_orbit_range": [2, 5], "minimum_body_separation": 0.0},
+        {"accent_probability": 0.1},
+        {"accent_probability": 0.35},
+        {"gap_clearance": 0.35},
+        {"gap_clearance": 1.25},
     ]
-    assert [item["seed"] for item in manifest["variants"]] == [20260912] * 6
+    assert [item["seed"] for item in manifest["variants"]] == [20260912] * 12
     assert [item["bundle_path"] for item in manifest["variants"]] == [
         path.name for path in outputs
     ]

@@ -43,6 +43,12 @@ global algorithm defaults. Both use the same seed, square/triangle/pentagon doma
 settings, and eight orbits; the circular job fixes all ellipse values to zero, while the elliptical
 job uses subtle eccentricity and deterministic axis variation.
 
+Both presets explicitly start with `bodies_per_orbit_range: [1, 4]`,
+`body_radius_range: [1.0, 2.8]`, `minimum_body_separation: 0.0`,
+`accent_probability: 0.35`, and `gap_clearance: 0.8`. These are selected preview starting points,
+not algorithm defaults: the tuning matrix varies the same existing controls without changing the
+general-purpose generator behavior.
+
 Generate the circular example into its own directory:
 
 ```bash
