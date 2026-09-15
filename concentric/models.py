@@ -4,12 +4,73 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from viz_canvas.logical_layers import (
+    DynamicLayerSpec,
+    FixedLayerSpec,
+    MatchSpec,
+    ProjectionRule,
+    ProjectionSpec,
+    SemanticAttributeSchema,
+)
 from viz_canvas.models import CanvasSpec
 
 BoundaryMode = Literal["inscribed", "clip"]
 RingSpacingMode = Literal["linear", "random", "progressive"]
 OverlapMode = Literal["allow", "avoid"]
 CenterBias = Literal["uniform", "centroid", "boundary", "vertices"]
+
+ORBITAL_ATTRIBUTE_SCHEMA = SemanticAttributeSchema(
+    (
+        "system_index",
+        "orbit_index",
+        "body_index",
+        "is_central",
+        "is_accent",
+    )
+)
+ORBITAL_FEATURE_ROLES = ProjectionSpec(
+    "orbital-feature-roles",
+    (
+        ProjectionRule(MatchSpec(feature_role="orbit"), fixed=FixedLayerSpec("orbits", "Orbits")),
+        ProjectionRule(
+            MatchSpec(feature_role="body"), fixed=FixedLayerSpec("primary-bodies", "Primary bodies")
+        ),
+        ProjectionRule(
+            MatchSpec(feature_role="accent"), fixed=FixedLayerSpec("accent-bodies", "Accent bodies")
+        ),
+    ),
+)
+ORBITAL_PER_BODY = ProjectionSpec(
+    "orbital-per-body",
+    (
+        ProjectionRule(MatchSpec(feature_role="orbit"), fixed=FixedLayerSpec("orbits", "Orbits")),
+        ProjectionRule(
+            MatchSpec(feature_role="body"),
+            dynamic=DynamicLayerSpec(
+                "body",
+                "Body",
+                ("domain_id", "system_index", "orbit_index", "body_index"),
+            ),
+        ),
+        ProjectionRule(
+            MatchSpec(feature_role="accent"),
+            dynamic=DynamicLayerSpec(
+                "accent",
+                "Accent",
+                ("domain_id", "system_index", "orbit_index", "body_index"),
+            ),
+        ),
+    ),
+)
+
+
+def orbital_projection(name: str = "orbital-feature-roles") -> ProjectionSpec:
+    """Resolve the shipped orbital projections without imposing a layer limit."""
+
+    for projection in (ORBITAL_FEATURE_ROLES, ORBITAL_PER_BODY):
+        if projection.id == name:
+            return projection
+    raise ValueError(f"unknown orbital projection: {name}")
 
 
 class ConcentricPointsRequest(BaseModel):

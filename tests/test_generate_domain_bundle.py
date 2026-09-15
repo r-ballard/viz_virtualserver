@@ -5,12 +5,16 @@ import json
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
+import concentric.models as orbital_models
+import concentric.service as orbital_service
 import scripts.generate_domain_bundle as cli_module
 import viz_canvas.bundle as bundle_module
+from viz_canvas.job_io import read_domain_artwork_job
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "generate_domain_bundle.py"
@@ -74,6 +78,54 @@ def test_orbital_example_generates_three_layer_surface_bundle(tmp_path: Path) ->
     svg = (output_dir / "surfaces" / "triangle.svg").read_text(encoding="utf-8")
     assert svg.index('id="orbits"') < svg.index('id="primary-bodies"')
     assert svg.index('id="primary-bodies"') < svg.index('id="accent-bodies"')
+
+
+def test_orbital_semantic_presets_support_more_than_eight_owned_layers(tmp_path: Path) -> None:
+    job = read_domain_artwork_job(ORBITAL_EXAMPLE)
+    job = replace(
+        job,
+        passes=tuple(
+            replace(
+                design_pass,
+                logical_layers=(),
+                parameters={
+                    "orbit_count": 4,
+                    "bodies_per_orbit_range": [3, 3],
+                    "accent_probability": 0.4,
+                },
+            )
+            for design_pass in job.passes
+        ),
+    )
+    default = orbital_service.generate_orbital_design(job)
+    per_body = orbital_service.generate_orbital_design(job, projection="orbital-per-body")
+    assert [entry.id for entry in default.catalog.entries] == [
+        "orbits",
+        "primary-bodies",
+        "accent-bodies",
+    ]
+    assert len(per_body.catalog.entries) > 8
+    assert per_body == orbital_service.generate_orbital_design(job, projection="orbital-per-body")
+    assert {path.semantic_path.path_id: (path.points, path.closed) for path in default.paths} == {
+        path.semantic_path.path_id: (path.points, path.closed) for path in per_body.paths
+    }
+    body_layers = {}
+    for path in per_body.paths:
+        if path.semantic_path.feature_role != "orbit":
+            body_layers.setdefault(path.layer_id, set()).add(path.domain_id)
+    assert all(len(owners) == 1 for owners in body_layers.values())
+    assert len(body_layers) == 13 * len(job.domains)
+    projection = orbital_models.orbital_projection("orbital-per-body")
+    bundle = bundle_module.write_neutral_bundle(
+        job, per_body, tmp_path / "per-body", projection=projection
+    )
+    audit = json.loads(bundle.audit_path.read_text(encoding="utf-8"))
+    assert len(audit["logical_layers"]) == len(per_body.catalog.entries)
+    assert audit["projection"]["id"] == "orbital-per-body"
+    for surface in audit["surfaces"]:
+        root = ET.fromstring((bundle.root / surface["path"]).read_text(encoding="utf-8"))
+        groups = root.findall("{http://www.w3.org/2000/svg}g[@data-viz-layer-id]")
+        assert len(groups) > 8
 
 
 @pytest.mark.parametrize("example", [CIRCULAR_EXAMPLE, ELLIPTICAL_EXAMPLE])

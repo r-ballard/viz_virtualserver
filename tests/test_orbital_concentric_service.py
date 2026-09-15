@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 import random
 
 import pytest
 
+import concentric.service as orbital_service
 from concentric.service import (
     OrbitalConcentricDomainAlgorithm,
     OrbitalConcentricParameters,
@@ -195,7 +198,6 @@ def test_gap_segmentation_does_not_add_seam_opposite_body() -> None:
         rotation=0,
         bodies=[(math.pi, 1.0, False)],
         parameters=OrbitalConcentricParameters(),
-        domain_id="panel",
     )
     assert len(paths) == 1
 
@@ -212,3 +214,71 @@ def test_body_range_rejects_maximum_count_that_cannot_fit_separation() -> None:
         OrbitalConcentricParameters(
             bodies_per_orbit_range=(1, 64), minimum_body_separation=0.1
         )
+
+
+def test_orbital_semantics_declare_roles_indices_and_classification() -> None:
+    result = _generate(
+        {"orbit_count": 4, "bodies_per_orbit_range": [3, 3], "accent_probability": 0.4}
+    )
+    semantics = [path.semantic_path for path in result.paths]
+    assert all(path is not None for path in semantics)
+    assert all(path.semantic_path.geometry.points == path.points for path in result.paths)
+    assert {path.feature_role for path in semantics} == {"orbit", "body", "accent"}
+    assert len({path.path_id for path in semantics}) == len(semantics)
+    for path in semantics:
+        assert set(path.attributes) == {
+            "system_index",
+            "orbit_index",
+            "body_index",
+            "is_central",
+            "is_accent",
+        }
+        assert all(
+            type(path.attributes[key]) is int
+            for key in ("system_index", "orbit_index", "body_index")
+        )
+        assert path.attributes["is_accent"] is (path.feature_role == "accent")
+    central = [path for path in semantics if path.attributes["is_central"]]
+    assert len(central) == 1
+    assert central[0].attributes["orbit_index"] == -1
+    assert central[0].attributes["body_index"] == 0
+
+
+def test_orbital_semantic_generation_does_not_require_logical_layers() -> None:
+    algorithm = orbital_service.OrbitalConcentricDomainAlgorithm()
+    assert callable(getattr(algorithm, "generate_semantic", None))
+    domain = PolygonDomain("panel", ((0, 0), (120, 0), (120, 80), (0, 80)))
+    paths = algorithm.generate_semantic(
+        canvas=CanvasGeometry(
+            shape="polygon",
+            width=120,
+            height=80,
+            polygon=domain.vertices,
+            up_anchor="edge:0",
+            domains=(domain,),
+        ),
+        domains=(domain,),
+        design_pass=DesignPass("orbit-pass", "orbital-concentric", (domain.id,)),
+        context=AlgorithmContext(1, 2, {domain.id: 37}, (), (), (), {}),
+    )
+    assert paths
+    assert all(not hasattr(path, "layer_id") for path in paths)
+
+
+def test_orbital_semantic_refactor_preserves_seeded_geometry_and_path_order() -> None:
+    result = _generate(
+        {
+            "system_count": 2,
+            "center_margin": 15.0,
+            "orbit_count": 4,
+            "ring_spacing": "random",
+            "bodies_per_orbit_range": [2, 3],
+            "orbit_eccentricity": 0.3,
+            "orbit_eccentricity_variation": 0.1,
+            "orbit_rotation_variation": 0.5,
+            "accent_probability": 0.4,
+        }
+    )
+    geometry = [(path.points, path.closed, path.layer_id, path.domain_id) for path in result.paths]
+    digest = hashlib.sha256(json.dumps(geometry, separators=(",", ":")).encode()).hexdigest()
+    assert digest == "8b866bcd9761b5bc54e0a0bb345b1c472a8705861a4042317d5d21b48c01179f"
