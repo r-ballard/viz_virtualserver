@@ -93,6 +93,9 @@ def project_surface_bundle(
         domain = domains[surface.domain_id]
         min_x, min_y, max_x, max_y = _bounds(domain.vertices)
         projected_paths: list[VectorPath] = []
+        used_path_ids = {
+            path.semantic_path.path_id for path in source_paths if path.semantic_path is not None
+        }
         for path in source_paths:
             if path.domain_id != domain.id:
                 continue
@@ -102,6 +105,7 @@ def project_surface_bundle(
                     domain=domain,
                     transform=transforms.get(domain.id),
                     offset=(min_x, min_y),
+                    used_path_ids=used_path_ids,
                 )
             )
 
@@ -173,6 +177,7 @@ def _project_path(
     domain: PolygonDomain,
     transform: AffineTransform | None,
     offset: CanvasPoint,
+    used_path_ids: set[str],
 ) -> tuple[VectorPath, ...]:
     if path.coordinate_frame == "composition":
         if transform is None:
@@ -191,10 +196,29 @@ def _project_path(
             domain_id=path.domain_id,
             coordinate_frame="domain",
             producing_pass_id=path.producing_pass_id,
-            semantic_path=path.semantic_path,
+            semantic_path=(
+                replace(path.semantic_path, path_id=_component_path_id(
+                    path.semantic_path.path_id, component_index, used_path_ids
+                ))
+                if path.semantic_path is not None and len(components) > 1
+                else path.semantic_path
+            ),
         )
-        for points, closed in components
+        for component_index, (points, closed) in enumerate(components, start=1)
     )
+
+
+def _component_path_id(source_id: str, index: int, used_path_ids: set[str]) -> str:
+    """Allocate a stable split ID while reserving every unsplit source identity."""
+
+    base = f"{source_id}--component-{index}"
+    candidate = base
+    collision = 2
+    while candidate in used_path_ids:
+        candidate = f"{base}--{collision}"
+        collision += 1
+    used_path_ids.add(candidate)
+    return candidate
 
 
 def _clip_line_components(

@@ -432,9 +432,29 @@ def _append_neutral_layers(
 
 
 def _svg_text(root: ET.Element) -> str:
+    for element in root.iter():
+        for name, value in element.attrib.items():
+            _validate_xml_text(value, context=f"attribute {name}")
+        for name, value in (("text", element.text), ("tail", element.tail)):
+            if value is not None:
+                _validate_xml_text(value, context=f"{element.tag} {name}")
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(
         root, encoding="unicode", short_empty_elements=True
     )
+
+
+def _validate_xml_text(value: str, *, context: str) -> None:
+    """Require the XML 1.0 Char production, including valid supplementary Unicode."""
+
+    for character in value:
+        codepoint = ord(character)
+        if not (
+            codepoint in (0x9, 0xA, 0xD)
+            or 0x20 <= codepoint <= 0xD7FF
+            or 0xE000 <= codepoint <= 0xFFFD
+            or 0x10000 <= codepoint <= 0x10FFFF
+        ):
+            raise ValueError(f"XML 1.0 forbids U+{codepoint:04X} in {context}")
 
 
 def _append_domain_metadata(root: ET.Element, canvas: CanvasGeometry) -> None:

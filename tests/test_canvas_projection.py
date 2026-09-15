@@ -10,6 +10,7 @@ from viz_canvas.frames import AffineTransform, CompositionTransform
 from viz_canvas.jobs import DomainArtworkJob
 from viz_canvas.logical_layers import (
     DynamicLayerSpec,
+    FixedLayerSpec,
     LogicalLayerCatalog,
     MatchSpec,
     PathGeometry,
@@ -41,6 +42,41 @@ def _job(
         composition_transforms=transforms,
         passes=passes,
     )
+
+
+@pytest.mark.parametrize("collision", [False, True])
+def test_split_semantic_paths_have_stable_unique_component_ids(collision: bool) -> None:
+    domain = PolygonDomain("panel", (
+        (0, 0), (6, 0), (6, 6), (4, 6), (4, 2), (2, 2), (2, 6), (0, 6),
+    ))
+    split = SemanticPath("crossing", domain.id,
+                         PathGeometry(((7, 4), (-1, 4)), False, "composition"),
+                         "orbit", {"index": 2})
+    intact = SemanticPath(
+        "crossing--component-1" if collision else "intact", domain.id,
+        PathGeometry(((1, 0), (1, 1)), False, "composition"), "body", {"index": 3},
+    )
+    spec = ProjectionSpec("all/v1", (
+        ProjectionRule(MatchSpec(), fixed=FixedLayerSpec("ink", "Ink")),
+    ))
+    design = project_paths((split, intact), SemanticAttributeSchema(("index",)), spec)
+    job = _job(domains=(domain,), transforms=(
+        CompositionTransform(domain.id, AffineTransform.identity()),
+    ))
+    first = project_surfaces(job, design)[0]
+    second = project_surfaces(job, design)[0]
+    ids = [path.semantic_path.path_id for path in first.paths]
+    assert ids == [path.semantic_path.path_id for path in second.paths]
+    assert len(ids) == len(set(ids)) == 3
+    assert ids[:2] == [
+        "crossing--component-1--2" if collision else "crossing--component-1",
+        "crossing--component-2",
+    ]
+    assert first.paths[0].points == ((6.0, 4.0), (4.0, 4.0))
+    assert first.paths[1].points == ((2.0, 4.0), (0.0, 4.0))
+    assert first.paths[2].semantic_path is intact
+    for path in first.paths[:2]:
+        assert replace(path.semantic_path, path_id=split.path_id) == split
 
 
 def test_projection_rebases_paths_and_preserves_surface_order() -> None:
