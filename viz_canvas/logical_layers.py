@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Literal
+from urllib.parse import quote
 
 from .design import LogicalLayer, VectorPath
 from .models import Point
@@ -159,17 +160,47 @@ class FixedLayerSpec:
 
 
 @dataclass(frozen=True, slots=True)
+class DynamicLayerSpec:
+    """A logical layer derived from an ordered tuple of semantic values."""
+
+    id_prefix: str
+    label_prefix: str
+    group_by: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        for field_name, value in (
+            ("dynamic layer id prefix", self.id_prefix),
+            ("dynamic layer label prefix", self.label_prefix),
+        ):
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{field_name} must be a non-empty string")
+        group_by = tuple(self.group_by)
+        if not group_by:
+            raise ValueError("dynamic layer group by requires at least one key")
+        if any(not isinstance(key, str) or not key.strip() for key in group_by):
+            raise ValueError("dynamic layer group by keys must be non-empty strings")
+        if len(group_by) != len(set(group_by)):
+            raise ValueError("duplicate dynamic layer group by key")
+        object.__setattr__(self, "group_by", group_by)
+
+
+@dataclass(frozen=True, slots=True)
 class ProjectionRule:
-    """A semantic selector and the fixed layer it produces."""
+    """A semantic selector and the fixed or dynamic layer it produces."""
 
     match: MatchSpec
-    fixed: FixedLayerSpec
+    fixed: FixedLayerSpec | None = None
+    dynamic: DynamicLayerSpec | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.match, MatchSpec):
             raise TypeError("projection rule match must be a MatchSpec")
-        if not isinstance(self.fixed, FixedLayerSpec):
+        if (self.fixed is None) == (self.dynamic is None):
+            raise ValueError("projection rule requires exactly one layer specification")
+        if self.fixed is not None and not isinstance(self.fixed, FixedLayerSpec):
             raise TypeError("projection rule fixed layer must be a FixedLayerSpec")
+        if self.dynamic is not None and not isinstance(self.dynamic, DynamicLayerSpec):
+            raise TypeError("projection rule dynamic layer must be a DynamicLayerSpec")
 
 
 @dataclass(frozen=True, slots=True)
@@ -189,6 +220,8 @@ class ProjectionSpec:
             raise TypeError("projection rules must be ProjectionRule values")
         fixed_layers: dict[str, FixedLayerSpec] = {}
         for rule in rules:
+            if rule.fixed is None:
+                continue
             previous = fixed_layers.get(rule.fixed.id)
             if previous is not None and previous != rule.fixed:
                 raise ValueError(
@@ -224,7 +257,7 @@ def project_paths(
     schema: SemanticAttributeSchema,
     projection: ProjectionSpec,
 ) -> ProjectedDesign:
-    """Project semantic paths into the first matching fixed logical layer."""
+    """Project semantic paths into the first matching fixed or dynamic layer."""
 
     paths = tuple(paths)
     if any(not isinstance(path, SemanticPath) for path in paths):
@@ -242,23 +275,56 @@ def project_paths(
                     f"projection {projection.id} selects undeclared attribute "
                     f"{key!r} in rule {rule_index}"
                 )
+        if rule.dynamic is not None:
+            for key in rule.dynamic.group_by:
+                if key != "domain_id" and key not in declared_keys:
+                    raise ProjectionError(
+                        f"projection {projection.id} groups by undeclared attribute "
+                        f"{key!r} in rule {rule_index}"
+                    )
 
     projected_paths: list[VectorPath] = []
-    matched_layer_ids: set[str] = set()
+    layer_definitions: dict[str, tuple[object, ...]] = {}
+    matched_rule_layers: dict[int, dict[str, tuple[tuple[object, ...], LogicalLayer]]] = {}
     for path in paths:
-        for rule in projection.rules:
+        for rule_index, rule in enumerate(projection.rules):
             if not _matches(path, rule.match):
                 continue
+            if rule.fixed is not None:
+                layer = LogicalLayer(rule.fixed.id, rule.fixed.label)
+                definition = ("fixed", rule.fixed.label)
+                sort_key = ()
+            else:
+                assert rule.dynamic is not None
+                group_values = _group_values(path, rule.dynamic, projection.id, rule_index)
+                encoded_values = tuple(canonical_scalar(value) for value in group_values)
+                layer = LogicalLayer(
+                    "-".join((rule.dynamic.id_prefix, *encoded_values)),
+                    _dynamic_layer_label(rule.dynamic, group_values),
+                )
+                definition = (
+                    "dynamic",
+                    rule.dynamic.group_by,
+                    tuple(_scalar_identity(value) for value in group_values),
+                    layer.label,
+                )
+                sort_key = tuple(_scalar_sort_key(value) for value in group_values)
+            previous = layer_definitions.get(layer.id)
+            if previous is not None and previous != definition:
+                raise ProjectionError(
+                    f"logical layer id {layer.id!r} has conflicting dynamic group metadata"
+                )
+            layer_definitions[layer.id] = definition
             projected_paths.append(
                 VectorPath(
                     points=path.geometry.points,
                     closed=path.geometry.closed,
-                    layer_id=rule.fixed.id,
+                    layer_id=layer.id,
                     domain_id=path.domain_id,
                     coordinate_frame=path.geometry.coordinate_frame,
                 )
             )
-            matched_layer_ids.add(rule.fixed.id)
+            matched_rule_layers.setdefault(rule_index, {})[layer.id] = (sort_key, layer)
             break
         else:
             raise ProjectionError(
@@ -268,12 +334,62 @@ def project_paths(
 
     layers: list[LogicalLayer] = []
     emitted_layer_ids: set[str] = set()
-    for rule in projection.rules:
-        layer = rule.fixed
-        if layer.id in matched_layer_ids and layer.id not in emitted_layer_ids:
-            layers.append(LogicalLayer(layer.id, layer.label))
-            emitted_layer_ids.add(layer.id)
+    for rule_index, _rule in enumerate(projection.rules):
+        rule_layers = matched_rule_layers.get(rule_index, {})
+        for _, layer in sorted(rule_layers.values(), key=lambda entry: entry[0]):
+            if layer.id not in emitted_layer_ids:
+                layers.append(layer)
+                emitted_layer_ids.add(layer.id)
     return ProjectedDesign(tuple(projected_paths), tuple(layers))
+
+
+def canonical_scalar(value: SemanticScalar) -> str:
+    """Encode a scalar into a typed, SVG-safe identifier component."""
+
+    tag, content = _scalar_identity(value)
+    return f"{tag}-{quote(content, safe='-._~')}"
+
+
+def _scalar_identity(value: SemanticScalar) -> tuple[str, str]:
+    if type(value) is bool:
+        return "b", "true" if value else "false"
+    if type(value) is int:
+        return "i", str(value)
+    if type(value) is float:
+        return "n", repr(0.0 if value == 0 else value)
+    return "s", value
+
+
+def _scalar_sort_key(value: SemanticScalar) -> tuple[int, object]:
+    if type(value) is bool:
+        return 0, value
+    if type(value) is int:
+        return 1, value
+    if type(value) is float:
+        return 2, value
+    return 3, value
+
+
+def _group_values(
+    path: SemanticPath,
+    dynamic: DynamicLayerSpec,
+    projection_id: str,
+    rule_index: int,
+) -> tuple[SemanticScalar, ...]:
+    values: list[SemanticScalar] = []
+    for key in dynamic.group_by:
+        value = path.domain_id if key == "domain_id" else path.attributes.get(key)
+        if value is None:
+            raise ProjectionError(
+                f"path ID {path.path_id} lacks group attribute {key!r} in rule "
+                f"{rule_index} of projection {projection_id}"
+            )
+        values.append(value)
+    return tuple(values)
+
+
+def _dynamic_layer_label(dynamic: DynamicLayerSpec, values: tuple[SemanticScalar, ...]) -> str:
+    return " ".join((dynamic.label_prefix, *(str(value) for value in values)))
 
 
 def _matches(path: SemanticPath, match: MatchSpec) -> bool:

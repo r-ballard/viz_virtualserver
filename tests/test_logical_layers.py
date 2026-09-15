@@ -5,6 +5,7 @@ import pytest
 
 from viz_canvas import PathGeometry, SemanticAttributeSchema, SemanticPath
 from viz_canvas.logical_layers import (
+    DynamicLayerSpec,
     FixedLayerSpec,
     MatchSpec,
     ProjectionError,
@@ -14,6 +15,8 @@ from viz_canvas.logical_layers import (
 )
 
 BODY_SCHEMA = SemanticAttributeSchema(("size_class",))
+BODY_GROUP_SCHEMA = SemanticAttributeSchema(("size_class", "body_index"))
+LSYSTEM_SCHEMA = SemanticAttributeSchema(("generation",))
 
 
 def body_path(*, size_class: str = "small", path_id: str = "body-1") -> SemanticPath:
@@ -24,6 +27,152 @@ def body_path(*, size_class: str = "small", path_id: str = "body-1") -> Semantic
         "body",
         {"size_class": size_class},
     )
+
+
+def generation_paths(*generations: int) -> tuple[SemanticPath, ...]:
+    return tuple(
+        SemanticPath(
+            f"generation-{generation}",
+            "domain-1",
+            PathGeometry(((0, 0), (1, 1)), False),
+            "segment",
+            {"generation": generation},
+        )
+        for generation in generations
+    )
+
+
+def generation_projection() -> ProjectionSpec:
+    return ProjectionSpec(
+        "lsystem",
+        (
+            ProjectionRule(
+                MatchSpec(feature_role="segment"),
+                dynamic=DynamicLayerSpec("generation", "Generation", ("generation",)),
+            ),
+        ),
+    )
+
+
+def two_domains_same_body() -> tuple[SemanticPath, ...]:
+    return tuple(
+        SemanticPath(
+            f"{domain_id}-body-1",
+            domain_id,
+            PathGeometry(((0, 0), (1, 1)), False),
+            "body",
+            {"size_class": "small", "body_index": 1},
+        )
+        for domain_id in ("domain-a", "domain-b")
+    )
+
+
+def per_body_projection(*, include_domain: bool) -> ProjectionSpec:
+    group_by = ("domain_id", "body_index") if include_domain else ("body_index",)
+    return ProjectionSpec(
+        "orbital",
+        (
+            ProjectionRule(
+                MatchSpec(feature_role="body"),
+                dynamic=DynamicLayerSpec("body", "Body", group_by),
+            ),
+        ),
+    )
+
+
+def test_dynamic_generation_layers_sort_numerically():
+    result = project_paths(
+        generation_paths(10, 2, 1), LSYSTEM_SCHEMA, generation_projection()
+    )
+
+    assert [layer.id for layer in result.layers] == [
+        "generation-i-1",
+        "generation-i-2",
+        "generation-i-10",
+    ]
+
+
+def test_group_by_domain_can_scope_identical_body_indexes():
+    result = project_paths(
+        two_domains_same_body(), BODY_GROUP_SCHEMA, per_body_projection(include_domain=True)
+    )
+
+    assert len(result.layers) == 2
+
+
+def test_group_by_without_domain_shares_identical_body_indexes():
+    result = project_paths(
+        two_domains_same_body(), BODY_GROUP_SCHEMA, per_body_projection(include_domain=False)
+    )
+
+    assert [path.layer_id for path in result.paths] == ["body-i-1", "body-i-1"]
+    assert [layer.id for layer in result.layers] == ["body-i-1"]
+
+
+def test_dynamic_groups_preserve_scalar_type_identity_and_typed_order():
+    paths = tuple(
+        SemanticPath(
+            f"path-{index}",
+            "domain-1",
+            PathGeometry(((0, 0), (1, 1)), False),
+            "item",
+            {"value": value},
+        )
+        for index, value in enumerate(("1", 1.0, 1, True))
+    )
+    projection = ProjectionSpec(
+        "typed-values",
+        (
+            ProjectionRule(
+                MatchSpec(feature_role="item"),
+                dynamic=DynamicLayerSpec("value", "Value", ("value",)),
+            ),
+        ),
+    )
+
+    result = project_paths(paths, SemanticAttributeSchema(("value",)), projection)
+
+    assert [layer.id for layer in result.layers] == [
+        "value-b-true",
+        "value-i-1",
+        "value-n-1.0",
+        "value-s-1",
+    ]
+
+
+def test_dynamic_layer_id_collision_with_conflicting_metadata_is_rejected():
+    paths = (
+        SemanticPath(
+            "small-body",
+            "domain-1",
+            PathGeometry(((0, 0), (1, 1)), False),
+            "small-body",
+            {"size_class": "small", "body_index": 1},
+        ),
+        SemanticPath(
+            "large-body",
+            "domain-1",
+            PathGeometry(((0, 0), (1, 1)), False),
+            "large-body",
+            {"size_class": "large", "body_index": 1},
+        ),
+    )
+    projection = ProjectionSpec(
+        "collision",
+        (
+            ProjectionRule(
+                MatchSpec(feature_role="small-body"),
+                dynamic=DynamicLayerSpec("body", "Small body", ("body_index",)),
+            ),
+            ProjectionRule(
+                MatchSpec(feature_role="large-body"),
+                dynamic=DynamicLayerSpec("body", "Large body", ("body_index",)),
+            ),
+        ),
+    )
+
+    with pytest.raises(ProjectionError, match="body-i-1.*conflicting"):
+        project_paths(paths, BODY_GROUP_SCHEMA, projection)
 
 
 def test_fixed_projection_uses_first_matching_rule_once():
