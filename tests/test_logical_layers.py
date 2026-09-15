@@ -4,6 +4,99 @@ from dataclasses import FrozenInstanceError
 import pytest
 
 from viz_canvas import PathGeometry, SemanticAttributeSchema, SemanticPath
+from viz_canvas.logical_layers import (
+    FixedLayerSpec,
+    MatchSpec,
+    ProjectionError,
+    ProjectionRule,
+    ProjectionSpec,
+    project_paths,
+)
+
+BODY_SCHEMA = SemanticAttributeSchema(("size_class",))
+
+
+def body_path(*, size_class: str = "small", path_id: str = "body-1") -> SemanticPath:
+    return SemanticPath(
+        path_id,
+        "domain-1",
+        PathGeometry(((0, 0), (1, 1)), False),
+        "body",
+        {"size_class": size_class},
+    )
+
+
+def test_fixed_projection_uses_first_matching_rule_once():
+    result = project_paths(
+        (body_path(size_class="small"),),
+        BODY_SCHEMA,
+        ProjectionSpec(
+            "orbital",
+            (
+                ProjectionRule(
+                    MatchSpec(feature_role="body", attributes={"size_class": ("small",)}),
+                    fixed=FixedLayerSpec("small-bodies", "Small bodies"),
+                ),
+                ProjectionRule(
+                    MatchSpec(feature_role="body"),
+                    fixed=FixedLayerSpec("bodies", "Bodies"),
+                ),
+            ),
+        ),
+    )
+    assert [path.layer_id for path in result.paths] == ["small-bodies"]
+    assert [layer.id for layer in result.layers] == ["small-bodies"]
+
+
+def test_fixed_projection_matches_attribute_membership():
+    result = project_paths(
+        (body_path(size_class="medium"),),
+        BODY_SCHEMA,
+        ProjectionSpec(
+            "orbital",
+            (
+                ProjectionRule(
+                    MatchSpec(
+                        feature_role="body", attributes={"size_class": ("small", "medium")}
+                    ),
+                    fixed=FixedLayerSpec("small-and-medium", "Small and medium bodies"),
+                ),
+            ),
+        ),
+    )
+
+    assert [path.layer_id for path in result.paths] == ["small-and-medium"]
+    assert [layer.id for layer in result.layers] == ["small-and-medium"]
+
+
+def test_fixed_projection_rejects_selector_keys_not_declared_by_schema():
+    projection = ProjectionSpec(
+        "orbital",
+        (
+            ProjectionRule(
+                MatchSpec(feature_role="body", attributes={"orbit_class": ("inner",)}),
+                fixed=FixedLayerSpec("bodies", "Bodies"),
+            ),
+        ),
+    )
+
+    with pytest.raises(ProjectionError, match="orbit_class.*rule 0"):
+        project_paths((body_path(),), BODY_SCHEMA, projection)
+
+
+def test_fixed_projection_reports_unmatched_path_and_projection_context():
+    projection = ProjectionSpec(
+        "orbital",
+        (
+            ProjectionRule(
+                MatchSpec(feature_role="ring"),
+                fixed=FixedLayerSpec("rings", "Rings"),
+            ),
+        ),
+    )
+
+    with pytest.raises(ProjectionError, match="body-unmatched.*projection orbital"):
+        project_paths((body_path(path_id="body-unmatched"),), BODY_SCHEMA, projection)
 
 
 def test_semantic_path_defensively_freezes_attributes():
