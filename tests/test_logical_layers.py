@@ -66,6 +66,17 @@ def test_catalog_defensively_freezes_metadata():
         catalog.entries = ()
 
 
+@pytest.mark.parametrize("second_label", ["Ink", "Different label"])
+def test_catalog_rejects_duplicate_entry_ids(second_label):
+    entries = (
+        LogicalLayerCatalogEntry("ink", 1, "Ink"),
+        LogicalLayerCatalogEntry("ink", 2, second_label),
+    )
+
+    with pytest.raises(ValueError, match="catalog.*unique ids"):
+        LogicalLayerCatalog(entries)
+
+
 @pytest.mark.parametrize("value", [[], {}, None, float("nan")])
 def test_catalog_rejects_non_scalar_or_non_finite_group_values(value):
     with pytest.raises(ValueError, match="group value"):

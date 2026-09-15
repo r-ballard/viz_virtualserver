@@ -261,7 +261,11 @@ class LogicalLayerCatalog:
     entries: tuple[LogicalLayerCatalogEntry, ...]
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "entries", tuple(self.entries))
+        entries = tuple(self.entries)
+        entry_ids = [entry.id for entry in entries]
+        if len(entry_ids) != len(set(entry_ids)):
+            raise ValueError("logical layer catalog entries must have unique ids")
+        object.__setattr__(self, "entries", entries)
 
 
 @dataclass(frozen=True, slots=True)
