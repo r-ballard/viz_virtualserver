@@ -14,14 +14,15 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from .design import DesignState
+from .design import DesignResult, DesignState
 from .jobs import DomainArtworkJob
 from .json_values import thaw_json_value
+from .logical_layers import LogicalLayerCatalog, ProjectedDesign, ProjectionSpec, canonical_scalar
 from .models import PolygonDomain
-from .projection import SurfaceProjection, project_surfaces
+from .projection import SurfaceProjection, project_surface_bundle, project_surfaces
 from .semantics import DomainRef, FeatureRef, PolygonSurface
 from .state_validation import validate_completed_design_state
-from .svg import canonical_design_to_svg, surface_projection_to_svg
+from .svg import LOGICAL_LAYER_CONTRACT, canonical_design_to_svg, surface_projection_to_svg
 
 _UNSAFE_FILENAME_RUN = re.compile(r"[^a-z0-9._-]+")
 _AT_FDCWD = -100
@@ -83,6 +84,153 @@ def write_design_bundle(
     design_svg = canonical_design_to_svg(job, state)
     surface_svgs = tuple(surface_projection_to_svg(projection) for projection in projections)
 
+    return _publish_bundle(
+        job,
+        state,
+        destination,
+        projections,
+        filenames,
+        design_svg,
+        surface_svgs,
+        overwrite=overwrite,
+    )
+
+
+def write_neutral_bundle(
+    job: DomainArtworkJob,
+    design: ProjectedDesign,
+    output_dir: Path,
+    *,
+    projection: ProjectionSpec,
+    overwrite: bool = True,
+) -> DesignBundle:
+    """Publish opt-in v1 logical layers with semantic provenance and a shared catalog."""
+
+    destination = _absolute_destination(Path(output_dir))
+    if destination.is_symlink() or destination.is_junction():
+        raise ValueError("bundle destination must not be a link or junction")
+    if destination.exists() and not destination.is_dir():
+        raise ValueError("bundle destination must be a directory")
+    domains = {domain.id for domain in job.domains}
+    path_ids: set[str] = set()
+    for path in design.paths:
+        semantic = path.semantic_path
+        if semantic is None or semantic.domain_id != path.domain_id:
+            raise ValueError(f"path in domain {path.domain_id} lacks matching semantic provenance")
+        if path.domain_id not in domains:
+            raise ValueError(f"path {semantic.path_id} refers to unknown domain: {path.domain_id}")
+        if semantic.path_id in path_ids:
+            raise ValueError(f"duplicate path ID: {semantic.path_id}")
+        path_ids.add(semantic.path_id)
+    surface_bundle = project_surface_bundle(job, design)
+    surfaces = surface_bundle.surfaces
+    catalog = surface_bundle.catalog
+    metadata = {
+        "logical_layer_contract": LOGICAL_LAYER_CONTRACT,
+        "logical_layers": _catalog_payload(catalog, projection),
+        "projection": _projection_payload(projection),
+    }
+    # Canonical rendering uses the existing geometry/frame pipeline. The transient
+    # result identifies projection, and is not reported as a generating job pass.
+    used_layer_ids = {entry.id for entry in catalog.entries}
+    canonical_paths = tuple(path for path in design.paths if path.layer_id in used_layer_ids)
+    render_state = DesignState(
+        job.domains, results=(DesignResult(canonical_paths, (), "logical-layer-projection"),)
+    )
+    design_svg = canonical_design_to_svg(job, render_state, catalog=catalog)
+    surface_svgs = tuple(
+        surface_projection_to_svg(surface, catalog=catalog) for surface in surfaces
+    )
+    return _publish_bundle(
+        job,
+        DesignState(job.domains),
+        destination,
+        surfaces,
+        _surface_filenames(surfaces),
+        design_svg,
+        surface_svgs,
+        overwrite=overwrite,
+        neutral_metadata=metadata,
+    )
+
+
+def _projection_payload(projection: ProjectionSpec) -> dict[str, object]:
+    rules: list[dict[str, object]] = []
+    for rule in projection.rules:
+        payload: dict[str, object] = {
+            "match": {
+                "feature_role": rule.match.feature_role,
+                "attributes": {
+                    key: list(values) for key, values in sorted(rule.match.attributes.items())
+                },
+            }
+        }
+        if rule.fixed is not None:
+            payload["fixed"] = {"id": rule.fixed.id, "label": rule.fixed.label}
+        else:
+            assert rule.dynamic is not None
+            payload["dynamic"] = {
+                "id_prefix": rule.dynamic.id_prefix,
+                "label_prefix": rule.dynamic.label_prefix,
+                "group_by": list(rule.dynamic.group_by),
+            }
+        rules.append(payload)
+    return {"id": projection.id, "rules": rules}
+
+
+def _catalog_payload(
+    catalog: LogicalLayerCatalog,
+    projection: ProjectionSpec,
+) -> list[dict[str, object]]:
+    entries: list[dict[str, object]] = []
+    for ordinal, entry in enumerate(catalog.entries, start=1):
+        if entry.ordinal != ordinal:
+            raise ValueError(f"catalog layer {entry.id} has a noncontiguous ordinal")
+        index = entry.projection_rule_index
+        if type(index) is not int or not 0 <= index < len(projection.rules):
+            raise ValueError(f"catalog layer {entry.id} has invalid projection rule index")
+        rule = projection.rules[index]
+        keys = rule.dynamic.group_by if rule.dynamic is not None else ()
+        if len(entry.group_values) != len(keys):
+            raise ValueError(f"catalog layer {entry.id} group values do not match projection keys")
+        if rule.fixed is not None:
+            expected_id, expected_label = rule.fixed.id, rule.fixed.label
+        else:
+            assert rule.dynamic is not None
+            expected_id = "-".join((
+                rule.dynamic.id_prefix, *(canonical_scalar(value) for value in entry.group_values)
+            ))
+            expected_label = " ".join((
+                rule.dynamic.label_prefix, *(str(value) for value in entry.group_values)
+            ))
+        if entry.id != expected_id or entry.label != expected_label:
+            raise ValueError(f"catalog layer {entry.id} does not match projection rule {index}")
+        payload: dict[str, object] = {
+            "id": entry.id,
+            "ordinal": entry.ordinal,
+            "label": entry.label,
+            "projection_rule_index": index,
+            "group_values": dict(zip(keys, entry.group_values, strict=True)),
+        }
+        if entry.preview_style:
+            payload["preview_style"] = thaw_json_value(entry.preview_style)
+        entries.append(payload)
+    return entries
+
+
+def _publish_bundle(
+    job: DomainArtworkJob,
+    state: DesignState,
+    destination: Path,
+    projections: tuple[SurfaceProjection, ...],
+    filenames: tuple[str, ...],
+    design_svg: str,
+    surface_svgs: tuple[str, ...],
+    *,
+    overwrite: bool,
+    neutral_metadata: dict[str, object] | None = None,
+) -> DesignBundle:
+
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = _make_sibling_directory(destination, prefix=f".{destination.name}-")
     backup: Path | None = None
@@ -107,6 +255,10 @@ def write_design_bundle(
             tuple(surface_digests),
             design_digest,
         )
+        if neutral_metadata is not None:
+            audit.update(neutral_metadata)
+            for surface, projection in zip(audit["surfaces"], projections, strict=True):
+                surface["logical_layer_ids"] = list(projection.layer_ids)
         _write_utf8(
             temporary / "design.json",
             json.dumps(audit, ensure_ascii=True, separators=(",", ":")) + "\n",
@@ -285,8 +437,7 @@ def _surface_filenames(projections: tuple[SurfaceProjection, ...]) -> tuple[str,
         previous = owners.get(filename)
         if previous is not None:
             raise ValueError(
-                f"surface filename collision after sanitization: {previous!r} and "
-                f"{surface_id!r}"
+                f"surface filename collision after sanitization: {previous!r} and {surface_id!r}"
             )
         owners[filename] = surface_id
         filenames.append(filename)

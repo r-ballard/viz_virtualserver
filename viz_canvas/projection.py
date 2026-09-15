@@ -191,6 +191,7 @@ def _project_path(
             domain_id=path.domain_id,
             coordinate_frame="domain",
             producing_pass_id=path.producing_pass_id,
+            semantic_path=path.semantic_path,
         )
         for points, closed in components
     )

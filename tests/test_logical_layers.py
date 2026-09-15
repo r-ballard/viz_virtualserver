@@ -503,6 +503,32 @@ def test_semantic_path_rejects_invalid_identity_parts(field, value):
 @pytest.mark.parametrize("value", [(1,), {1}, object(), -math.inf])
 def test_semantic_path_rejects_other_non_scalar_attributes(value):
     with pytest.raises(ValueError, match="attribute"):
-        SemanticPath(
-            "p1", "d1", PathGeometry(((0, 0), (1, 1)), False), "body", {"bad": value}
-        )
+        SemanticPath("p1", "d1", PathGeometry(((0, 0), (1, 1)), False), "body", {"bad": value})
+
+
+def test_identifier_encoding_is_xml_safe_reversible_and_collision_free() -> None:
+    from viz_canvas.logical_layers import canonical_scalar
+
+    values = ("a b", "a_20b", "é", "%", "a/b", "x-y.z", "~")
+    encoded = [canonical_scalar(value) for value in values]
+    assert encoded == [
+        "s-a_20b",
+        "s-a_5F20b",
+        "s-_C3_A9",
+        "s-_25",
+        "s-a_2Fb",
+        "s-x-y.z",
+        "s-_7E",
+    ]
+    assert len(set(encoded)) == len(values)
+    for value, component in zip(values, encoded, strict=True):
+        content = component[2:]
+        decoded = bytearray()
+        while content:
+            if content.startswith("_"):
+                decoded.append(int(content[1:3], 16))
+                content = content[3:]
+            else:
+                decoded.extend(content[0].encode("ascii"))
+                content = content[1:]
+        assert decoded.decode("utf-8") == value

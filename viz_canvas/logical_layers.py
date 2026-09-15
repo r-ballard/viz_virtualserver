@@ -8,7 +8,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Literal
-from urllib.parse import quote
 
 from .design import LogicalLayer, VectorPath
 from .json_values import freeze_json_object
@@ -369,6 +368,7 @@ def project_paths(
                     layer_id=layer.id,
                     domain_id=path.domain_id,
                     coordinate_frame=path.geometry.coordinate_frame,
+                    semantic_path=path,
                 )
             )
             matched_rule_layers.setdefault(rule_index, {})[layer.id] = (sort_key, layer)
@@ -400,7 +400,18 @@ def canonical_scalar(value: SemanticScalar) -> str:
     """Encode a scalar into a typed, SVG-safe identifier component."""
 
     tag, content = _scalar_identity(value)
-    return f"{tag}-{quote(content, safe='-._~')}"
+    return f"{tag}-{encode_identifier(content)}"
+
+
+def encode_identifier(value: str) -> str:
+    """Encode UTF-8 bytes reversibly for v1 IDs and XML attribute suffixes."""
+
+    return "".join(
+        chr(byte)
+        if 65 <= byte <= 90 or 97 <= byte <= 122 or 48 <= byte <= 57 or byte in (45, 46)
+        else f"_{byte:02X}"
+        for byte in value.encode("utf-8")
+    )
 
 
 def _scalar_identity(value: SemanticScalar) -> tuple[str, str]:
