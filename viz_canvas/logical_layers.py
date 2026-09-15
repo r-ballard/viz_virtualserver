@@ -187,6 +187,14 @@ class ProjectionSpec:
             raise ValueError("projection requires at least one rule")
         if any(not isinstance(rule, ProjectionRule) for rule in rules):
             raise TypeError("projection rules must be ProjectionRule values")
+        fixed_layers: dict[str, FixedLayerSpec] = {}
+        for rule in rules:
+            previous = fixed_layers.get(rule.fixed.id)
+            if previous is not None and previous != rule.fixed:
+                raise ValueError(
+                    f"{rule.fixed.id!r} has conflicting fixed layer definitions"
+                )
+            fixed_layers[rule.fixed.id] = rule.fixed
         object.__setattr__(self, "rules", rules)
 
 

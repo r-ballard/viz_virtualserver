@@ -99,6 +99,46 @@ def test_fixed_projection_reports_unmatched_path_and_projection_context():
         project_paths((body_path(path_id="body-unmatched"),), BODY_SCHEMA, projection)
 
 
+def test_projection_spec_rejects_conflicting_repeated_fixed_layer_ids():
+    with pytest.raises(ValueError, match="bodies.*conflicting fixed layer"):
+        ProjectionSpec(
+            "orbital",
+            (
+                ProjectionRule(
+                    MatchSpec(feature_role="body", attributes={"size_class": ("small",)}),
+                    fixed=FixedLayerSpec("bodies", "Small bodies"),
+                ),
+                ProjectionRule(
+                    MatchSpec(feature_role="body"),
+                    fixed=FixedLayerSpec("bodies", "All bodies"),
+                ),
+            ),
+        )
+
+
+def test_projection_spec_allows_repeated_identical_fixed_layer_definitions():
+    fixed = FixedLayerSpec("bodies", "Bodies")
+    projection = ProjectionSpec(
+        "orbital",
+        (
+            ProjectionRule(
+                MatchSpec(feature_role="body", attributes={"size_class": ("small",)}),
+                fixed=fixed,
+            ),
+            ProjectionRule(MatchSpec(feature_role="body"), fixed=fixed),
+        ),
+    )
+
+    result = project_paths(
+        (body_path(size_class="small"), body_path(size_class="large", path_id="body-2")),
+        BODY_SCHEMA,
+        projection,
+    )
+
+    assert [path.layer_id for path in result.paths] == ["bodies", "bodies"]
+    assert [(layer.id, layer.label) for layer in result.layers] == [("bodies", "Bodies")]
+
+
 def test_semantic_path_defensively_freezes_attributes():
     source = {"system_index": 1, "small": True}
     path = SemanticPath("p1", "d1", PathGeometry(((0, 0), (1, 1)), False), "body", source)
