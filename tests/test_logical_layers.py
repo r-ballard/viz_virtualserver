@@ -92,6 +92,45 @@ def test_dynamic_generation_layers_sort_numerically():
     ]
 
 
+@pytest.mark.parametrize("id_prefix", ["body/layer", "body:layer", "1body", "_body"])
+def test_dynamic_layer_spec_rejects_unsafe_id_prefixes(id_prefix):
+    with pytest.raises(ValueError, match="id prefix"):
+        DynamicLayerSpec(id_prefix, "Body", ("body_index",))
+
+
+def test_dynamic_layer_spec_allows_safe_id_prefix():
+    spec = DynamicLayerSpec("body.layer_1-a", "Body", ("body_index",))
+
+    assert spec.id_prefix == "body.layer_1-a"
+
+
+def test_dynamic_groups_keep_positive_and_negative_zero_distinct():
+    paths = tuple(
+        SemanticPath(
+            f"path-{index}",
+            "domain-1",
+            PathGeometry(((0, 0), (1, 1)), False),
+            "item",
+            {"value": value},
+        )
+        for index, value in enumerate((-0.0, 0.0))
+    )
+    projection = ProjectionSpec(
+        "signed-zero",
+        (
+            ProjectionRule(
+                MatchSpec(feature_role="item"),
+                dynamic=DynamicLayerSpec("value", "Value", ("value",)),
+            ),
+        ),
+    )
+
+    result = project_paths(paths, SemanticAttributeSchema(("value",)), projection)
+
+    assert [path.layer_id for path in result.paths] == ["value-n--0.0", "value-n-0.0"]
+    assert [layer.id for layer in result.layers] == ["value-n--0.0", "value-n-0.0"]
+
+
 def test_group_by_domain_can_scope_identical_body_indexes():
     result = project_paths(
         two_domains_same_body(), BODY_GROUP_SCHEMA, per_body_projection(include_domain=True)

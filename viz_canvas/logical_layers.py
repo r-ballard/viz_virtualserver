@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
@@ -168,12 +169,12 @@ class DynamicLayerSpec:
     group_by: tuple[str, ...]
 
     def __post_init__(self) -> None:
-        for field_name, value in (
-            ("dynamic layer id prefix", self.id_prefix),
-            ("dynamic layer label prefix", self.label_prefix),
+        if not isinstance(self.id_prefix, str) or not re.fullmatch(
+            r"[A-Za-z][A-Za-z0-9._-]*", self.id_prefix
         ):
-            if not isinstance(value, str) or not value.strip():
-                raise ValueError(f"{field_name} must be a non-empty string")
+            raise ValueError("dynamic layer id prefix must be a safe identifier")
+        if not isinstance(self.label_prefix, str) or not self.label_prefix.strip():
+            raise ValueError("dynamic layer label prefix must be a non-empty string")
         group_by = tuple(self.group_by)
         if not group_by:
             raise ValueError("dynamic layer group by requires at least one key")
@@ -356,17 +357,17 @@ def _scalar_identity(value: SemanticScalar) -> tuple[str, str]:
     if type(value) is int:
         return "i", str(value)
     if type(value) is float:
-        return "n", repr(0.0 if value == 0 else value)
+        return "n", repr(value)
     return "s", value
 
 
-def _scalar_sort_key(value: SemanticScalar) -> tuple[int, object]:
+def _scalar_sort_key(value: SemanticScalar) -> tuple[object, ...]:
     if type(value) is bool:
         return 0, value
     if type(value) is int:
         return 1, value
     if type(value) is float:
-        return 2, value
+        return 2, value, repr(value)
     return 3, value
 
 
