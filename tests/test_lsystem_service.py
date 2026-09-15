@@ -13,6 +13,63 @@ from lsystem.svg import result_to_svg
 SVG = "{http://www.w3.org/2000/svg}"
 
 
+def test_lsystem_projects_birth_generation_without_duplication():
+    request = LSystemRequest(
+        axiom="X", rules={"X": "FX", "F": "FF"}, generations=4, step=1,
+    )
+    cumulative = lsystem_service.generate_lsystem_design(request, domain_id="page")
+    delta = lsystem_service.generate_lsystem_design(
+        request, domain_id="page", growth_mode="delta",
+    )
+
+    assert [entry.group_values for entry in cumulative.catalog.entries] == [(1,), (2,), (3,), (4,)]
+    assert [entry.group_values for entry in delta.catalog.entries] == [(4,)]
+    assert len(cumulative.paths) == 15
+    assert len({path.semantic_path.path_id for path in cumulative.paths}) == 15
+    assert len(delta.paths) == 1
+    assert delta.paths[0] in cumulative.paths
+    assert all(
+        path.semantic_path.attributes["visible_generation"] == 4 for path in cumulative.paths
+    )
+    assert cumulative == lsystem_service.generate_lsystem_design(request, domain_id="page")
+
+
+def test_neutral_birth_layers_are_independent_of_physical_pen_mapping():
+    request = LSystemRequest(
+        axiom="X", rules={"X": "FX"}, generations=12, step=1,
+        pen_layers=[{"pen": 1, "start_generation": 0, "end_generation": 12, "color": "#000000"}],
+    )
+    design = lsystem_service.generate_lsystem_design(request, domain_id="page")
+    assert [entry.group_values for entry in design.catalog.entries] == [
+        (generation,) for generation in range(1, 13)
+    ]
+    assert len(design.paths) == 12
+
+
+def test_semantic_generation_selection_and_request_growth_mode():
+    request = LSystemRequest(
+        axiom="X", rules={"X": "FX", "F": "FF"}, generations=4, step=1, growth_mode="delta",
+    )
+    paths = lsystem_service.generate_lsystem_semantics(request, generation=2, domain_id="page")
+    assert len(paths) == 1
+    assert dict(paths[0].attributes) == {"birth_generation": 2, "visible_generation": 2}
+    assert paths[0].geometry.points == ((2.0, 0.0), (3.0, 0.0))
+    assert lsystem_service.generate_lsystem_semantics(request, generation=0, domain_id="page") == ()
+
+
+@pytest.mark.parametrize("generation", [-1, 5, True, 1.5])
+def test_semantic_service_rejects_invalid_generation(generation):
+    request = LSystemRequest(axiom="X", rules={"X": "FX"}, generations=4)
+    with pytest.raises(ValueError, match="generation"):
+        lsystem_service.generate_lsystem_semantics(request, generation=generation, domain_id="page")
+
+
+def test_semantic_service_rejects_invalid_growth_mode():
+    request = LSystemRequest(axiom="X", rules={"X": "FX"})
+    with pytest.raises(ValueError, match="growth_mode"):
+        lsystem_service.generate_lsystem_semantics(request, domain_id="page", growth_mode="unknown")
+
+
 def test_service_groups_precomputed_generations_by_pen():
     request = LSystemRequest(
         axiom="F",

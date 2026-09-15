@@ -12,9 +12,13 @@ import pytest
 
 import concentric.models as orbital_models
 import concentric.service as orbital_service
+import lsystem.service as lsystem_service
 import scripts.generate_domain_bundle as cli_module
 import viz_canvas.bundle as bundle_module
+from lsystem.models import LSystemRequest
 from viz_canvas.job_io import read_domain_artwork_job
+from viz_canvas.jobs import DomainArtworkJob
+from viz_canvas.models import PolygonDomain
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "generate_domain_bundle.py"
@@ -40,6 +44,37 @@ PARAMETERS = {
     "overlap_mode": "allow",
     "coordinate_frame": "domain",
 }
+
+
+@pytest.mark.parametrize("mode, births, path_count", [
+    ("cumulative", [1, 2, 3, 4], 15),
+    ("delta", [4], 1),
+])
+def test_lsystem_birth_projection_publishes_neutral_surface(
+    mode: str, births: list[int], path_count: int, tmp_path: Path,
+) -> None:
+    request = LSystemRequest(
+        axiom="X", rules={"X": "FX", "F": "FF"}, generations=4, step=1,
+    )
+    domain = PolygonDomain("generation-4", ((0, 0), (16, 0), (16, 1), (0, 1)))
+    job = DomainArtworkJob(1, 0, (domain,), None, (), (), (), ())
+    design = lsystem_service.generate_lsystem_design(
+        request, domain_id=domain.id, growth_mode=mode,
+    )
+    bundle = bundle_module.write_neutral_bundle(
+        job, design, tmp_path / mode, projection=lsystem_service.LSYSTEM_BIRTH_PROJECTION,
+    )
+    audit = json.loads(bundle.audit_path.read_text(encoding="utf-8"))
+    assert audit["projection"]["id"] == "lsystem-birth-generation"
+    assert len(audit["logical_layers"]) == len(births)
+    root = ET.fromstring(bundle.surface_paths[0].read_text(encoding="utf-8"))
+    groups = root.findall("{http://www.w3.org/2000/svg}g[@data-viz-layer-id]")
+    assert [group.attrib["data-viz-layer-id"] for group in groups] == [
+        f"birth-generation-i-{birth}" for birth in births
+    ]
+    paths = [path for group in groups for path in group.findall("{http://www.w3.org/2000/svg}path")]
+    assert len(paths) == path_count
+    assert all("data-pen" not in group.attrib for group in groups)
 
 
 def test_cli_registers_radial_tiles_algorithm() -> None:

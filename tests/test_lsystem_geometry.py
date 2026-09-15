@@ -63,3 +63,30 @@ def test_tagged_geometry_groups_strokes_by_birth_while_preserving_turtle_motion(
     )
     assert geometries[1].segment_count == 1
     assert geometries[2].segment_count == 2
+
+
+def test_semantic_segments_retain_birth_and_visible_generation_through_branches():
+    paths = lsystem_geometry.tagged_commands_to_semantic_paths(
+        (("F", 1), ("[", 2), ("+", 2), ("F", 2), ("]", 2), ("F", 1)),
+        domain_id="growth/page",
+        generation=3,
+        step=1.0,
+        angle_degrees=90.0,
+        initial_heading_degrees=0.0,
+        draw_symbols={"F"},
+        move_symbols={"f"},
+    )
+
+    assert len(paths) == len({path.path_id for path in paths}) == 3
+    assert all(path.feature_role == "segment" for path in paths)
+    assert all(path.domain_id == "growth/page" for path in paths)
+    assert all(path.geometry.closed is False for path in paths)
+    assert all(path.attributes["visible_generation"] == 3 for path in paths)
+    assert all(type(path.attributes["birth_generation"]) is int for path in paths)
+    assert all(type(path.attributes["visible_generation"]) is int for path in paths)
+    by_birth = {}
+    for path in paths:
+        by_birth.setdefault(path.attributes["birth_generation"], []).append(path.geometry.points)
+    assert by_birth[1] == [((0.0, 0.0), (1.0, 0.0)), ((1.0, 0.0), (2.0, 0.0))]
+    for point, expected in zip(by_birth[2][0], ((1.0, 0.0), (1.0, 1.0)), strict=True):
+        assert point == pytest.approx(expected, abs=1e-12)
