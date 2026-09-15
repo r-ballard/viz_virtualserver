@@ -7,6 +7,8 @@ from viz_canvas import PathGeometry, SemanticAttributeSchema, SemanticPath
 from viz_canvas.logical_layers import (
     DynamicLayerSpec,
     FixedLayerSpec,
+    LogicalLayerCatalog,
+    LogicalLayerCatalogEntry,
     MatchSpec,
     ProjectionError,
     ProjectionRule,
@@ -17,6 +19,57 @@ from viz_canvas.logical_layers import (
 BODY_SCHEMA = SemanticAttributeSchema(("size_class",))
 BODY_GROUP_SCHEMA = SemanticAttributeSchema(("size_class", "body_index"))
 LSYSTEM_SCHEMA = SemanticAttributeSchema(("generation",))
+
+
+def test_catalog_metadata_uses_first_matched_rule_in_rule_order():
+    fixed = FixedLayerSpec("bodies", "Bodies")
+    projection = ProjectionSpec(
+        "orbital",
+        (
+            ProjectionRule(
+                MatchSpec(attributes={"size_class": ("small",)}), fixed=fixed
+            ),
+            ProjectionRule(MatchSpec(), fixed=fixed),
+        ),
+    )
+    paths = (body_path(size_class="large"), body_path(size_class="small", path_id="p2"))
+
+    result = project_paths(paths, BODY_SCHEMA, projection)
+    reversed_result = project_paths(tuple(reversed(paths)), BODY_SCHEMA, projection)
+
+    assert result.catalog == reversed_result.catalog
+    assert result.catalog.entries[0].projection_rule_index == 0
+    assert result.catalog.entries[0].group_values == ()
+
+
+def test_catalog_defensively_freezes_metadata():
+    group_values = [True, 1, 1.5, "one"]
+    style = {"stroke": {"color": "red"}, "dash": [1, 2]}
+    entry = LogicalLayerCatalogEntry("ink", 1, "Ink", 0, group_values, style)
+    entries = [entry]
+    catalog = LogicalLayerCatalog(entries)
+    group_values.clear()
+    style["stroke"]["color"] = "blue"
+    style["dash"].append(3)
+    entries.clear()
+
+    assert catalog.entries == (entry,)
+    assert entry.group_values == (True, 1, 1.5, "one")
+    assert [type(value) for value in entry.group_values] == [bool, int, float, str]
+    assert entry.preview_style["stroke"]["color"] == "red"
+    assert entry.preview_style["dash"] == (1, 2)
+    with pytest.raises(TypeError):
+        entry.preview_style["stroke"]["color"] = "green"
+    with pytest.raises(FrozenInstanceError):
+        entry.ordinal = 2
+    with pytest.raises(FrozenInstanceError):
+        catalog.entries = ()
+
+
+@pytest.mark.parametrize("value", [[], {}, None, float("nan")])
+def test_catalog_rejects_non_scalar_or_non_finite_group_values(value):
+    with pytest.raises(ValueError, match="group value"):
+        LogicalLayerCatalogEntry("ink", 1, "Ink", group_values=(value,))
 
 
 def body_path(*, size_class: str = "small", path_id: str = "body-1") -> SemanticPath:

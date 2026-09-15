@@ -1,10 +1,24 @@
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError, replace
+
 import pytest
 
+from viz_canvas import projection as surface_projection
 from viz_canvas.design import DesignPass, DesignResult, DesignState, LogicalLayer, VectorPath
 from viz_canvas.frames import AffineTransform, CompositionTransform
 from viz_canvas.jobs import DomainArtworkJob
+from viz_canvas.logical_layers import (
+    DynamicLayerSpec,
+    LogicalLayerCatalog,
+    MatchSpec,
+    PathGeometry,
+    ProjectionRule,
+    ProjectionSpec,
+    SemanticAttributeSchema,
+    SemanticPath,
+    project_paths,
+)
 from viz_canvas.models import PolygonDomain
 from viz_canvas.projection import project_surfaces
 from viz_canvas.semantics import PolygonSurface
@@ -62,6 +76,148 @@ def test_projection_rebases_paths_and_preserves_surface_order() -> None:
     assert projections[0].bounds == pytest.approx((0, 0, 10, 10))
     assert projections[1].domain.vertices[0] == pytest.approx((0, 0))
     assert projections[1].paths[0].points[0] == pytest.approx((0, 0))
+
+
+def test_catalog_is_union_while_surfaces_keep_subsets() -> None:
+    domains = tuple(
+        PolygonDomain(name, ((10, 20), (20, 20), (10, 30)))
+        for name in ("a", "b", "empty")
+    )
+    projected = project_paths(
+        tuple(
+            SemanticPath(
+                f"{domain_id}-{generation}",
+                domain_id,
+                PathGeometry(((10, 20), (12, 22)), False),
+                "segment",
+                {"generation": generation},
+            )
+            for domain_id, generation in (("b", 2), ("a", 1), ("b", 1))
+        ),
+        SemanticAttributeSchema(("generation",)),
+        ProjectionSpec("generations", (
+            ProjectionRule(
+                MatchSpec(feature_role="segment"),
+                dynamic=DynamicLayerSpec("generation", "Generation", ("generation",)),
+            ),
+        )),
+    )
+    assert callable(getattr(surface_projection, "project_surface_bundle", None))
+
+    bundle = surface_projection.project_surface_bundle(_job(domains=domains), projected)
+
+    assert [entry.id for entry in bundle.catalog.entries] == [
+        "generation-i-1", "generation-i-2",
+    ]
+    assert [entry.ordinal for entry in bundle.catalog.entries] == [1, 2]
+    assert [entry.label for entry in bundle.catalog.entries] == [
+        "Generation 1", "Generation 2",
+    ]
+    assert [entry.projection_rule_index for entry in bundle.catalog.entries] == [0, 0]
+    assert [entry.group_values for entry in bundle.catalog.entries] == [(1,), (2,)]
+    assert [entry.preview_style for entry in bundle.catalog.entries] == [{}, {}]
+    assert [surface.layer_ids for surface in bundle.surfaces] == [
+        ("generation-i-1",), ("generation-i-1", "generation-i-2"), (),
+    ]
+    assert [path.layer_id for path in bundle.surfaces[1].paths] == [
+        "generation-i-2", "generation-i-1",
+    ]
+    assert bundle.surfaces[0].paths[0].points == ((0.0, 0.0), (2.0, 2.0))
+    assert project_surfaces(_job(domains=domains), projected) == bundle.surfaces
+
+
+def test_bundle_filters_after_clipping_and_surface_selection_then_reassigns_ordinals():
+    domains = tuple(
+        PolygonDomain(name, ((10, 20), (20, 20), (10, 30)))
+        for name in ("a", "b", "omitted")
+    )
+    projected = project_paths(
+        tuple(
+            SemanticPath(
+                f"generation-{generation}",
+                domain_id,
+                PathGeometry(points, False, "composition"),
+                "segment",
+                {"generation": generation},
+            )
+            for generation, domain_id, points in (
+                (1, "a", ((40, 40), (41, 41))),
+                (2, "b", ((10, 20), (12, 22))),
+                (3, "omitted", ((10, 20), (12, 22))),
+                (4, "a", ((10, 20), (12, 22))),
+            )
+        ),
+        SemanticAttributeSchema(("generation",)),
+        ProjectionSpec("generations", (
+            ProjectionRule(
+                MatchSpec(),
+                dynamic=DynamicLayerSpec("generation", "Generation", ("generation",)),
+            ),
+        )),
+    )
+    projected = replace(projected, catalog=LogicalLayerCatalog(tuple(
+        replace(entry, preview_style={"stroke": "red"})
+        for entry in projected.catalog.entries
+    )))
+    job = _job(
+        domains=domains,
+        surfaces=(PolygonSurface("front", "a"), PolygonSurface("back", "b")),
+        transforms=tuple(
+            CompositionTransform(domain.id, AffineTransform.identity()) for domain in domains
+        ),
+    )
+
+    bundle = surface_projection.project_surface_bundle(job, projected)
+
+    assert [(entry.id, entry.ordinal, entry.group_values) for entry in bundle.catalog.entries] == [
+        ("generation-i-2", 1, (2,)), ("generation-i-4", 2, (4,)),
+    ]
+    assert [entry.preview_style for entry in bundle.catalog.entries] == [
+        {"stroke": "red"}, {"stroke": "red"},
+    ]
+    assert [surface.layer_ids for surface in bundle.surfaces] == [
+        ("generation-i-4",), ("generation-i-2",),
+    ]
+    assert [entry.ordinal for entry in projected.catalog.entries] == [1, 2, 3, 4]
+    assert bundle.surfaces[1].paths[0].points == ((0.0, 0.0), (2.0, 2.0))
+    with pytest.raises(FrozenInstanceError):
+        bundle.surfaces = ()
+
+
+def test_bundle_retains_legacy_declared_metadata_and_infers_undeclared_layers():
+    domain = PolygonDomain("panel", ((0, 0), (10, 0), (0, 10)))
+    job = _job(domains=(domain,), passes=(DesignPass(
+        "draw", "algorithm", (domain.id,),
+        logical_layers=(LogicalLayer("unused", "Unused"), LogicalLayer("ink", "Ink")),
+    ),))
+    state = DesignState(source_domains=(domain,), results=(DesignResult(
+        paths=tuple(
+            VectorPath(((0, 0), (1, 1)), False, layer_id, domain.id)
+            for layer_id in ("extra", "ink")
+        ),
+        derived_domains=(), producing_pass_id="draw",
+    ),))
+
+    bundle = surface_projection.project_surface_bundle(job, state)
+
+    assert [(entry.id, entry.ordinal, entry.label) for entry in bundle.catalog.entries] == [
+        ("ink", 1, "Ink"), ("extra", 2, None),
+    ]
+    assert [entry.projection_rule_index for entry in bundle.catalog.entries] == [None, None]
+    assert bundle.surfaces[0].layer_ids == ("ink", "extra")
+    assert isinstance(project_surfaces(job, state), tuple)
+    assert project_surfaces(job, state) == bundle.surfaces
+
+
+def test_bundle_can_have_no_used_layers():
+    domain = PolygonDomain("empty", ((0, 0), (10, 0), (0, 10)))
+    bundle = surface_projection.project_surface_bundle(
+        _job(domains=(domain,)), DesignState(source_domains=(domain,))
+    )
+
+    assert bundle.catalog.entries == ()
+    assert bundle.surfaces[0].layer_ids == ()
+    assert bundle.surfaces[0].paths == ()
 
 
 def test_projection_partitions_overlapping_geometry_by_explicit_domain_id() -> None:

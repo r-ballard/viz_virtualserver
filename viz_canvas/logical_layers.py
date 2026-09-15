@@ -5,12 +5,13 @@ from __future__ import annotations
 import math
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Literal
 from urllib.parse import quote
 
 from .design import LogicalLayer, VectorPath
+from .json_values import freeze_json_object
 from .models import Point
 
 type SemanticScalar = bool | int | float | str
@@ -233,11 +234,43 @@ class ProjectionSpec:
 
 
 @dataclass(frozen=True, slots=True)
+class LogicalLayerCatalogEntry:
+    """A logical layer's identity and metadata in authoritative bundle order."""
+
+    id: str
+    ordinal: int
+    label: str | None
+    projection_rule_index: int | None = None
+    group_values: tuple[SemanticScalar, ...] = ()
+    preview_style: Mapping[str, object] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        group_values = tuple(self.group_values)
+        for value in group_values:
+            _validate_scalar(value, context="logical layer group value")
+        object.__setattr__(self, "group_values", group_values)
+        object.__setattr__(self, "preview_style", freeze_json_object(
+            self.preview_style, context="logical layer preview style"
+        ))
+
+
+@dataclass(frozen=True, slots=True)
+class LogicalLayerCatalog:
+    """The immutable ordered union of logical layers used in a bundle."""
+
+    entries: tuple[LogicalLayerCatalogEntry, ...]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "entries", tuple(self.entries))
+
+
+@dataclass(frozen=True, slots=True)
 class ProjectedDesign:
-    """Paths and their used fixed logical layers after semantic projection."""
+    """Paths and ordered logical-layer metadata after semantic projection."""
 
     paths: tuple[VectorPath, ...]
     layers: tuple[LogicalLayer, ...]
+    catalog: LogicalLayerCatalog | None = None
 
     def __post_init__(self) -> None:
         paths = tuple(self.paths)
@@ -251,6 +284,11 @@ class ProjectedDesign:
             raise ValueError("projected design layers must have unique ids")
         object.__setattr__(self, "paths", paths)
         object.__setattr__(self, "layers", layers)
+        if self.catalog is None:
+            object.__setattr__(self, "catalog", LogicalLayerCatalog(tuple(
+                LogicalLayerCatalogEntry(layer.id, ordinal, layer.label)
+                for ordinal, layer in enumerate(layers, start=1)
+            )))
 
 
 def project_paths(
@@ -286,6 +324,7 @@ def project_paths(
 
     projected_paths: list[VectorPath] = []
     layer_definitions: dict[str, tuple[object, ...]] = {}
+    layer_metadata: dict[str, tuple[int, tuple[SemanticScalar, ...]]] = {}
     matched_rule_layers: dict[int, dict[str, tuple[tuple[object, ...], LogicalLayer]]] = {}
     for path in paths:
         for rule_index, rule in enumerate(projection.rules):
@@ -295,6 +334,7 @@ def project_paths(
                 layer = LogicalLayer(rule.fixed.id, rule.fixed.label)
                 definition = ("fixed", rule.fixed.label)
                 sort_key = ()
+                group_values = ()
             else:
                 assert rule.dynamic is not None
                 group_values = _group_values(path, rule.dynamic, projection.id, rule_index)
@@ -316,6 +356,8 @@ def project_paths(
                     f"logical layer id {layer.id!r} has conflicting dynamic group metadata"
                 )
             layer_definitions[layer.id] = definition
+            if layer.id not in layer_metadata or rule_index < layer_metadata[layer.id][0]:
+                layer_metadata[layer.id] = (rule_index, group_values)
             projected_paths.append(
                 VectorPath(
                     points=path.geometry.points,
@@ -341,7 +383,13 @@ def project_paths(
             if layer.id not in emitted_layer_ids:
                 layers.append(layer)
                 emitted_layer_ids.add(layer.id)
-    return ProjectedDesign(tuple(projected_paths), tuple(layers))
+    catalog = LogicalLayerCatalog(tuple(
+        LogicalLayerCatalogEntry(
+            layer.id, ordinal, layer.label, *layer_metadata[layer.id]
+        )
+        for ordinal, layer in enumerate(layers, start=1)
+    ))
+    return ProjectedDesign(tuple(projected_paths), tuple(layers), catalog)
 
 
 def canonical_scalar(value: SemanticScalar) -> str:
