@@ -31,6 +31,7 @@ from .geometry import (
 )
 from .job_io import load_domain_artwork_job, read_domain_artwork_job
 from .jobs import DomainArtworkJob, derive_domain_seed
+from .logical_layers import PathGeometry, SemanticAttributeSchema, SemanticPath
 from .models import CanvasSpec, DomainProvenance, Edge, Point, PolygonDomain
 from .projection import SurfaceProjection, project_surfaces
 from .runner import AlgorithmContext, run_domain_artwork_job
@@ -69,11 +70,14 @@ __all__ = [
     "LogicalLayer",
     "Point",
     "PolygonDomain",
+    "PathGeometry",
     "PolygonGroup",
     "PolygonSurface",
     "RelationEndpoint",
     "RelationType",
     "SurfaceProjection",
+    "SemanticAttributeSchema",
+    "SemanticPath",
     "VectorPath",
     "build_canvas",
     "execute_design_pass",
