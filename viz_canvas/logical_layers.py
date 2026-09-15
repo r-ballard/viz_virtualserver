@@ -22,6 +22,8 @@ class PathGeometry:
     coordinate_frame: Literal["domain", "composition"] = "domain"
 
     def __post_init__(self) -> None:
+        if not isinstance(self.closed, bool):
+            raise ValueError("path geometry closed must be a bool")
         if self.coordinate_frame not in {"domain", "composition"}:
             raise ValueError("unknown path geometry coordinate frame")
         points = tuple(tuple(point) for point in self.points)

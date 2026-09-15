@@ -75,6 +75,12 @@ def test_path_geometry_rejects_invalid_coordinates(points, message):
         PathGeometry(points, False)
 
 
+@pytest.mark.parametrize("closed", [1, 0, "closed", "", None])
+def test_path_geometry_rejects_non_boolean_closed(closed):
+    with pytest.raises(ValueError, match="closed.*bool"):
+        PathGeometry(((0, 0), (1, 0), (0, 1)), closed)
+
+
 def test_semantic_records_are_frozen_and_preserve_scalar_types():
     geometry = PathGeometry(((0, 0), (1, 0), (0, 1)), True, "composition")
     attributes = {"flag": True, "count": 1, "ratio": 1.5, "label": "body"}
