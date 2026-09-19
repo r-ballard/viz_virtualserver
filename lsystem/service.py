@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from viz_canvas.logical_layers import (
-    DynamicLayerSpec,
+    FixedLayerSpec,
     MatchSpec,
     ProjectedDesign,
     ProjectionRule,
@@ -26,10 +26,14 @@ from .models import LSystemRequest, PenLayerSpec
 LSYSTEM_ATTRIBUTE_SCHEMA = SemanticAttributeSchema(("birth_generation", "visible_generation"))
 LSYSTEM_BIRTH_PROJECTION = ProjectionSpec(
     "lsystem-birth-generation",
-    (ProjectionRule(
-        MatchSpec(feature_role="segment"),
-        dynamic=DynamicLayerSpec("birth-generation", "Birth generation", ("birth_generation",)),
-    ),),
+    tuple(
+        ProjectionRule(
+            MatchSpec(feature_role="segment", attributes={"birth_generation": (generation,)}),
+            fixed=FixedLayerSpec(f"generation-{generation}", f"Generation {generation}"),
+        )
+        # LSystemRequest accepts native generations 0 through 50; growth excludes 0.
+        for generation in range(1, 51)
+    ),
 )
 
 
@@ -42,8 +46,9 @@ def generate_lsystem_semantics(
 ) -> tuple[SemanticPath, ...]:
     """Return segments visible in one generation, without overlaying earlier snapshots.
 
-    Cumulative growth includes birth generations 1 through the selected generation;
-    delta growth includes only that generation's births. Axiom lineage (birth 0)
+    Birth is lineage provenance under request.lineage_policy, not first appearance
+    at a geometric location. Cumulative growth includes birth generations 1 through
+    the selected generation; delta includes only that generation's births. Birth 0
     is excluded, matching the established growth-page contract. Coordinates retain
     the turtle's intrinsic frame; the caller owns the enclosing domain and surface.
     """
@@ -61,6 +66,7 @@ def generate_lsystem_semantics(
         commands
         for visible_generation, commands in iter_tagged_generations(
             request.axiom, request.rules, generation, request.max_symbols,
+            lineage_policy=request.lineage_policy,
         )
         if visible_generation == generation
     )
@@ -98,7 +104,7 @@ def generate_lsystem_design(
 
 
 def generate_lsystem(request: LSystemRequest) -> dict:
-    """Expand an L-system and return precomputed polyline geometry grouped by plotter pen."""
+    """Group complete generation snapshots by pen, independent of lineage_policy."""
 
     layer_specs = resolve_pen_layers(request.generations, request.pen_layers)
     geometries: list[GenerationGeometry] = []
@@ -165,7 +171,7 @@ def generate_lsystem_growth_pages(
     generation_numbers: tuple[int, ...],
     growth_mode: str | None = None,
 ) -> dict[int, dict]:
-    """Build independently bounded generation pages with growth-age layers."""
+    """Build independently bounded pages grouped by the request's lineage policy."""
 
     growth_mode = growth_mode or request.growth_mode
     if growth_mode not in {"cumulative", "delta"}:
@@ -179,6 +185,7 @@ def generate_lsystem_growth_pages(
         request.rules,
         request.generations,
         request.max_symbols,
+        lineage_policy=request.lineage_policy,
     ):
         if generation not in requested:
             continue

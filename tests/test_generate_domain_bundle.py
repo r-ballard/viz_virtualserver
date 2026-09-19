@@ -66,11 +66,13 @@ def test_lsystem_birth_projection_publishes_neutral_surface(
     )
     audit = json.loads(bundle.audit_path.read_text(encoding="utf-8"))
     assert audit["projection"]["id"] == "lsystem-birth-generation"
-    assert len(audit["logical_layers"]) == len(births)
+    assert [entry["id"] for entry in audit["logical_layers"]] == [
+        f"generation-{birth}" for birth in births
+    ]
     root = ET.fromstring(bundle.surface_paths[0].read_text(encoding="utf-8"))
     groups = root.findall("{http://www.w3.org/2000/svg}g[@data-viz-layer-id]")
     assert [group.attrib["data-viz-layer-id"] for group in groups] == [
-        f"birth-generation-i-{birth}" for birth in births
+        f"generation-{birth}" for birth in births
     ]
     paths = [path for group in groups for path in group.findall("{http://www.w3.org/2000/svg}path")]
     assert len(paths) == path_count

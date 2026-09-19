@@ -33,6 +33,7 @@ class LSystemRequest(BaseModel):
     move_symbols: list[str] = Field(default_factory=lambda: ["f"])
     pen_layers: list[PenLayerSpec] | None = None
     growth_mode: Literal["cumulative", "delta"] = "cumulative"
+    lineage_policy: Literal["inherit_all", "rewrite", "inherit_first"] = "inherit_all"
     max_symbols: int = Field(default=1_000_000, ge=1, le=10_000_000)
 
     @model_validator(mode="after")
