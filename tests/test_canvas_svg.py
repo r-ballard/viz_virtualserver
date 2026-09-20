@@ -1,10 +1,22 @@
 import json
 import xml.etree.ElementTree as ET
+from dataclasses import replace
 
 import pytest
 
 from viz_canvas.design import DesignResult, LogicalLayer, VectorPath
 from viz_canvas.geometry import CanvasGeometry, build_canvas
+from viz_canvas.logical_layers import (
+    FixedLayerSpec,
+    LogicalLayerCatalog,
+    MatchSpec,
+    PathGeometry,
+    ProjectionRule,
+    ProjectionSpec,
+    SemanticAttributeSchema,
+    SemanticPath,
+    project_paths,
+)
 from viz_canvas.models import CanvasSpec, DomainProvenance, PolygonDomain
 from viz_canvas.projection import SurfaceProjection
 from viz_canvas.semantics import PolygonSurface
@@ -18,6 +30,119 @@ from viz_canvas.svg import (
 )
 
 NS = {"svg": SVG_NS}
+
+
+def test_neutral_surface_metadata_preserves_semantics_and_catalog_order() -> None:
+    semantic = (
+        SemanticPath(
+            "body-1",
+            "panel",
+            PathGeometry(((1, 1), (2, 1)), False),
+            "body",
+            {"a b": "café & tea", "a_20b": True, "index": 2},
+        ),
+        SemanticPath(
+            "orbit-1", "panel", PathGeometry(((1, 2), (2, 2)), False), "orbit", {"index": 1.5}
+        ),
+    )
+    projected = project_paths(
+        semantic,
+        SemanticAttributeSchema(("a b", "a_20b", "index")),
+        ProjectionSpec(
+            "fixture/v1",
+            (
+                ProjectionRule(
+                    MatchSpec(feature_role="orbit"), fixed=FixedLayerSpec(CLIP_ID, "Orbits & rings")
+                ),
+                ProjectionRule(
+                    MatchSpec(feature_role="body"), fixed=FixedLayerSpec("bodies", "Bodies")
+                ),
+            ),
+        ),
+    )
+    domain = PolygonDomain("panel", ((0, 0), (8, 0), (4, 5)))
+    surface = SurfaceProjection(
+        PolygonSurface("front", "panel"),
+        domain,
+        projected.paths,
+        projected.layers,
+        (0, 0, 8, 5),
+        "edge:0",
+    )
+    generic = ET.fromstring(surface_projection_to_svg(surface))
+    root = ET.fromstring(surface_projection_to_svg(surface, catalog=projected.catalog))
+    assert root.get("data-viz-layer-contract") == "viz-logical-layers/v1"
+    assert {
+        key: value for key, value in root.attrib.items() if key.startswith("data-viz-canvas-")
+    } == {key: value for key, value in generic.attrib.items() if key.startswith("data-viz-canvas-")}
+    assert generic.get("data-viz-layer-contract") is None
+    groups = root.findall("svg:g", NS)
+    assert [g.get("data-viz-layer-id") for g in groups] == [CLIP_ID, "bodies"]
+    assert [g.get("data-viz-layer-ordinal") for g in groups] == ["1", "2"]
+    assert [g.get("data-viz-layer-label") for g in groups] == ["Orbits & rings", "Bodies"]
+    assert all(g.get("clip-path") == "url(#viz-canvas-clip)" for g in groups)
+    ids = [element.get("id") for element in root.iter() if element.get("id")]
+    assert len(ids) == len(set(ids))
+    path = groups[1].find("svg:path", NS)
+    assert path.get("data-viz-path-id") == "body-1"
+    assert path.get("data-viz-domain-id") == "panel"
+    assert path.get("data-viz-feature-role") == "body"
+    assert [
+        (key, value) for key, value in path.attrib.items() if key.startswith("data-viz-attr-")
+    ] == [
+        ("data-viz-attr-a_20b", "café & tea"),
+        ("data-viz-attr-a_5F20b", "true"),
+        ("data-viz-attr-index", "2"),
+    ]
+    assert groups[0].find("svg:path", NS).get("data-viz-attr-index") == "1.5"
+
+
+def test_neutral_surface_uses_preview_stroke_and_deterministic_fallback_palette() -> None:
+    semantic = tuple(
+        SemanticPath(
+            f"path-{index}",
+            "panel",
+            PathGeometry(((index, 0), (index, 1)), False),
+            role,
+            {},
+        )
+        for index, role in enumerate(("styled", "fallback-two", "fallback-three"), start=1)
+    )
+    projection = ProjectionSpec(
+        "preview/v1",
+        tuple(
+            ProjectionRule(
+                MatchSpec(feature_role=role),
+                fixed=FixedLayerSpec(role, role.title()),
+            )
+            for role in ("styled", "fallback-two", "fallback-three")
+        ),
+    )
+    projected = project_paths(semantic, SemanticAttributeSchema(()), projection)
+    assert projected.catalog is not None
+    catalog = LogicalLayerCatalog(
+        (
+            replace(projected.catalog.entries[0], preview_style={"stroke": "#123456"}),
+            *projected.catalog.entries[1:],
+        )
+    )
+    domain = PolygonDomain("panel", ((0, 0), (8, 0), (4, 5)))
+    surface = SurfaceProjection(
+        PolygonSurface("front", "panel"),
+        domain,
+        projected.paths,
+        projected.layers,
+        (0, 0, 8, 5),
+        "edge:0",
+    )
+
+    first = ET.fromstring(surface_projection_to_svg(surface, catalog=catalog))
+    second = ET.fromstring(surface_projection_to_svg(surface, catalog=catalog))
+    first_strokes = [group.get("stroke") for group in first.findall("svg:g", NS)]
+    second_strokes = [group.get("stroke") for group in second.findall("svg:g", NS)]
+
+    assert first_strokes == ["#123456", "#FF7F0E", "#2CA02C"]
+    assert second_strokes == first_strokes
 
 
 def make_canvas(*domains: PolygonDomain) -> CanvasGeometry:

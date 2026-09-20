@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from typing import Literal
 
 
 class ExpansionLimitError(ValueError):
@@ -45,8 +46,18 @@ def iter_tagged_generations(
     rules: dict[str, str],
     generations: int,
     max_symbols: int,
+    *,
+    lineage_policy: Literal["inherit_all", "rewrite", "inherit_first"] = "inherit_all",
 ) -> Iterator[tuple[int, tuple[tuple[str, int], ...]]]:
-    """Yield symbols tagged with the generation where their lineage appeared."""
+    """Yield symbols with policy-defined birth tags, independent of turtle geometry.
+
+    Carry-through symbols retain their age. For explicit productions, inherit_all
+    preserves age on all same-symbol children; inherit_first preserves only the
+    first match; rewrite dates every child to the current step, even for F -> F.
+    """
+
+    if lineage_policy not in ("inherit_all", "rewrite", "inherit_first"):
+        raise ValueError("lineage_policy must be 'inherit_all', 'rewrite', or 'inherit_first'")
 
     if len(axiom) > max_symbols:
         raise ExpansionLimitError(
@@ -64,9 +75,14 @@ def iter_tagged_generations(
                 expanded.append((symbol, birth_generation))
                 continue
 
+            inherited = False
             for child in replacement:
-                if child == symbol:
+                if child == symbol and (
+                    lineage_policy == "inherit_all"
+                    or (lineage_policy == "inherit_first" and not inherited)
+                ):
                     expanded.append((child, birth_generation))
+                    inherited = True
                 else:
                     expanded.append((child, generation))
 

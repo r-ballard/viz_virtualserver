@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "seed": 20260912,
+  "projection": "orbital-per-body",
+  "domains": [
+    {"id": "square", "vertices": [[0, 0], [100, 0], [100, 100], [0, 100]]},
+    {"id": "triangle", "vertices": [[0, 0], [100, 0], [50, 86.6]]},
+    {"id": "pentagon", "vertices": [[50, 0], [100, 38], [81, 100], [19, 100], [0, 38]]}
+  ],
+  "surfaces": [
+    {"id": "square", "domain_id": "square"},
+    {"id": "triangle", "domain_id": "triangle"},
+    {"id": "pentagon", "domain_id": "pentagon"}
+  ],
+  "groups": [],
+  "relations": [],
+  "composition_transforms": [],
+  "passes": [
+    {
+      "id": "generate-orbital-diagrams",
+      "algorithm": "orbital-concentric",
+      "target_domain_ids": ["square", "triangle", "pentagon"],
+      "parameters": {
+        "system_count": 1,
+        "orbit_count": 8,
+        "ring_spacing": "progressive",
+        "ring_spacing_power": 1.2,
+        "boundary_mode": "inscribed",
+        "radius_scale": 0.92,
+        "orbit_eccentricity": 0.18,
+        "orbit_eccentricity_variation": 0.12,
+        "orbit_rotation": 0.25,
+        "orbit_rotation_variation": 0.55,
+        "bodies_per_orbit_range": [1, 4],
+        "body_radius_range": [1.0, 2.8],
+        "central_body_radius": 5.0,
+        "accent_probability": 0.25,
+        "minimum_body_separation": 0.0,
+        "orbit_gaps": true,
+        "gap_clearance": 0.8
+      },
+      "logical_layers": [
+        {"id": "orbits", "label": "Orbits"},
+        {"id": "primary-bodies", "label": "Primary bodies"},
+        {"id": "accent-bodies", "label": "Accent bodies"}
+      ]
+    }
+  ]
+}

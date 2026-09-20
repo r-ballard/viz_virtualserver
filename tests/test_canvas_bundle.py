@@ -13,6 +13,18 @@ from viz_canvas.bundle import write_design_bundle
 from viz_canvas.design import DesignPass, DesignResult, DesignState, LogicalLayer, VectorPath
 from viz_canvas.frames import AffineTransform, CompositionTransform
 from viz_canvas.jobs import DomainArtworkJob
+from viz_canvas.logical_layers import (
+    DynamicLayerSpec,
+    FixedLayerSpec,
+    LogicalLayerCatalog,
+    MatchSpec,
+    PathGeometry,
+    ProjectionRule,
+    ProjectionSpec,
+    SemanticAttributeSchema,
+    SemanticPath,
+    project_paths,
+)
 from viz_canvas.models import DomainProvenance, PolygonDomain
 from viz_canvas.semantics import (
     DomainRef,
@@ -26,6 +38,361 @@ from viz_canvas.semantics import (
 from viz_canvas.svg import SVG_NS
 
 NS = {"svg": SVG_NS}
+
+
+def test_neutral_bundle_catalog_inventory_and_hashes_are_canonical(tmp_path: Path) -> None:
+    job, _ = _job()
+    spec = ProjectionSpec(
+        "groups/v1",
+        (ProjectionRule(MatchSpec(), dynamic=DynamicLayerSpec("group", "Group", ("index",))),),
+    )
+    semantic = (
+        SemanticPath(
+            "second",
+            "second-domain",
+            PathGeometry(((21, 1), (22, 1)), False),
+            "body",
+            {"index": 10},
+        ),
+        SemanticPath(
+            "first", "first-domain", PathGeometry(((1, 1), (2, 1)), False), "orbit", {"index": 2}
+        ),
+    )
+    projected = project_paths(semantic, SemanticAttributeSchema(("index",)), spec)
+    first = bundle_module.write_neutral_bundle(job, projected, tmp_path / "first", projection=spec)
+    second = bundle_module.write_neutral_bundle(
+        job, projected, tmp_path / "second", projection=spec
+    )
+    manifest = json.loads(first.audit_path.read_text(encoding="utf-8"))
+    assert manifest["logical_layer_contract"] == "viz-logical-layers/v1"
+    assert manifest["logical_layers"] == [
+        {
+            "id": "group-i-2",
+            "ordinal": 1,
+            "label": "Group 2",
+            "projection_rule_index": 0,
+            "group_values": {"index": 2},
+        },
+        {
+            "id": "group-i-10",
+            "ordinal": 2,
+            "label": "Group 10",
+            "projection_rule_index": 0,
+            "group_values": {"index": 10},
+        },
+    ]
+    assert manifest["projection"] == {
+        "id": "groups/v1",
+        "rules": [
+            {
+                "match": {"feature_role": None, "attributes": {}},
+                "dynamic": {"id_prefix": "group", "label_prefix": "Group", "group_by": ["index"]},
+            }
+        ],
+    }
+    assert [surface["logical_layer_ids"] for surface in manifest["surfaces"]] == [
+        ["group-i-2"],
+        ["group-i-10"],
+    ]
+    assert _sha256(first.audit_path) == _sha256(second.audit_path)
+    assert _sha256(first.design_svg_path) == _sha256(second.design_svg_path)
+    for index, path in enumerate(first.surface_paths):
+        assert _sha256(path) == _sha256(second.surface_paths[index])
+        assert _sha256(path) == manifest["surfaces"][index]["sha256"]
+        root = ET.parse(path).getroot()
+        assert root.get("data-viz-layer-contract") == "viz-logical-layers/v1"
+        assert [g.get("data-viz-layer-id") for g in root.findall("svg:g", NS)] == (
+            manifest["surfaces"][index]["logical_layer_ids"]
+        )
+        assert root.find("svg:g/svg:path", NS).get("data-viz-path-id") == (
+            "first" if index == 0 else "second"
+        )
+
+
+def test_neutral_bundle_serializes_domain_selector_in_projection_snapshot(
+    tmp_path: Path,
+) -> None:
+    job, _ = _job()
+    spec = ProjectionSpec(
+        "by-domain/v1",
+        (
+            ProjectionRule(
+                MatchSpec(domain_id="first-domain"),
+                fixed=FixedLayerSpec("first", "First"),
+            ),
+            ProjectionRule(MatchSpec(), fixed=FixedLayerSpec("other", "Other")),
+        ),
+    )
+    semantics = (
+        SemanticPath(
+            "first",
+            "first-domain",
+            PathGeometry(((1, 1), (2, 1)), False),
+            "body",
+            {},
+        ),
+        SemanticPath(
+            "second",
+            "second-domain",
+            PathGeometry(((21, 1), (22, 1)), False),
+            "body",
+            {},
+        ),
+    )
+    projected = project_paths(semantics, SemanticAttributeSchema(()), spec)
+
+    bundle = bundle_module.write_neutral_bundle(
+        job, projected, tmp_path / "by-domain", projection=spec
+    )
+    projection = json.loads(bundle.audit_path.read_text(encoding="utf-8"))["projection"]
+
+    assert projection["rules"][0]["match"] == {
+        "feature_role": None,
+        "domain_id": "first-domain",
+        "attributes": {},
+    }
+
+
+def test_neutral_bundle_scopes_reused_path_ids_to_their_domains(
+    tmp_path: Path,
+) -> None:
+    job, _ = _job()
+    spec = ProjectionSpec(
+        "domain-local-ids/v1",
+        (
+            ProjectionRule(
+                MatchSpec(domain_id="first-domain"),
+                fixed=FixedLayerSpec("first", "First"),
+            ),
+            ProjectionRule(
+                MatchSpec(domain_id="second-domain"),
+                fixed=FixedLayerSpec("second", "Second"),
+            ),
+        ),
+    )
+    semantics = (
+        SemanticPath(
+            "local-line",
+            "first-domain",
+            PathGeometry(((1, 1), (2, 1)), False),
+            "body",
+            {},
+        ),
+        SemanticPath(
+            "local-line",
+            "second-domain",
+            PathGeometry(((21, 1), (22, 1)), False),
+            "body",
+            {},
+        ),
+    )
+    projected = project_paths(semantics, SemanticAttributeSchema(()), spec)
+
+    bundle = bundle_module.write_neutral_bundle(
+        job, projected, tmp_path / "local-ids", projection=spec
+    )
+
+    assert [
+        ET.parse(path).getroot().find("svg:g/svg:path", NS).get("data-viz-path-id")
+        for path in bundle.surface_paths
+    ] == ["local-line", "local-line"]
+    manifest = json.loads(bundle.audit_path.read_text(encoding="utf-8"))
+    assert [surface["logical_layer_ids"] for surface in manifest["surfaces"]] == [
+        ["first"],
+        ["second"],
+    ]
+
+
+def test_neutral_bundle_supports_an_empty_surface_union(tmp_path: Path) -> None:
+    job, _ = _job()
+    spec = ProjectionSpec("empty/v1", (
+        ProjectionRule(MatchSpec(), fixed=FixedLayerSpec("outside", "Outside")),
+    ))
+    semantic = SemanticPath(
+        "outside", "first-domain",
+        PathGeometry(((0, 0), (1, 1)), False, "composition"), "orbit", {},
+    )
+    projected = project_paths((semantic,), SemanticAttributeSchema(()), spec)
+    bundle = bundle_module.write_neutral_bundle(job, projected, tmp_path / "empty",
+                                                projection=spec)
+    manifest = json.loads(bundle.audit_path.read_text(encoding="utf-8"))
+    assert manifest["logical_layers"] == []
+    assert all(surface["logical_layer_ids"] == [] for surface in manifest["surfaces"])
+    for path in (bundle.design_svg_path, *bundle.surface_paths):
+        root = ET.parse(path).getroot()
+        assert root.get("data-viz-layer-contract") == "viz-logical-layers/v1"
+        assert root.findall("svg:g", NS) == []
+
+
+@pytest.mark.parametrize("problem", ["missing-provenance", "duplicate-id", "group-values",
+                                    "wrong-projection"])
+def test_invalid_neutral_metadata_fails_before_staging(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, problem: str,
+) -> None:
+    job, _ = _job()
+    spec = ProjectionSpec("fixed/v1", (
+        ProjectionRule(MatchSpec(), fixed=FixedLayerSpec("orbits", "Orbits")),
+    ))
+    semantic = SemanticPath("one", "first-domain", PathGeometry(((1, 1), (2, 1)), False),
+                            "orbit", {})
+    projected = project_paths((semantic,), SemanticAttributeSchema(()), spec)
+    expected = "provenance"
+    if problem == "missing-provenance":
+        projected = dataclasses.replace(projected, paths=(
+            dataclasses.replace(projected.paths[0], semantic_path=None),
+        ))
+    elif problem == "duplicate-id":
+        projected = dataclasses.replace(projected, paths=projected.paths * 2)
+        expected = "duplicate path ID"
+    elif problem == "group-values":
+        projected = dataclasses.replace(projected, catalog=LogicalLayerCatalog((
+            dataclasses.replace(projected.catalog.entries[0], group_values=(1,)),
+        )))
+        expected = "group values"
+    else:
+        spec = ProjectionSpec("different/v1", (
+            ProjectionRule(MatchSpec(), fixed=FixedLayerSpec("different", "Different")),
+        ))
+        expected = "projection"
+
+    def reject_staging(*args: object, **kwargs: object) -> Path:
+        pytest.fail("invalid neutral metadata reached staging")
+
+    monkeypatch.setattr(bundle_module, "_make_sibling_directory", reject_staging)
+    with pytest.raises(ValueError, match=expected):
+        bundle_module.write_neutral_bundle(job, projected, tmp_path / "invalid", projection=spec)
+    assert not (tmp_path / "invalid").exists()
+
+
+@pytest.mark.parametrize("selector", ["role", "attribute", "first-match"])
+def test_neutral_bundle_rejects_contradictory_projection_selectors_before_staging(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, selector: str,
+) -> None:
+    job, _ = _job()
+    fixed = FixedLayerSpec("orbits", "Orbits")
+    original = ProjectionSpec("same-id/v1", (ProjectionRule(MatchSpec(), fixed=fixed),))
+    path = SemanticPath("one", "first-domain", PathGeometry(((1, 1), (2, 1)), False),
+                        "orbit", {"index": 2})
+    design = project_paths((path,), SemanticAttributeSchema(("index",)), original)
+    match = (MatchSpec(feature_role="body") if selector == "role"
+             else MatchSpec(attributes={"index": (3,)}))
+    rules = (ProjectionRule(match, fixed=fixed),)
+    if selector == "first-match":
+        rules = (ProjectionRule(MatchSpec(), fixed=FixedLayerSpec("other", "Other")),
+                 ProjectionRule(MatchSpec(), fixed=fixed))
+        design = dataclasses.replace(design, catalog=LogicalLayerCatalog((
+            dataclasses.replace(design.catalog.entries[0], projection_rule_index=1),
+        )))
+    contradictory = ProjectionSpec("same-id/v1", rules)
+
+    def reject_staging(*args: object, **kwargs: object) -> Path:
+        pytest.fail("contradictory projection reached staging")
+
+    monkeypatch.setattr(bundle_module, "_make_sibling_directory", reject_staging)
+    with pytest.raises(ValueError, match="projection"):
+        bundle_module.write_neutral_bundle(job, design, tmp_path / "invalid",
+                                          projection=contradictory)
+
+
+@pytest.mark.parametrize("field", ["path-id", "layer-id", "label", "role", "scalar", "domain-id"])
+def test_neutral_bundle_rejects_invalid_xml_characters_before_staging(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, field: str,
+) -> None:
+    job, _ = _job()
+    invalid = "bad\x01text"
+    domain_id = job.domains[0].id
+    if field == "domain-id":
+        domain_id = invalid
+        job = dataclasses.replace(job, domains=(dataclasses.replace(job.domains[0], id=invalid),),
+                                  surfaces=None, passes=(), composition_transforms=())
+    spec = ProjectionSpec("xml/v1", (ProjectionRule(MatchSpec(), fixed=FixedLayerSpec(
+        invalid if field == "layer-id" else "ink", invalid if field == "label" else "Ink",
+    )),))
+    semantic = SemanticPath(
+        invalid if field == "path-id" else "one", domain_id,
+        PathGeometry(((1, 1), (2, 1)), False), invalid if field == "role" else "orbit",
+        {"note": invalid if field == "scalar" else "valid"},
+    )
+    design = project_paths((semantic,), SemanticAttributeSchema(("note",)), spec)
+
+    def reject_staging(*args: object, **kwargs: object) -> Path:
+        pytest.fail("invalid XML reached staging")
+
+    monkeypatch.setattr(bundle_module, "_make_sibling_directory", reject_staging)
+    with pytest.raises(ValueError, match="XML 1.0.*U\\+0001"):
+        bundle_module.write_neutral_bundle(job, design, tmp_path / "invalid", projection=spec)
+    assert not (tmp_path / "invalid").exists()
+
+
+def test_neutral_bundle_preserves_valid_xml_unicode(tmp_path: Path) -> None:
+    job, _ = _job()
+    value = "café 東京 🚀\t\n\r"
+    spec = ProjectionSpec("xml/v1", (ProjectionRule(MatchSpec(),
+                            fixed=FixedLayerSpec("ink", value)),))
+    semantic = SemanticPath(value, "first-domain", PathGeometry(((1, 1), (2, 1)), False),
+                            value, {"note": value})
+    design = project_paths((semantic,), SemanticAttributeSchema(("note",)), spec)
+    bundle = bundle_module.write_neutral_bundle(job, design, tmp_path / "valid", projection=spec)
+    root = ET.parse(bundle.surface_paths[0]).getroot()
+    assert root.find("svg:g", NS).get("data-viz-layer-label") == value
+    path = root.find("svg:g/svg:path", NS)
+    assert path.get("data-viz-path-id") == value
+    assert path.get("data-viz-feature-role") == value
+    assert path.get("data-viz-attr-note") == value
+
+
+def test_neutral_split_svg_ids_and_hashes_repeat_across_shared_surfaces(tmp_path: Path) -> None:
+    job, _ = _job()
+    domain = PolygonDomain("panel", (
+        (0, 0), (6, 0), (6, 6), (4, 6), (4, 2), (2, 2), (2, 6), (0, 6),
+    ))
+    job = dataclasses.replace(
+        job, domains=(domain,), passes=(),
+        surfaces=(PolygonSurface("front", domain.id), PolygonSurface("back", domain.id)),
+        composition_transforms=(CompositionTransform(domain.id, AffineTransform.identity()),),
+    )
+    spec = ProjectionSpec("split/v1", (ProjectionRule(
+        MatchSpec(feature_role="orbit"), fixed=FixedLayerSpec("ink", "Ink"),
+    ),))
+    semantic = SemanticPath("crossing", domain.id,
+                            PathGeometry(((7, 4), (-1, 4)), False, "composition"), "orbit", {})
+    design = project_paths((semantic,), SemanticAttributeSchema(()), spec)
+    first = bundle_module.write_neutral_bundle(job, design, tmp_path / "first", projection=spec)
+    second = bundle_module.write_neutral_bundle(job, design, tmp_path / "second", projection=spec)
+    assert _sha256(first.audit_path) == _sha256(second.audit_path)
+    for path, repeated in zip(first.surface_paths, second.surface_paths, strict=True):
+        assert _sha256(path) == _sha256(repeated)
+        root = ET.parse(path).getroot()
+        ids = [path.get("data-viz-path-id") for path in root.findall("svg:g/svg:path", NS)]
+        assert ids == ["crossing--component-1", "crossing--component-2"]
+        assert len(ids) == len(set(ids))
+
+
+def test_neutral_bundle_validates_generated_surface_assignments_before_staging(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job, _ = _job()
+    spec = ProjectionSpec("orbit/v1", (ProjectionRule(
+        MatchSpec(feature_role="orbit"), fixed=FixedLayerSpec("ink", "Ink"),
+    ),))
+    semantic = SemanticPath("one", "first-domain", PathGeometry(((1, 1), (2, 1)), False),
+                            "orbit", {})
+    design = project_paths((semantic,), SemanticAttributeSchema(()), spec)
+    valid = bundle_module.project_surface_bundle(job, design)
+    output = valid.surfaces[0].paths[0]
+    corrupted = dataclasses.replace(valid, surfaces=(
+        dataclasses.replace(valid.surfaces[0], paths=(dataclasses.replace(
+            output, semantic_path=dataclasses.replace(output.semantic_path, feature_role="body"),
+        ),)), *valid.surfaces[1:],
+    ))
+    monkeypatch.setattr(bundle_module, "project_surface_bundle", lambda *args: corrupted)
+
+    def reject_staging(*args: object, **kwargs: object) -> Path:
+        pytest.fail("contradictory generated surface reached staging")
+
+    monkeypatch.setattr(bundle_module, "_make_sibling_directory", reject_staging)
+    with pytest.raises(ValueError, match="projection"):
+        bundle_module.write_neutral_bundle(job, design, tmp_path / "invalid", projection=spec)
 
 
 def _job(

@@ -1,3 +1,4 @@
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -33,3 +34,12 @@ def test_lsystem_svg_endpoint_returns_svg():
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("image/svg+xml")
     assert '<g id="pen-1"' in response.text
+
+
+@pytest.mark.parametrize("endpoint", ["/LSystem", "/LSystemSvg"])
+def test_lsystem_endpoints_reject_invalid_lineage_policy(endpoint):
+    response = client.post(endpoint, json={
+        "axiom": "F", "rules": {"F": "FF"}, "lineage_policy": "unknown",
+    })
+    assert response.status_code == 422
+    assert any(error["loc"][-1] == "lineage_policy" for error in response.json()["detail"])

@@ -3,6 +3,8 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
+from viz_canvas.logical_layers import PathGeometry, SemanticPath, encode_identifier
+
 Point = tuple[float, float]
 Path = list[Point]
 
@@ -166,6 +168,56 @@ def tagged_commands_to_geometries(
             move_symbols=move_symbols | {hidden_draw_symbol},
         )
     return geometries
+
+
+def tagged_commands_to_semantic_paths(
+    commands: tuple[tuple[str, int], ...],
+    *,
+    domain_id: str,
+    generation: int,
+    step: float,
+    angle_degrees: float,
+    initial_heading_degrees: float,
+    draw_symbols: set[str],
+    move_symbols: set[str],
+) -> tuple[SemanticPath, ...]:
+    """Expose each rendered segment once, retaining the rewrite's birth lineage.
+
+    IDs identify segments within this domain's generation snapshot and remain
+    unchanged when selecting cumulative or delta growth from that snapshot.
+    """
+
+    geometries = tagged_commands_to_geometries(
+        commands,
+        generation=generation,
+        step=step,
+        angle_degrees=angle_degrees,
+        initial_heading_degrees=initial_heading_degrees,
+        draw_symbols=draw_symbols,
+        move_symbols=move_symbols,
+    )
+    paths: list[SemanticPath] = []
+    for birth_generation, geometry in geometries.items():
+        segments = (
+            (start, end)
+            for path in geometry.paths
+            for start, end in zip(path, path[1:])
+        )
+        for index, points in enumerate(segments):
+            paths.append(SemanticPath(
+                path_id=(
+                    f"lsystem-{encode_identifier(domain_id)}"
+                    f"-birth-{birth_generation}-segment-{index}"
+                ),
+                domain_id=domain_id,
+                geometry=PathGeometry(points, closed=False),
+                feature_role="segment",
+                attributes={
+                    "birth_generation": birth_generation,
+                    "visible_generation": generation,
+                },
+            ))
+    return tuple(paths)
 
 
 def bounds_for_paths(paths: list[Path]) -> Bounds:

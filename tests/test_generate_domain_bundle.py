@@ -4,16 +4,33 @@ import hashlib
 import json
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
+import concentric.models as orbital_models
+import concentric.service as orbital_service
+import lsystem.service as lsystem_service
 import scripts.generate_domain_bundle as cli_module
 import viz_canvas.bundle as bundle_module
+from lsystem.models import LSystemRequest
+from viz_canvas.job_io import read_domain_artwork_job
+from viz_canvas.jobs import DomainArtworkJob
+from viz_canvas.models import PolygonDomain
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "generate_domain_bundle.py"
 EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "cootie-catcher.json"
+RADIAL_TILES_EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "radial-tiles-three-polygons.json"
+ORBITAL_EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "orbital-concentric-three-polygons.json"
+ORBITAL_PER_BODY_EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "orbital-per-body.json"
+CIRCULAR_EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "orbital-concentric-circular.json"
+ELLIPTICAL_EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "orbital-concentric-elliptical.json"
+COOTIE_CATCHER_ORBITAL_EXAMPLE = (
+    REPO_ROOT / "examples" / "domain-jobs" / "cootie-catcher-orbital.json"
+)
 SEMANTIC_IDS = [
     *(f"outer-{index}" for index in range(1, 5)),
     *(f"selector-{index}" for index in range(1, 9)),
@@ -28,6 +45,419 @@ PARAMETERS = {
     "overlap_mode": "allow",
     "coordinate_frame": "domain",
 }
+
+
+@pytest.mark.parametrize("mode, births, path_count", [
+    ("cumulative", [1, 2, 3, 4], 15),
+    ("delta", [4], 1),
+])
+def test_lsystem_birth_projection_publishes_neutral_surface(
+    mode: str, births: list[int], path_count: int, tmp_path: Path,
+) -> None:
+    request = LSystemRequest(
+        axiom="X", rules={"X": "FX", "F": "FF"}, generations=4, step=1,
+    )
+    domain = PolygonDomain("generation-4", ((0, 0), (16, 0), (16, 1), (0, 1)))
+    job = DomainArtworkJob(1, 0, (domain,), None, (), (), (), ())
+    design = lsystem_service.generate_lsystem_design(
+        request, domain_id=domain.id, growth_mode=mode,
+    )
+    bundle = bundle_module.write_neutral_bundle(
+        job, design, tmp_path / mode, projection=lsystem_service.LSYSTEM_BIRTH_PROJECTION,
+    )
+    audit = json.loads(bundle.audit_path.read_text(encoding="utf-8"))
+    assert audit["projection"]["id"] == "lsystem-birth-generation"
+    assert [entry["id"] for entry in audit["logical_layers"]] == [
+        f"generation-{birth}" for birth in births
+    ]
+    root = ET.fromstring(bundle.surface_paths[0].read_text(encoding="utf-8"))
+    groups = root.findall("{http://www.w3.org/2000/svg}g[@data-viz-layer-id]")
+    assert [group.attrib["data-viz-layer-id"] for group in groups] == [
+        f"generation-{birth}" for birth in births
+    ]
+    paths = [path for group in groups for path in group.findall("{http://www.w3.org/2000/svg}path")]
+    assert len(paths) == path_count
+    assert all("data-pen" not in group.attrib for group in groups)
+
+
+def test_cli_registers_radial_tiles_algorithm() -> None:
+    assert "radial-tiles" in cli_module.ALGORITHMS
+
+
+def test_cli_registers_orbital_concentric_algorithm() -> None:
+    assert "orbital-concentric" in cli_module.ALGORITHMS
+
+
+def test_radial_tiles_example_generates_three_surface_bundle(tmp_path: Path) -> None:
+    output_dir = tmp_path / "radial-tiles"
+
+    result = _run_cli(output_dir, job=RADIAL_TILES_EXAMPLE)
+
+    assert result.returncode == 0, result.stderr
+    audit = json.loads((output_dir / "design.json").read_text(encoding="utf-8"))
+    assert [surface["surface_id"] for surface in audit["surfaces"]] == [
+        "square",
+        "triangle",
+        "concave",
+    ]
+    assert {path.name for path in (output_dir / "surfaces").glob("*.svg")} == {
+        "square.svg",
+        "triangle.svg",
+        "concave.svg",
+    }
+
+
+def test_orbital_example_generates_three_layer_surface_bundle(tmp_path: Path) -> None:
+    output_dir = tmp_path / "orbital"
+
+    result = _run_cli(output_dir, job=ORBITAL_EXAMPLE)
+
+    assert result.returncode == 0, result.stderr
+    svg = (output_dir / "surfaces" / "triangle.svg").read_text(encoding="utf-8")
+    assert svg.index('id="orbits"') < svg.index('id="primary-bodies"')
+    assert svg.index('id="primary-bodies"') < svg.index('id="accent-bodies"')
+
+
+def test_cli_writes_per_body_projection(tmp_path: Path) -> None:
+    output_dir = tmp_path / "per-body"
+
+    result = _run_cli(output_dir, job=ORBITAL_PER_BODY_EXAMPLE)
+
+    assert result.returncode == 0, result.stderr
+    audit = json.loads((output_dir / "design.json").read_text(encoding="utf-8"))
+    assert audit["logical_layer_contract"] == "viz-logical-layers/v1"
+    assert audit["projection"]["id"] == "orbital-per-body"
+    assert len(audit["logical_layers"]) > 8
+    svg = (output_dir / "surfaces" / "triangle.svg").read_text(encoding="utf-8")
+    assert 'data-viz-layer-contract="viz-logical-layers/v1"' in svg
+    assert "data-pen" not in svg
+
+
+def test_cli_accepts_projection_object(tmp_path: Path) -> None:
+    job_path = _write_orbital_job_with_projection(
+        tmp_path,
+        {
+            "id": "orbital-by-system",
+            "rules": [
+                {
+                    "match": {"feature_role": "orbit"},
+                    "layer": {"id": "orbits", "label": "Orbits"},
+                },
+                {
+                    "match": {"feature_role": "body"},
+                    "group": {
+                        "id_prefix": "body",
+                        "label_prefix": "Body",
+                        "group_by": ["domain_id", "system_index"],
+                    },
+                },
+                {
+                    "match": {"feature_role": "accent"},
+                    "group": {
+                        "id_prefix": "accent",
+                        "label_prefix": "Accent",
+                        "group_by": ["domain_id", "system_index"],
+                    },
+                },
+            ],
+        },
+    )
+    output_dir = tmp_path / "custom"
+
+    result = _run_cli(output_dir, job=job_path)
+
+    assert result.returncode == 0, result.stderr
+    audit = json.loads((output_dir / "design.json").read_text(encoding="utf-8"))
+    assert audit["projection"]["id"] == "orbital-by-system"
+    assert [entry["id"] for entry in audit["logical_layers"]] == [
+        "orbits",
+        "body-s-pentagon-i-0",
+        "body-s-square-i-0",
+        "body-s-triangle-i-0",
+        "accent-s-pentagon-i-0",
+        "accent-s-square-i-0",
+        "accent-s-triangle-i-0",
+    ]
+
+
+def test_cli_projection_object_matches_domain_before_fallback(tmp_path: Path) -> None:
+    job_path = _write_orbital_job_with_projection(
+        tmp_path,
+        {
+            "id": "orbital-by-domain",
+            "rules": [
+                {
+                    "match": {"domain_id": "square"},
+                    "layer": {"id": "square-artwork", "label": "Square artwork"},
+                },
+                {
+                    "match": {},
+                    "layer": {"id": "other-artwork", "label": "Other artwork"},
+                },
+            ],
+        },
+    )
+    output_dir = tmp_path / "by-domain"
+
+    result = _run_cli(output_dir, job=job_path)
+
+    assert result.returncode == 0, result.stderr
+    audit = json.loads((output_dir / "design.json").read_text(encoding="utf-8"))
+    assert [entry["id"] for entry in audit["logical_layers"]] == [
+        "square-artwork",
+        "other-artwork",
+    ]
+    assert audit["projection"]["rules"][0]["match"]["domain_id"] == "square"
+    assert audit["surfaces"][0]["logical_layer_ids"] == ["square-artwork"]
+    assert [surface["logical_layer_ids"] for surface in audit["surfaces"][1:]] == [
+        ["other-artwork"],
+        ["other-artwork"],
+    ]
+
+
+def test_cli_rejects_unknown_projection_key_without_replacing_output(
+    tmp_path: Path,
+) -> None:
+    job_path = _write_orbital_job_with_projection(
+        tmp_path,
+        {
+            "id": "invalid-grouping",
+            "rules": [
+                {
+                    "match": {},
+                    "group": {
+                        "id_prefix": "path",
+                        "label_prefix": "Path",
+                        "group_by": ["missing_key"],
+                    },
+                }
+            ],
+        },
+    )
+    output_dir = tmp_path / "existing"
+    output_dir.mkdir()
+    sentinel = output_dir / "keep.txt"
+    sentinel.write_text("original", encoding="utf-8")
+
+    result = _run_cli(output_dir, "--overwrite", job=job_path)
+
+    assert result.returncode != 0
+    assert "undeclared projection key" in result.stderr
+    assert sentinel.read_text(encoding="utf-8") == "original"
+    assert tuple(output_dir.iterdir()) == (sentinel,)
+
+
+def test_cli_rejects_projection_for_non_orbital_job(tmp_path: Path) -> None:
+    payload = json.loads(EXAMPLE.read_text(encoding="utf-8"))
+    payload["projection"] = "orbital-per-body"
+    job_path = tmp_path / "non-orbital-projection.json"
+    job_path.write_text(json.dumps(payload), encoding="utf-8")
+    output_dir = tmp_path / "bundle"
+
+    result = _run_cli(output_dir, job=job_path)
+
+    assert result.returncode != 0
+    assert "projection requires an orbital-concentric-only job" in result.stderr
+    assert not output_dir.exists()
+
+
+@pytest.mark.parametrize(
+    ("projection", "message"),
+    [
+        (
+            {
+                "id": "null-role",
+                "rules": [
+                    {
+                        "match": {"feature_role": None},
+                        "layer": {"id": "all", "label": "All"},
+                    }
+                ],
+            },
+            "feature_role must be a string",
+        ),
+        (
+            {"id": "unknown-field", "rules": [], "unexpected": True},
+            "projection has unknown field: unexpected",
+        ),
+    ],
+)
+def test_cli_rejects_malformed_projection_objects(
+    projection: object, message: str, tmp_path: Path
+) -> None:
+    job_path = _write_orbital_job_with_projection(tmp_path, projection)
+    output_dir = tmp_path / "bundle"
+
+    result = _run_cli(output_dir, job=job_path)
+
+    assert result.returncode != 0
+    assert message in result.stderr
+    assert not output_dir.exists()
+
+
+def test_orbital_semantic_presets_support_more_than_eight_owned_layers(tmp_path: Path) -> None:
+    job = read_domain_artwork_job(ORBITAL_EXAMPLE)
+    job = replace(
+        job,
+        passes=tuple(
+            replace(
+                design_pass,
+                logical_layers=(),
+                parameters={
+                    "orbit_count": 4,
+                    "bodies_per_orbit_range": [3, 3],
+                    "accent_probability": 0.4,
+                },
+            )
+            for design_pass in job.passes
+        ),
+    )
+    default = orbital_service.generate_orbital_design(job)
+    per_body = orbital_service.generate_orbital_design(job, projection="orbital-per-body")
+    assert [entry.id for entry in default.catalog.entries] == [
+        "orbits",
+        "primary-bodies",
+        "accent-bodies",
+    ]
+    assert len(per_body.catalog.entries) > 8
+    assert per_body == orbital_service.generate_orbital_design(job, projection="orbital-per-body")
+    assert {path.semantic_path.path_id: (path.points, path.closed) for path in default.paths} == {
+        path.semantic_path.path_id: (path.points, path.closed) for path in per_body.paths
+    }
+    body_layers = {}
+    for path in per_body.paths:
+        if path.semantic_path.feature_role != "orbit":
+            body_layers.setdefault(path.layer_id, set()).add(path.domain_id)
+    assert all(len(owners) == 1 for owners in body_layers.values())
+    assert len(body_layers) == 13 * len(job.domains)
+    projection = orbital_models.orbital_projection("orbital-per-body")
+    bundle = bundle_module.write_neutral_bundle(
+        job, per_body, tmp_path / "per-body", projection=projection
+    )
+    audit = json.loads(bundle.audit_path.read_text(encoding="utf-8"))
+    assert len(audit["logical_layers"]) == len(per_body.catalog.entries)
+    assert audit["projection"]["id"] == "orbital-per-body"
+    for surface in audit["surfaces"]:
+        root = ET.fromstring((bundle.root / surface["path"]).read_text(encoding="utf-8"))
+        groups = root.findall("{http://www.w3.org/2000/svg}g[@data-viz-layer-id]")
+        assert len(groups) > 8
+
+
+@pytest.mark.parametrize("example", [CIRCULAR_EXAMPLE, ELLIPTICAL_EXAMPLE])
+def test_orbital_preset_generates_three_surfaces_and_layers(
+    example: Path, tmp_path: Path
+) -> None:
+    output_dir = tmp_path / example.stem
+
+    result = _run_cli(output_dir, job=example)
+
+    assert result.returncode == 0, result.stderr
+    assert {path.name for path in (output_dir / "surfaces").glob("*.svg")} == {
+        "square.svg",
+        "triangle.svg",
+        "pentagon.svg",
+    }
+    svg = (output_dir / "surfaces" / "triangle.svg").read_text(encoding="utf-8")
+    assert all(
+        f'id="{layer}"' in svg
+        for layer in ("orbits", "primary-bodies", "accent-bodies")
+    )
+
+
+@pytest.mark.parametrize(
+    ("example", "expected_ellipse_parameters"),
+    [
+        (
+            CIRCULAR_EXAMPLE,
+            {
+                "orbit_eccentricity": 0.0,
+                "orbit_eccentricity_variation": 0.0,
+                "orbit_rotation": 0.0,
+                "orbit_rotation_variation": 0.0,
+            },
+        ),
+        (
+            ELLIPTICAL_EXAMPLE,
+            {
+                "orbit_eccentricity": 0.18,
+                "orbit_eccentricity_variation": 0.06,
+                "orbit_rotation": 0.25,
+                "orbit_rotation_variation": 0.55,
+            },
+        ),
+    ],
+)
+def test_orbital_preset_declares_selected_ellipse_parameters(
+    example: Path, expected_ellipse_parameters: dict[str, float]
+) -> None:
+    payload = json.loads(example.read_text(encoding="utf-8"))
+
+    parameters = payload["passes"][0]["parameters"]
+    assert {
+        "orbit_eccentricity": parameters["orbit_eccentricity"],
+        "orbit_eccentricity_variation": parameters["orbit_eccentricity_variation"],
+        "orbit_rotation": parameters["orbit_rotation"],
+        "orbit_rotation_variation": parameters["orbit_rotation_variation"],
+    } == expected_ellipse_parameters
+
+
+@pytest.mark.parametrize("example", [CIRCULAR_EXAMPLE, ELLIPTICAL_EXAMPLE])
+def test_orbital_preset_explicitly_declares_all_algorithm_parameters(
+    example: Path,
+) -> None:
+    payload = json.loads(example.read_text(encoding="utf-8"))
+
+    assert set(payload["passes"][0]["parameters"]) == {
+        "system_count",
+        "orbit_count",
+        "ring_spacing",
+        "ring_spacing_power",
+        "boundary_mode",
+        "radius_scale",
+        "center_margin",
+        "min_center_spacing",
+        "orbit_eccentricity",
+        "orbit_eccentricity_variation",
+        "orbit_rotation",
+        "orbit_rotation_variation",
+        "bodies_per_orbit_range",
+        "body_radius_range",
+        "central_body_radius",
+        "accent_probability",
+        "minimum_body_separation",
+        "orbit_gaps",
+        "gap_clearance",
+    }
+
+
+def test_cootie_catcher_orbital_generates_twenty_owned_orbital_surfaces(
+    tmp_path: Path,
+) -> None:
+    output_dir = tmp_path / "cootie-catcher-orbital"
+
+    result = _run_cli(output_dir, job=COOTIE_CATCHER_ORBITAL_EXAMPLE)
+
+    assert result.returncode == 0, result.stderr
+    audit = json.loads((output_dir / "design.json").read_text(encoding="utf-8"))
+    assert [surface["surface_id"] for surface in audit["surfaces"]] == SEMANTIC_IDS
+    assert {path.name for path in (output_dir / "surfaces").glob("*.svg")} == {
+        f"{surface_id}.svg" for surface_id in SEMANTIC_IDS
+    }
+    for domain_id in SEMANTIC_IDS:
+        svg = (output_dir / "surfaces" / f"{domain_id}.svg").read_text(encoding="utf-8")
+        root = ET.fromstring(svg)
+        namespace = {"svg": "http://www.w3.org/2000/svg"}
+        layers = {
+            layer.attrib["id"]: layer
+            for layer in root.findall("svg:g[@data-viz-role='logical-layer']", namespace)
+        }
+        assert layers["orbits"].findall("svg:path", namespace)
+        assert layers["primary-bodies"].findall("svg:path", namespace)
+        paths = root.findall(
+            "svg:g[@data-viz-role='logical-layer']/svg:path", namespace
+        )
+        assert paths
+        assert all(path.attrib["data-viz-domain-id"] == domain_id for path in paths)
 
 
 def _run_cli(
@@ -47,6 +477,16 @@ def _run_cli(
         text=True,
         check=False,
     )
+
+
+def _write_orbital_job_with_projection(
+    tmp_path: Path, projection: object
+) -> Path:
+    payload = json.loads(ORBITAL_EXAMPLE.read_text(encoding="utf-8"))
+    payload["projection"] = projection
+    job_path = tmp_path / "projected-orbital.json"
+    job_path.write_text(json.dumps(payload), encoding="utf-8")
+    return job_path
 
 
 def _normalized_text(path: Path) -> str:
@@ -228,9 +668,7 @@ def test_cli_formats_unsupported_platform_runtime_error(
     output_dir = tmp_path / "cootie"
 
     def fail_publication(*args: object, **kwargs: object) -> object:
-        raise RuntimeError(
-            "atomic no-replace directory publication is unsupported on test-os"
-        )
+        raise RuntimeError("atomic no-replace directory publication is unsupported on test-os")
 
     monkeypatch.setattr(cli_module, "write_design_bundle", fail_publication)
 
@@ -273,11 +711,7 @@ def test_cli_regeneration_is_deterministic_for_all_twenty_surfaces(
     assert len(first_audit_digests) == 20
     assert first_audit_digests == second_audit_digests
 
-    first_actual_digests = [
-        _sha256(first_root / entry["path"]) for entry in first_surfaces
-    ]
-    second_actual_digests = [
-        _sha256(second_root / entry["path"]) for entry in second_surfaces
-    ]
+    first_actual_digests = [_sha256(first_root / entry["path"]) for entry in first_surfaces]
+    second_actual_digests = [_sha256(second_root / entry["path"]) for entry in second_surfaces]
     assert first_actual_digests == first_audit_digests
     assert second_actual_digests == second_audit_digests

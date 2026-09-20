@@ -417,7 +417,9 @@ def test_concentric_adapter_is_deterministic_neutral_and_does_not_mutate_paramet
         "domain_id",
         "coordinate_frame",
         "producing_pass_id",
+        "semantic_path",
     }
+    assert all(path.semantic_path is None for path in first_result.paths)
     assert {path.layer_id for path in first_result.paths} == {"artwork"}
     assert all(path.closed and len(path.points) == 64 for path in first_result.paths)
 

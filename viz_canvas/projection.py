@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from shapely.geometry import GeometryCollection, LineString, MultiLineString
 
@@ -11,6 +11,11 @@ from .design import DesignState, LogicalLayer, VectorPath
 from .frames import AffineTransform, resolve_composition_transforms
 from .geometry import EPSILON
 from .jobs import DomainArtworkJob
+from .logical_layers import (
+    LogicalLayerCatalog,
+    LogicalLayerCatalogEntry,
+    ProjectedDesign,
+)
 from .models import Point as CanvasPoint
 from .models import PolygonDomain
 from .semantics import PolygonSurface
@@ -32,41 +37,77 @@ class SurfaceProjection:
         object.__setattr__(self, "layers", tuple(self.layers))
         object.__setattr__(self, "bounds", tuple(float(value) for value in self.bounds))
 
+    @property
+    def layer_ids(self) -> tuple[str, ...]:
+        return tuple(layer.id for layer in self.layers)
+
+
+@dataclass(frozen=True, slots=True)
+class SurfaceProjectionBundle:
+    """Surface subsets and their one authoritative ordered layer catalog."""
+
+    catalog: LogicalLayerCatalog
+    surfaces: tuple[SurfaceProjection, ...]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "surfaces", tuple(self.surfaces))
+
 
 def project_surfaces(
-    job: DomainArtworkJob, state: DesignState
+    job: DomainArtworkJob, state: DesignState | ProjectedDesign
 ) -> tuple[SurfaceProjection, ...]:
     """Project completed neutral paths into each declared surface's local frame."""
 
+    return project_surface_bundle(job, state).surfaces
+
+
+def project_surface_bundle(
+    job: DomainArtworkJob, state: DesignState | ProjectedDesign
+) -> SurfaceProjectionBundle:
+    """Project all surfaces, then assign ordinals to their ordered catalog union."""
+
+    if isinstance(state, ProjectedDesign):
+        source_paths = state.paths
+        declared_layers = state.layers
+        assert state.catalog is not None
+        declared_catalog = state.catalog
+    else:
+        source_paths = tuple(path for result in state.results for path in result.paths)
+        declared_layers = _declared_layers(job)
+        declared_catalog = LogicalLayerCatalog(tuple(
+            LogicalLayerCatalogEntry(layer.id, ordinal, layer.label)
+            for ordinal, layer in enumerate(declared_layers, start=1)
+        ))
     domains = {domain.id: domain for domain in job.domains}
     transforms = resolve_composition_transforms(
         job.domains, job.composition_transforms
     )
-    for result in state.results:
-        for path in result.paths:
-            if path.coordinate_frame == "composition" and path.domain_id not in transforms:
-                raise ValueError(
-                    f"composition transform required for domain: {path.domain_id}"
-                )
-    declared_layers = _declared_layers(job)
+    for path in source_paths:
+        if path.coordinate_frame == "composition" and path.domain_id not in transforms:
+            raise ValueError(
+                f"composition transform required for domain: {path.domain_id}"
+            )
     projections: list[SurfaceProjection] = []
 
     for surface in job.resolved_surfaces:
         domain = domains[surface.domain_id]
         min_x, min_y, max_x, max_y = _bounds(domain.vertices)
         projected_paths: list[VectorPath] = []
-        for result in state.results:
-            for path in result.paths:
-                if path.domain_id != domain.id:
-                    continue
-                projected_paths.extend(
-                    _project_path(
-                        path,
-                        domain=domain,
-                        transform=transforms.get(domain.id),
-                        offset=(min_x, min_y),
-                    )
+        used_path_ids = {
+            path.semantic_path.path_id for path in source_paths if path.semantic_path is not None
+        }
+        for path in source_paths:
+            if path.domain_id != domain.id:
+                continue
+            projected_paths.extend(
+                _project_path(
+                    path,
+                    domain=domain,
+                    transform=transforms.get(domain.id),
+                    offset=(min_x, min_y),
+                    used_path_ids=used_path_ids,
                 )
+            )
 
         rebased_domain = PolygonDomain(
             id=domain.id,
@@ -87,7 +128,23 @@ def project_surfaces(
             )
         )
 
-    return tuple(projections)
+    used = {path.layer_id for surface in projections for path in surface.paths}
+    entries = [entry for entry in declared_catalog.entries if entry.id in used]
+    seen = {entry.id for entry in entries}
+    for surface in projections:
+        for layer in surface.layers:
+            if layer.id not in seen:
+                entries.append(LogicalLayerCatalogEntry(layer.id, 1, layer.label))
+                seen.add(layer.id)
+    catalog = LogicalLayerCatalog(tuple(
+        replace(entry, ordinal=ordinal)
+        for ordinal, entry in enumerate(entries, start=1)
+    ))
+    ordered_layers = tuple(LogicalLayer(entry.id, entry.label) for entry in catalog.entries)
+    return SurfaceProjectionBundle(catalog, tuple(
+        replace(surface, layers=_projection_layers(surface.paths, ordered_layers))
+        for surface in projections
+    ))
 
 
 def _declared_layers(job: DomainArtworkJob) -> tuple[LogicalLayer, ...]:
@@ -120,6 +177,7 @@ def _project_path(
     domain: PolygonDomain,
     transform: AffineTransform | None,
     offset: CanvasPoint,
+    used_path_ids: set[str],
 ) -> tuple[VectorPath, ...]:
     if path.coordinate_frame == "composition":
         if transform is None:
@@ -138,9 +196,29 @@ def _project_path(
             domain_id=path.domain_id,
             coordinate_frame="domain",
             producing_pass_id=path.producing_pass_id,
+            semantic_path=(
+                replace(path.semantic_path, path_id=_component_path_id(
+                    path.semantic_path.path_id, component_index, used_path_ids
+                ))
+                if path.semantic_path is not None and len(components) > 1
+                else path.semantic_path
+            ),
         )
-        for points, closed in components
+        for component_index, (points, closed) in enumerate(components, start=1)
     )
+
+
+def _component_path_id(source_id: str, index: int, used_path_ids: set[str]) -> str:
+    """Allocate a stable split ID while reserving every unsplit source identity."""
+
+    base = f"{source_id}--component-{index}"
+    candidate = base
+    collision = 2
+    while candidate in used_path_ids:
+        candidate = f"{base}--{collision}"
+        collision += 1
+    used_path_ids.add(candidate)
+    return candidate
 
 
 def _clip_line_components(

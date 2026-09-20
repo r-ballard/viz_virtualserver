@@ -8,11 +8,25 @@ from .design import DesignResult, DesignState, VectorPath
 from .frames import AffineTransform, resolve_composition_transforms
 from .geometry import CanvasGeometry
 from .jobs import DomainArtworkJob
+from .logical_layers import LogicalLayerCatalog, LogicalLayerCatalogEntry, encode_identifier
 from .models import PolygonDomain
 from .projection import SurfaceProjection
 
 SVG_NS = "http://www.w3.org/2000/svg"
 CLIP_ID = "viz-canvas-clip"
+LOGICAL_LAYER_CONTRACT = "viz-logical-layers/v1"
+_PREVIEW_PALETTE = (
+    "#1F77B4",
+    "#FF7F0E",
+    "#2CA02C",
+    "#D62728",
+    "#9467BD",
+    "#8C564B",
+    "#E377C2",
+    "#7F7F7F",
+    "#BCBD22",
+    "#17BECF",
+)
 ET.register_namespace("", SVG_NS)
 
 
@@ -159,7 +173,9 @@ def serialize_design_result_svg(
     )
 
 
-def canonical_design_to_svg(job: DomainArtworkJob, state: DesignState) -> str:
+def canonical_design_to_svg(
+    job: DomainArtworkJob, state: DesignState, *, catalog: LogicalLayerCatalog | None = None
+) -> str:
     """Serialize completed paths in the job's explicitly declared canonical frame."""
 
     transforms = resolve_composition_transforms(job.domains, job.composition_transforms)
@@ -211,6 +227,7 @@ def canonical_design_to_svg(job: DomainArtworkJob, state: DesignState) -> str:
         results=canonical_results,
         transformed_domain_ids=frozenset(transforms),
         view_box=(min_x, min_y, max_x - min_x, max_y - min_y),
+        catalog=catalog,
     )
 
 
@@ -220,12 +237,20 @@ def _serialize_canonical_results_svg(
     results: tuple[DesignResult, ...],
     transformed_domain_ids: frozenset[str],
     view_box: tuple[float, float, float, float],
+    catalog: LogicalLayerCatalog | None = None,
 ) -> str:
     root_attributes = canvas_root_attributes(canvas)
     root_attributes["viewBox"] = " ".join(_fmt(value) for value in view_box)
     root = ET.Element(_tag("svg"), root_attributes)
     clip_value = append_canvas_clip(root, canvas)
     _append_domain_metadata(root, canvas)
+
+    if catalog is not None:
+        root.set("data-viz-layer-contract", LOGICAL_LAYER_CONTRACT)
+        _append_neutral_layers(
+            root, tuple(path for result in results for path in result.paths), catalog, clip_value
+        )
+        return _svg_text(root)
 
     current_layer_id: str | None = None
     current_layer: ET.Element | None = None
@@ -302,7 +327,9 @@ def _transform_domain(
     )
 
 
-def surface_projection_to_svg(projection: SurfaceProjection) -> str:
+def surface_projection_to_svg(
+    projection: SurfaceProjection, *, catalog: LogicalLayerCatalog | None = None
+) -> str:
     """Serialize one rebased surface projection as an intrinsic polygon SVG."""
 
     min_x, min_y, max_x, max_y = projection.bounds
@@ -317,6 +344,11 @@ def surface_projection_to_svg(projection: SurfaceProjection) -> str:
     root = ET.Element(_tag("svg"), canvas_root_attributes(canvas))
     clip_value = append_canvas_clip(root, canvas)
     _append_domain_metadata(root, canvas)
+
+    if catalog is not None:
+        root.set("data-viz-layer-contract", LOGICAL_LAYER_CONTRACT)
+        _append_neutral_layers(root, projection.paths, catalog, clip_value)
+        return _svg_text(root)
 
     layer_ids: list[str] = []
     known: set[str] = set()
@@ -358,6 +390,90 @@ def surface_projection_to_svg(projection: SurfaceProjection) -> str:
     return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(
         root, encoding="unicode", short_empty_elements=True
     )
+
+
+def _append_neutral_layers(
+    root: ET.Element,
+    paths: tuple[VectorPath, ...],
+    catalog: LogicalLayerCatalog,
+    clip_value: str,
+) -> None:
+    by_layer: dict[str, list[VectorPath]] = {entry.id: [] for entry in catalog.entries}
+    for path in paths:
+        if path.layer_id not in by_layer:
+            raise ValueError(f"path refers to unknown catalog layer: {path.layer_id}")
+        semantic = path.semantic_path
+        if semantic is None or semantic.domain_id != path.domain_id:
+            raise ValueError(f"path in domain {path.domain_id} lacks matching semantic provenance")
+        by_layer[path.layer_id].append(path)
+    for entry in catalog.entries:
+        if not by_layer[entry.id]:
+            continue
+        group = ET.SubElement(
+            root,
+            _tag("g"),
+            {
+                "id": f"viz-layer-{entry.ordinal}",
+                "data-viz-layer-id": entry.id,
+                "data-viz-layer-ordinal": str(entry.ordinal),
+                "data-viz-layer-label": entry.label or "",
+                "clip-path": clip_value,
+                "fill": "none",
+                "stroke": _preview_stroke(entry),
+                "stroke-width": "1",
+                "stroke-linecap": "round",
+                "stroke-linejoin": "round",
+            },
+        )
+        for path in by_layer[entry.id]:
+            semantic = path.semantic_path
+            assert semantic is not None
+            attributes = {
+                "d": _vector_path_data(path),
+                "data-viz-path-id": semantic.path_id,
+                "data-viz-domain-id": path.domain_id,
+                "data-viz-feature-role": semantic.feature_role,
+            }
+            for key, value in sorted(semantic.attributes.items()):
+                attributes[f"data-viz-attr-{encode_identifier(key)}"] = (
+                    value
+                    if isinstance(value, str)
+                    else json.dumps(value, allow_nan=False, separators=(",", ":"))
+                )
+            ET.SubElement(group, _tag("path"), attributes)
+
+
+def _preview_stroke(entry: LogicalLayerCatalogEntry) -> str:
+    stroke = entry.preview_style.get("stroke")
+    if isinstance(stroke, str) and stroke:
+        return stroke
+    return _PREVIEW_PALETTE[(entry.ordinal - 1) % len(_PREVIEW_PALETTE)]
+
+
+def _svg_text(root: ET.Element) -> str:
+    for element in root.iter():
+        for name, value in element.attrib.items():
+            _validate_xml_text(value, context=f"attribute {name}")
+        for name, value in (("text", element.text), ("tail", element.tail)):
+            if value is not None:
+                _validate_xml_text(value, context=f"{element.tag} {name}")
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(
+        root, encoding="unicode", short_empty_elements=True
+    )
+
+
+def _validate_xml_text(value: str, *, context: str) -> None:
+    """Require the XML 1.0 Char production, including valid supplementary Unicode."""
+
+    for character in value:
+        codepoint = ord(character)
+        if not (
+            codepoint in (0x9, 0xA, 0xD)
+            or 0x20 <= codepoint <= 0xD7FF
+            or 0xE000 <= codepoint <= 0xFFFD
+            or 0x10000 <= codepoint <= 0x10FFFF
+        ):
+            raise ValueError(f"XML 1.0 forbids U+{codepoint:04X} in {context}")
 
 
 def _append_domain_metadata(root: ET.Element, canvas: CanvasGeometry) -> None:

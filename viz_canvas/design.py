@@ -10,6 +10,7 @@ from .json_values import freeze_json_object
 from .models import Point, PolygonDomain
 
 if TYPE_CHECKING:
+    from .logical_layers import SemanticPath
     from .runner import AlgorithmContext
 
 
@@ -27,6 +28,7 @@ class VectorPath:
     domain_id: str
     coordinate_frame: Literal["domain", "composition"] = "domain"
     producing_pass_id: str | None = None
+    semantic_path: SemanticPath | None = None
 
     def __post_init__(self) -> None:
         if not self.domain_id:

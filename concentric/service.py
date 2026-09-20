@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import math
 import random
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from viz_canvas.design import (
     AlgorithmCapabilities,
@@ -11,15 +13,67 @@ from viz_canvas.design import (
     VectorPath,
 )
 from viz_canvas.geometry import CanvasGeometry, build_canvas
+from viz_canvas.logical_layers import (
+    PathGeometry,
+    ProjectedDesign,
+    ProjectionSpec,
+    SemanticPath,
+    encode_identifier,
+    project_paths,
+)
 from viz_canvas.models import PolygonDomain
 
-from .models import ConcentricPointsRequest
+from .models import ORBITAL_ATTRIBUTE_SCHEMA, ConcentricPointsRequest, orbital_projection
 
 if TYPE_CHECKING:
+    from viz_canvas.jobs import DomainArtworkJob
     from viz_canvas.runner import AlgorithmContext
 
 Point = tuple[float, float]
 _CIRCLE_PATH_SEGMENTS = 64
+_ORBIT_PATH_SEGMENTS = 144
+_BODY_PATH_SEGMENTS = 32
+_ORBITAL_LAYER_IDS = ("orbits", "primary-bodies", "accent-bodies")
+
+
+class OrbitalConcentricParameters(BaseModel):
+    """Strict controls for plotter-native simplified orbital diagrams."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    system_count: int = Field(default=1, ge=1, le=20)
+    orbit_count: int = Field(default=7, ge=1, le=64)
+    ring_spacing: Literal["linear", "random", "progressive"] = "linear"
+    ring_spacing_power: float = Field(default=1.4, gt=0.0)
+    boundary_mode: Literal["inscribed", "clip"] = "inscribed"
+    radius_scale: float = Field(default=0.9, gt=0.0, le=1.0)
+    center_margin: float = Field(default=0.0, ge=0.0)
+    min_center_spacing: float = Field(default=0.0, ge=0.0)
+    orbit_eccentricity: float = Field(default=0.0, ge=0.0, lt=0.95)
+    orbit_eccentricity_variation: float = Field(default=0.0, ge=0.0, lt=0.95)
+    orbit_rotation: float = 0.0
+    orbit_rotation_variation: float = Field(default=0.0, ge=0.0, le=math.tau)
+    bodies_per_orbit_range: tuple[int, int] = (0, 3)
+    body_radius_range: tuple[float, float] = (1.0, 3.0)
+    central_body_radius: float = Field(default=4.0, gt=0.0)
+    accent_probability: float = Field(default=0.2, ge=0.0, le=1.0)
+    minimum_body_separation: float = Field(default=0.0, ge=0.0, lt=math.tau)
+    orbit_gaps: bool = True
+    gap_clearance: float = Field(default=0.75, ge=0.0)
+
+    @model_validator(mode="after")
+    def validate_ranges(self) -> OrbitalConcentricParameters:
+        body_minimum, body_maximum = self.bodies_per_orbit_range
+        if not 0 <= body_minimum <= body_maximum <= 64:
+            raise ValueError("bodies_per_orbit_range must satisfy 0 <= minimum <= maximum <= 64")
+        radius_minimum, radius_maximum = self.body_radius_range
+        if not 0.0 < radius_minimum <= radius_maximum:
+            raise ValueError("body_radius_range must contain increasing positive radii")
+        if body_maximum * self.minimum_body_separation > math.tau + 1e-12:
+            raise ValueError(
+                "bodies_per_orbit_range maximum cannot fit minimum_body_separation"
+            )
+        return self
 
 
 class ConcentricError(ValueError):
@@ -120,6 +174,355 @@ class ConcentricDomainAlgorithm:
         )
 
 
+class OrbitalConcentricDomainAlgorithm:
+    """Generate orbital diagrams through the polygon-domain workflow."""
+
+    name = "orbital-concentric"
+    capabilities = AlgorithmCapabilities(
+        supports_simple_polygon=True,
+        supports_concave_polygon=False,
+    )
+
+    def __init__(self, *, projection: ProjectionSpec | None = None) -> None:
+        self.projection = projection
+
+    def generate(
+        self,
+        *,
+        canvas: CanvasGeometry,
+        domains: tuple[PolygonDomain, ...],
+        design_pass: DesignPass,
+        context: AlgorithmContext,
+    ) -> DesignResult:
+        layer_ids = tuple(layer.id for layer in design_pass.logical_layers)
+        if self.projection is None and layer_ids != _ORBITAL_LAYER_IDS:
+            raise ValueError(
+                "orbital-concentric logical layers must be orbits, primary-bodies, "
+                "accent-bodies in that order"
+            )
+        projected = project_paths(
+            self.generate_semantic(
+                canvas=canvas, domains=domains, design_pass=design_pass, context=context
+            ),
+            ORBITAL_ATTRIBUTE_SCHEMA,
+            self.projection or orbital_projection(),
+        )
+        paths_by_layer: dict[str, list[VectorPath]] = {layer.id: [] for layer in projected.layers}
+        for path in projected.paths:
+            paths_by_layer[path.layer_id].append(path)
+        return DesignResult(
+            paths=tuple(path for layer in projected.layers for path in paths_by_layer[layer.id]),
+            derived_domains=(),
+            producing_pass_id=design_pass.id,
+        )
+
+    def generate_semantic(
+        self,
+        *,
+        canvas: CanvasGeometry,
+        domains: tuple[PolygonDomain, ...],
+        design_pass: DesignPass,
+        context: AlgorithmContext,
+    ) -> tuple[SemanticPath, ...]:
+        """Generate geometry and classification independently of logical layers.
+
+        Indices are zero-based; central bodies use orbit_index=-1 and body_index=0,
+        and orbit strokes use body_index=-1. IDs include the pass and domain.
+        """
+
+        parameters = OrbitalConcentricParameters.model_validate(dict(design_pass.parameters))
+        return tuple(
+            path
+            for domain in domains
+            for path in _orbital_domain_paths(
+                canvas=canvas,
+                domain=domain,
+                seed=context.domain_seeds[domain.id],
+                parameters=parameters,
+                pass_id=design_pass.id,
+            )
+        )
+
+
+def generate_orbital_design(
+    job: DomainArtworkJob,
+    *,
+    projection: str | ProjectionSpec = "orbital-feature-roles",
+) -> ProjectedDesign:
+    """Run an orbital job and return neutral paths with an authoritative catalog."""
+
+    from viz_canvas.runner import run_domain_artwork_job
+
+    spec = orbital_projection(projection) if isinstance(projection, str) else projection
+    state = run_domain_artwork_job(
+        job,
+        {
+            "orbital-concentric": OrbitalConcentricDomainAlgorithm(projection=spec),
+        },
+    )
+    semantics = tuple(path.semantic_path for result in state.results for path in result.paths)
+    return project_paths(semantics, ORBITAL_ATTRIBUTE_SCHEMA, spec)
+
+
+def _orbital_domain_paths(
+    *,
+    canvas: CanvasGeometry,
+    domain: PolygonDomain,
+    seed: int,
+    parameters: OrbitalConcentricParameters,
+    pass_id: str,
+) -> list[SemanticPath]:
+    rng = random.Random(seed)
+    request = ConcentricPointsRequest(
+        canvas={"shape": "rectangle", "width": canvas.width, "height": canvas.height},
+        seed=seed,
+        point_count=parameters.system_count,
+        ring_count=parameters.orbit_count,
+        ring_spacing=parameters.ring_spacing,
+        ring_spacing_power=parameters.ring_spacing_power,
+        boundary_mode=parameters.boundary_mode,
+        radius_scale=parameters.radius_scale,
+        min_ring_radius=(
+            parameters.central_body_radius
+            + parameters.body_radius_range[1]
+            + parameters.gap_clearance
+            + 1.0
+        ),
+        center_margin=parameters.center_margin,
+        min_center_spacing=parameters.min_center_spacing,
+    )
+    domain_canvas = CanvasGeometry(
+        shape="polygon",
+        width=canvas.width,
+        height=canvas.height,
+        polygon=domain.vertices,
+        up_anchor="edge:0",
+        domains=(domain,),
+    )
+    centers = (
+        [domain.centroid]
+        if parameters.system_count == 1
+        else _sample_centers(domain_canvas, request, rng, parameters.system_count)
+    )
+    paths: list[SemanticPath] = []
+    for center_index, center in enumerate(centers):
+        maximum = _effective_max_radius(domain_canvas, centers, center_index, request)
+        if maximum <= request.min_ring_radius + 1e-12:
+            raise ConcentricError("domain has no usable orbit radius above central body clearance")
+        radii = _ring_radii(maximum, request, rng)
+        paths.append(
+            _orbital_semantic_path(
+                _body_path(center, parameters.central_body_radius),
+                pass_id=pass_id,
+                domain_id=domain.id,
+                feature_role="body",
+                system_index=center_index,
+                orbit_index=-1,
+                body_index=0,
+            )
+        )
+        for orbit_index, radius in enumerate(radii):
+            eccentricity = min(
+                0.94,
+                max(
+                    0.0,
+                    parameters.orbit_eccentricity
+                    + rng.uniform(-1.0, 1.0) * parameters.orbit_eccentricity_variation,
+                ),
+            )
+            rotation = parameters.orbit_rotation + rng.uniform(
+                -parameters.orbit_rotation_variation,
+                parameters.orbit_rotation_variation,
+            )
+            count = rng.randint(*parameters.bodies_per_orbit_range)
+            angles = _body_angles(count, parameters.minimum_body_separation, rng)
+            bodies = [
+                (
+                    angle,
+                    rng.uniform(*parameters.body_radius_range),
+                    rng.random() < parameters.accent_probability,
+                )
+                for angle in angles
+            ]
+            paths.extend(
+                _orbital_semantic_path(
+                    geometry,
+                    pass_id=pass_id,
+                    domain_id=domain.id,
+                    feature_role="orbit",
+                    system_index=center_index,
+                    orbit_index=orbit_index,
+                    body_index=-1,
+                    segment_index=segment_index,
+                )
+                for segment_index, geometry in enumerate(
+                    _orbit_paths(
+                        center=center,
+                        major_radius=radius,
+                        minor_radius=radius * math.sqrt(1.0 - eccentricity**2),
+                        rotation=rotation,
+                        bodies=bodies,
+                        parameters=parameters,
+                    )
+                )
+            )
+            for body_index, (angle, body_radius, accent) in enumerate(bodies):
+                body_center = _ellipse_point(
+                    center,
+                    radius,
+                    radius * math.sqrt(1.0 - eccentricity**2),
+                    rotation,
+                    angle,
+                )
+                paths.append(
+                    _orbital_semantic_path(
+                        _body_path(body_center, body_radius),
+                        pass_id=pass_id,
+                        domain_id=domain.id,
+                        feature_role="accent" if accent else "body",
+                        system_index=center_index,
+                        orbit_index=orbit_index,
+                        body_index=body_index,
+                    )
+                )
+    return paths
+
+
+def _orbital_semantic_path(
+    geometry: PathGeometry,
+    *,
+    pass_id: str,
+    domain_id: str,
+    feature_role: Literal["orbit", "body", "accent"],
+    system_index: int,
+    orbit_index: int,
+    body_index: int,
+    segment_index: int = 0,
+) -> SemanticPath:
+    return SemanticPath(
+        path_id=(
+            f"orbital/{encode_identifier(pass_id)}/{encode_identifier(domain_id)}/"
+            f"{system_index}/{orbit_index}/{feature_role}/{body_index}/{segment_index}"
+        ),
+        domain_id=domain_id,
+        geometry=geometry,
+        feature_role=feature_role,
+        attributes={
+            "system_index": system_index,
+            "orbit_index": orbit_index,
+            "body_index": body_index,
+            "is_central": orbit_index == -1,
+            "is_accent": feature_role == "accent",
+        },
+    )
+
+
+def _body_angles(count: int, separation: float, rng: random.Random) -> list[float]:
+    if count == 0:
+        return []
+    if count == 1:
+        return [rng.uniform(0.0, math.tau)]
+    required = count * separation
+    if required > math.tau + 1e-12:
+        raise ValueError("minimum_body_separation cannot fit requested bodies")
+    slack = max(0.0, math.tau - required)
+    weights = [rng.expovariate(1.0) for _ in range(count)]
+    total = sum(weights)
+    gaps = [separation + slack * weight / total for weight in weights]
+    angles = [rng.uniform(0.0, math.tau)]
+    for gap in gaps[:-1]:
+        angles.append((angles[-1] + gap) % math.tau)
+    return sorted(angles)
+
+
+def _ellipse_point(
+    center: Point, major_radius: float, minor_radius: float, rotation: float, angle: float
+) -> Point:
+    x = major_radius * math.cos(angle)
+    y = minor_radius * math.sin(angle)
+    cosine = math.cos(rotation)
+    sine = math.sin(rotation)
+    return (center[0] + x * cosine - y * sine, center[1] + x * sine + y * cosine)
+
+
+def _orbit_paths(
+    *,
+    center: Point,
+    major_radius: float,
+    minor_radius: float,
+    rotation: float,
+    bodies: list[tuple[float, float, bool]],
+    parameters: OrbitalConcentricParameters,
+) -> list[PathGeometry]:
+    samples = [math.tau * index / _ORBIT_PATH_SEGMENTS for index in range(_ORBIT_PATH_SEGMENTS)]
+    if not parameters.orbit_gaps or not bodies:
+        return [
+            PathGeometry(
+                points=tuple(
+                    _ellipse_point(center, major_radius, minor_radius, rotation, angle)
+                    for angle in samples
+                ),
+                closed=True,
+            )
+        ]
+    kept = []
+    for angle in samples:
+        excluded = any(
+            min(abs(angle - body_angle), math.tau - abs(angle - body_angle))
+            < (body_radius + parameters.gap_clearance) / max(minor_radius, 0.001)
+            for body_angle, body_radius, _accent in bodies
+        )
+        kept.append(not excluded)
+    if all(kept):
+        return [
+            PathGeometry(
+                points=tuple(
+                    _ellipse_point(center, major_radius, minor_radius, rotation, angle)
+                    for angle in samples
+                ),
+                closed=True,
+            )
+        ]
+    first_gap = kept.index(False)
+    start_index = (first_gap + 1) % len(samples)
+    order = [(start_index + offset) % len(samples) for offset in range(len(samples))]
+    samples = [samples[index] for index in order]
+    kept = [kept[index] for index in order]
+    paths: list[PathGeometry] = []
+    start = 0
+    while start < len(samples):
+        while start < len(samples) and not kept[start]:
+            start += 1
+        end = start
+        while end < len(samples) and kept[end]:
+            end += 1
+        if end - start >= 2:
+            paths.append(
+                PathGeometry(
+                    points=tuple(
+                        _ellipse_point(center, major_radius, minor_radius, rotation, samples[index])
+                        for index in range(start, end)
+                    ),
+                    closed=False,
+                )
+            )
+        start = end
+    return paths
+
+
+def _body_path(center: Point, radius: float) -> PathGeometry:
+    return PathGeometry(
+        points=tuple(
+            (
+                center[0] + radius * math.cos(math.tau * index / _BODY_PATH_SEGMENTS),
+                center[1] + radius * math.sin(math.tau * index / _BODY_PATH_SEGMENTS),
+            )
+            for index in range(_BODY_PATH_SEGMENTS)
+        ),
+        closed=True,
+    )
+
+
 def generate_concentric_design_result(
     *,
     canvas: CanvasGeometry,
@@ -142,9 +545,7 @@ def generate_concentric_design_result(
     paths: list[VectorPath] = []
 
     for domain in domains:
-        request = request_template.model_copy(
-            update={"seed": context.domain_seeds[domain.id]}
-        )
+        request = request_template.model_copy(update={"seed": context.domain_seeds[domain.id]})
         domain_canvas = CanvasGeometry(
             shape="polygon",
             width=canvas.width,
@@ -216,8 +617,7 @@ def _sample_centers(
         if canvas.distance_to_boundary(candidate) + 1e-12 < data.center_margin:
             continue
         if any(
-            _distance(candidate, center) + 1e-12 < data.min_center_spacing
-            for center in centers
+            _distance(candidate, center) + 1e-12 < data.min_center_spacing for center in centers
         ):
             continue
 
@@ -274,9 +674,7 @@ def _effective_max_radius(
 
     if data.overlap_mode == "avoid" and len(centers) > 1:
         nearest = min(
-            _distance(center, other)
-            for index, other in enumerate(centers)
-            if index != center_index
+            _distance(center, other) for index, other in enumerate(centers) if index != center_index
         )
         radius = min(radius, nearest / 2.0)
 
