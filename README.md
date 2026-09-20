@@ -6,6 +6,11 @@ See [ORBITAL_CONCENTRIC.md](ORBITAL_CONCENTRIC.md) for simplified orbital diagra
 with independently seeded polygon surfaces and three logical layers.
 A Python 3 virtual server using fastapi and gunicorn to render graphs with Python 3 using Processing Python Mode
 
+## Guides
+
+- [Generate artwork for arbitrary polygon sets](docs/how-to/generate-polygon-artwork.md)
+- [Polygon-domain architecture and format reference](CANVAS.md)
+
 ## Neutral logical-layer bundles
 
 The domain-bundle CLI accepts an optional top-level `projection` field for

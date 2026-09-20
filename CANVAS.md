@@ -1,5 +1,8 @@
 # Polygon-domain canvases
 
+For a start-to-finish operator walkthrough, see
+[`docs/how-to/generate-polygon-artwork.md`](docs/how-to/generate-polygon-artwork.md).
+
 `viz-virtualserver` treats the drawing canvas as part of the generated vector artifact rather than assuming that every algorithm draws into an anonymous rectangle. This is a design-space concern: `plotter-workflow` still owns physical paper placement, imposition, pen assignment, HP-GL conversion, and DPX-3300 transport.
 
 The canvas contract supports `rectangle`, `square`, `triangle`, and custom `polygon` domains. It is intentionally independent of any one algorithm or physical layout. `CanvasGeometry` is this repository's API-neutral implementation of the architecture's intrinsic-canvas concept; `CanvasSpec` remains the Pydantic request model used by the HTTP API.

@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "seed": 20260908,
+  "domains": [
+    {"id": "square", "vertices": [[0, 0], [100, 0], [100, 100], [0, 100]]},
+    {"id": "triangle", "vertices": [[50, 0], [100, 100], [0, 100]]},
+    {"id": "pentagon", "vertices": [[50, 0], [100, 38], [81, 100], [19, 100], [0, 38]]}
+  ],
+  "surfaces": [
+    {"id": "square", "domain_id": "square"},
+    {"id": "triangle", "domain_id": "triangle"},
+    {"id": "pentagon", "domain_id": "pentagon"}
+  ],
+  "groups": [
+    {
+      "id": "teaching-set",
+      "surface_ids": ["square", "triangle", "pentagon"],
+      "seed": 17,
+      "metadata": {"purpose": "standalone guide"}
+    }
+  ],
+  "relations": [
+    {
+      "id": "triangle-to-pentagon",
+      "relation_type": "corresponds_to",
+      "source": {"domain_id": "triangle", "feature_type": "vertex", "index": 0},
+      "target": {"domain_id": "pentagon", "feature_type": "vertex", "index": 0}
+    }
+  ],
+  "composition_transforms": [],
+  "passes": [
+    {
+      "id": "draw-square",
+      "algorithm": "concentric-points",
+      "target_domain_ids": ["square"],
+      "parameters": {
+        "point_count": 2,
+        "ring_count": 3,
+        "ring_spacing": "linear",
+        "boundary_mode": "clip",
+        "radius_scale": 0.65,
+        "overlap_mode": "allow",
+        "coordinate_frame": "domain"
+      },
+      "logical_layers": [{"id": "artwork", "label": "Artwork"}],
+      "group_context_ids": ["teaching-set"]
+    },
+    {
+      "id": "draw-triangle",
+      "algorithm": "concentric-points",
+      "target_domain_ids": ["triangle"],
+      "parameters": {
+        "point_count": 2,
+        "ring_count": 3,
+        "ring_spacing": "linear",
+        "boundary_mode": "clip",
+        "radius_scale": 0.65,
+        "overlap_mode": "allow",
+        "coordinate_frame": "domain"
+      },
+      "logical_layers": [{"id": "artwork", "label": "Artwork"}],
+      "group_context_ids": ["teaching-set"],
+      "relation_context_ids": ["triangle-to-pentagon"]
+    },
+    {
+      "id": "draw-pentagon",
+      "algorithm": "concentric-points",
+      "target_domain_ids": ["pentagon"],
+      "parameters": {
+        "point_count": 2,
+        "ring_count": 3,
+        "ring_spacing": "linear",
+        "boundary_mode": "clip",
+        "radius_scale": 0.65,
+        "overlap_mode": "allow",
+        "coordinate_frame": "domain"
+      },
+      "logical_layers": [{"id": "artwork", "label": "Artwork"}],
+      "group_context_ids": ["teaching-set"],
+      "relation_context_ids": ["triangle-to-pentagon"]
+    }
+  ]
+}
