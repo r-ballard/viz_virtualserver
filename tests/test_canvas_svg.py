@@ -1,5 +1,6 @@
 import json
 import xml.etree.ElementTree as ET
+from dataclasses import replace
 
 import pytest
 
@@ -7,6 +8,7 @@ from viz_canvas.design import DesignResult, LogicalLayer, VectorPath
 from viz_canvas.geometry import CanvasGeometry, build_canvas
 from viz_canvas.logical_layers import (
     FixedLayerSpec,
+    LogicalLayerCatalog,
     MatchSpec,
     PathGeometry,
     ProjectionRule,
@@ -93,6 +95,54 @@ def test_neutral_surface_metadata_preserves_semantics_and_catalog_order() -> Non
         ("data-viz-attr-index", "2"),
     ]
     assert groups[0].find("svg:path", NS).get("data-viz-attr-index") == "1.5"
+
+
+def test_neutral_surface_uses_preview_stroke_and_deterministic_fallback_palette() -> None:
+    semantic = tuple(
+        SemanticPath(
+            f"path-{index}",
+            "panel",
+            PathGeometry(((index, 0), (index, 1)), False),
+            role,
+            {},
+        )
+        for index, role in enumerate(("styled", "fallback-two", "fallback-three"), start=1)
+    )
+    projection = ProjectionSpec(
+        "preview/v1",
+        tuple(
+            ProjectionRule(
+                MatchSpec(feature_role=role),
+                fixed=FixedLayerSpec(role, role.title()),
+            )
+            for role in ("styled", "fallback-two", "fallback-three")
+        ),
+    )
+    projected = project_paths(semantic, SemanticAttributeSchema(()), projection)
+    assert projected.catalog is not None
+    catalog = LogicalLayerCatalog(
+        (
+            replace(projected.catalog.entries[0], preview_style={"stroke": "#123456"}),
+            *projected.catalog.entries[1:],
+        )
+    )
+    domain = PolygonDomain("panel", ((0, 0), (8, 0), (4, 5)))
+    surface = SurfaceProjection(
+        PolygonSurface("front", "panel"),
+        domain,
+        projected.paths,
+        projected.layers,
+        (0, 0, 8, 5),
+        "edge:0",
+    )
+
+    first = ET.fromstring(surface_projection_to_svg(surface, catalog=catalog))
+    second = ET.fromstring(surface_projection_to_svg(surface, catalog=catalog))
+    first_strokes = [group.get("stroke") for group in first.findall("svg:g", NS)]
+    second_strokes = [group.get("stroke") for group in second.findall("svg:g", NS)]
+
+    assert first_strokes == ["#123456", "#FF7F0E", "#2CA02C"]
+    assert second_strokes == first_strokes
 
 
 def make_canvas(*domains: PolygonDomain) -> CanvasGeometry:

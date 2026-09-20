@@ -153,6 +153,56 @@ def test_neutral_bundle_serializes_domain_selector_in_projection_snapshot(
     }
 
 
+def test_neutral_bundle_scopes_reused_path_ids_to_their_domains(
+    tmp_path: Path,
+) -> None:
+    job, _ = _job()
+    spec = ProjectionSpec(
+        "domain-local-ids/v1",
+        (
+            ProjectionRule(
+                MatchSpec(domain_id="first-domain"),
+                fixed=FixedLayerSpec("first", "First"),
+            ),
+            ProjectionRule(
+                MatchSpec(domain_id="second-domain"),
+                fixed=FixedLayerSpec("second", "Second"),
+            ),
+        ),
+    )
+    semantics = (
+        SemanticPath(
+            "local-line",
+            "first-domain",
+            PathGeometry(((1, 1), (2, 1)), False),
+            "body",
+            {},
+        ),
+        SemanticPath(
+            "local-line",
+            "second-domain",
+            PathGeometry(((21, 1), (22, 1)), False),
+            "body",
+            {},
+        ),
+    )
+    projected = project_paths(semantics, SemanticAttributeSchema(()), spec)
+
+    bundle = bundle_module.write_neutral_bundle(
+        job, projected, tmp_path / "local-ids", projection=spec
+    )
+
+    assert [
+        ET.parse(path).getroot().find("svg:g/svg:path", NS).get("data-viz-path-id")
+        for path in bundle.surface_paths
+    ] == ["local-line", "local-line"]
+    manifest = json.loads(bundle.audit_path.read_text(encoding="utf-8"))
+    assert [surface["logical_layer_ids"] for surface in manifest["surfaces"]] == [
+        ["first"],
+        ["second"],
+    ]
+
+
 def test_neutral_bundle_supports_an_empty_surface_union(tmp_path: Path) -> None:
     job, _ = _job()
     spec = ProjectionSpec("empty/v1", (

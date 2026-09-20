@@ -8,13 +8,25 @@ from .design import DesignResult, DesignState, VectorPath
 from .frames import AffineTransform, resolve_composition_transforms
 from .geometry import CanvasGeometry
 from .jobs import DomainArtworkJob
-from .logical_layers import LogicalLayerCatalog, encode_identifier
+from .logical_layers import LogicalLayerCatalog, LogicalLayerCatalogEntry, encode_identifier
 from .models import PolygonDomain
 from .projection import SurfaceProjection
 
 SVG_NS = "http://www.w3.org/2000/svg"
 CLIP_ID = "viz-canvas-clip"
 LOGICAL_LAYER_CONTRACT = "viz-logical-layers/v1"
+_PREVIEW_PALETTE = (
+    "#1F77B4",
+    "#FF7F0E",
+    "#2CA02C",
+    "#D62728",
+    "#9467BD",
+    "#8C564B",
+    "#E377C2",
+    "#7F7F7F",
+    "#BCBD22",
+    "#17BECF",
+)
 ET.register_namespace("", SVG_NS)
 
 
@@ -407,7 +419,7 @@ def _append_neutral_layers(
                 "data-viz-layer-label": entry.label or "",
                 "clip-path": clip_value,
                 "fill": "none",
-                "stroke": "#000000",
+                "stroke": _preview_stroke(entry),
                 "stroke-width": "1",
                 "stroke-linecap": "round",
                 "stroke-linejoin": "round",
@@ -429,6 +441,13 @@ def _append_neutral_layers(
                     else json.dumps(value, allow_nan=False, separators=(",", ":"))
                 )
             ET.SubElement(group, _tag("path"), attributes)
+
+
+def _preview_stroke(entry: LogicalLayerCatalogEntry) -> str:
+    stroke = entry.preview_style.get("stroke")
+    if isinstance(stroke, str) and stroke:
+        return stroke
+    return _PREVIEW_PALETTE[(entry.ordinal - 1) % len(_PREVIEW_PALETTE)]
 
 
 def _svg_text(root: ET.Element) -> str:

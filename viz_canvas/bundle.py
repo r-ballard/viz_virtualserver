@@ -120,16 +120,17 @@ def write_neutral_bundle(
     if destination.exists() and not destination.is_dir():
         raise ValueError("bundle destination must be a directory")
     domains = {domain.id for domain in job.domains}
-    path_ids: set[str] = set()
+    path_ids: set[tuple[str, str]] = set()
     for path in design.paths:
         semantic = path.semantic_path
         if semantic is None or semantic.domain_id != path.domain_id:
             raise ValueError(f"path in domain {path.domain_id} lacks matching semantic provenance")
         if path.domain_id not in domains:
             raise ValueError(f"path {semantic.path_id} refers to unknown domain: {path.domain_id}")
-        if semantic.path_id in path_ids:
+        path_identity = (path.domain_id, semantic.path_id)
+        if path_identity in path_ids:
             raise ValueError(f"duplicate path ID: {semantic.path_id}")
-        path_ids.add(semantic.path_id)
+        path_ids.add(path_identity)
     _validate_projection_assignments(design.paths, projection)
     surface_bundle = project_surface_bundle(job, design)
     surfaces = surface_bundle.surfaces
@@ -171,14 +172,18 @@ def _validate_projection_assignments(
 ) -> None:
     """Check selector assignment from provenance, allowing shared surface sources."""
 
-    semantic_paths: dict[str, SemanticPath] = {}
+    semantic_paths: dict[tuple[str, str], SemanticPath] = {}
     for path in paths:
         semantic = path.semantic_path
         if semantic is None or semantic.domain_id != path.domain_id:
             raise ValueError(f"path in domain {path.domain_id} lacks matching semantic provenance")
-        previous = semantic_paths.setdefault(semantic.path_id, semantic)
+        path_identity = (semantic.domain_id, semantic.path_id)
+        previous = semantic_paths.setdefault(path_identity, semantic)
         if previous != semantic:
-            raise ValueError(f"path {semantic.path_id} has conflicting projection provenance")
+            raise ValueError(
+                f"path {semantic.path_id} in domain {semantic.domain_id} "
+                "has conflicting projection provenance"
+            )
     # The original schema is not stored in ProjectedDesign. These keys permit
     # re-evaluating assignments, without claiming to validate schema declarations.
     keys = {key for path in semantic_paths.values() for key in path.attributes}
@@ -190,11 +195,12 @@ def _validate_projection_assignments(
         tuple(semantic_paths.values()), SemanticAttributeSchema(tuple(sorted(keys))), projection
     )
     assignments = {
-        path.semantic_path.path_id: path.layer_id for path in expected.paths
+        (path.domain_id, path.semantic_path.path_id): path.layer_id
+        for path in expected.paths
     }
     for path in paths:
         assert path.semantic_path is not None
-        expected_layer = assignments[path.semantic_path.path_id]
+        expected_layer = assignments[(path.domain_id, path.semantic_path.path_id)]
         if path.layer_id != expected_layer:
             raise ValueError(
                 f"path {path.semantic_path.path_id} contradicts projection {projection.id}: "
