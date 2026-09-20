@@ -300,6 +300,47 @@ def test_fixed_projection_uses_first_matching_rule_once():
     assert [layer.id for layer in result.layers] == ["small-bodies"]
 
 
+def test_domain_selector_matches_exact_owner_before_fallback_rule():
+    result = project_paths(
+        two_domains_same_body(),
+        BODY_GROUP_SCHEMA,
+        ProjectionSpec(
+            "by-domain",
+            (
+                ProjectionRule(
+                    MatchSpec(feature_role="body", domain_id="domain-a"),
+                    fixed=FixedLayerSpec("domain-a-bodies", "Domain A bodies"),
+                ),
+                ProjectionRule(
+                    MatchSpec(feature_role="body"),
+                    fixed=FixedLayerSpec("other-bodies", "Other bodies"),
+                ),
+            ),
+        ),
+    )
+
+    assert [path.layer_id for path in result.paths] == [
+        "domain-a-bodies",
+        "other-bodies",
+    ]
+    assert [entry.projection_rule_index for entry in result.catalog.entries] == [0, 1]
+
+
+def test_domain_selector_reports_nonmatching_owner_as_unmatched():
+    projection = ProjectionSpec(
+        "domain-a-only",
+        (
+            ProjectionRule(
+                MatchSpec(domain_id="domain-a"),
+                fixed=FixedLayerSpec("domain-a", "Domain A"),
+            ),
+        ),
+    )
+
+    with pytest.raises(ProjectionError, match="domain-b-body-1.*domain-a-only"):
+        project_paths((two_domains_same_body()[1],), BODY_GROUP_SCHEMA, projection)
+
+
 def test_fixed_projection_matches_attribute_membership():
     result = project_paths(
         (body_path(size_class="medium"),),

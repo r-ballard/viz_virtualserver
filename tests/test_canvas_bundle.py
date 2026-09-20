@@ -109,6 +109,50 @@ def test_neutral_bundle_catalog_inventory_and_hashes_are_canonical(tmp_path: Pat
         )
 
 
+def test_neutral_bundle_serializes_domain_selector_in_projection_snapshot(
+    tmp_path: Path,
+) -> None:
+    job, _ = _job()
+    spec = ProjectionSpec(
+        "by-domain/v1",
+        (
+            ProjectionRule(
+                MatchSpec(domain_id="first-domain"),
+                fixed=FixedLayerSpec("first", "First"),
+            ),
+            ProjectionRule(MatchSpec(), fixed=FixedLayerSpec("other", "Other")),
+        ),
+    )
+    semantics = (
+        SemanticPath(
+            "first",
+            "first-domain",
+            PathGeometry(((1, 1), (2, 1)), False),
+            "body",
+            {},
+        ),
+        SemanticPath(
+            "second",
+            "second-domain",
+            PathGeometry(((21, 1), (22, 1)), False),
+            "body",
+            {},
+        ),
+    )
+    projected = project_paths(semantics, SemanticAttributeSchema(()), spec)
+
+    bundle = bundle_module.write_neutral_bundle(
+        job, projected, tmp_path / "by-domain", projection=spec
+    )
+    projection = json.loads(bundle.audit_path.read_text(encoding="utf-8"))["projection"]
+
+    assert projection["rules"][0]["match"] == {
+        "feature_role": None,
+        "domain_id": "first-domain",
+        "attributes": {},
+    }
+
+
 def test_neutral_bundle_supports_an_empty_surface_union(tmp_path: Path) -> None:
     job, _ = _job()
     spec = ProjectionSpec("empty/v1", (

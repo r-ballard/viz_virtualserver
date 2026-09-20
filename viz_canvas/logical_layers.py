@@ -126,12 +126,17 @@ class MatchSpec:
 
     feature_role: str | None = None
     attributes: Mapping[str, tuple[SemanticScalar, ...]] = MappingProxyType({})
+    domain_id: str | None = None
 
     def __post_init__(self) -> None:
         if self.feature_role is not None and (
             not isinstance(self.feature_role, str) or not self.feature_role.strip()
         ):
             raise ValueError("match feature role must be a non-empty string")
+        if self.domain_id is not None and (
+            not isinstance(self.domain_id, str) or not self.domain_id.strip()
+        ):
+            raise ValueError("match domain id must be a non-empty string")
         if not isinstance(self.attributes, Mapping):
             raise TypeError("match attributes must be a mapping")
         frozen: dict[str, tuple[SemanticScalar, ...]] = {}
@@ -458,6 +463,8 @@ def _dynamic_layer_label(dynamic: DynamicLayerSpec, values: tuple[SemanticScalar
 
 def _matches(path: SemanticPath, match: MatchSpec) -> bool:
     if match.feature_role is not None and path.feature_role != match.feature_role:
+        return False
+    if match.domain_id is not None and path.domain_id != match.domain_id:
         return False
     for key, allowed_values in match.attributes.items():
         actual = path.attributes.get(key)

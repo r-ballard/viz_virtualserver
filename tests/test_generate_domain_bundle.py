@@ -25,6 +25,7 @@ SCRIPT = REPO_ROOT / "scripts" / "generate_domain_bundle.py"
 EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "cootie-catcher.json"
 RADIAL_TILES_EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "radial-tiles-three-polygons.json"
 ORBITAL_EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "orbital-concentric-three-polygons.json"
+ORBITAL_PER_BODY_EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "orbital-per-body.json"
 CIRCULAR_EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "orbital-concentric-circular.json"
 ELLIPTICAL_EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "orbital-concentric-elliptical.json"
 COOTIE_CATCHER_ORBITAL_EXAMPLE = (
@@ -115,6 +116,183 @@ def test_orbital_example_generates_three_layer_surface_bundle(tmp_path: Path) ->
     svg = (output_dir / "surfaces" / "triangle.svg").read_text(encoding="utf-8")
     assert svg.index('id="orbits"') < svg.index('id="primary-bodies"')
     assert svg.index('id="primary-bodies"') < svg.index('id="accent-bodies"')
+
+
+def test_cli_writes_per_body_projection(tmp_path: Path) -> None:
+    output_dir = tmp_path / "per-body"
+
+    result = _run_cli(output_dir, job=ORBITAL_PER_BODY_EXAMPLE)
+
+    assert result.returncode == 0, result.stderr
+    audit = json.loads((output_dir / "design.json").read_text(encoding="utf-8"))
+    assert audit["logical_layer_contract"] == "viz-logical-layers/v1"
+    assert audit["projection"]["id"] == "orbital-per-body"
+    assert len(audit["logical_layers"]) > 8
+    svg = (output_dir / "surfaces" / "triangle.svg").read_text(encoding="utf-8")
+    assert 'data-viz-layer-contract="viz-logical-layers/v1"' in svg
+    assert "data-pen" not in svg
+
+
+def test_cli_accepts_projection_object(tmp_path: Path) -> None:
+    job_path = _write_orbital_job_with_projection(
+        tmp_path,
+        {
+            "id": "orbital-by-system",
+            "rules": [
+                {
+                    "match": {"feature_role": "orbit"},
+                    "layer": {"id": "orbits", "label": "Orbits"},
+                },
+                {
+                    "match": {"feature_role": "body"},
+                    "group": {
+                        "id_prefix": "body",
+                        "label_prefix": "Body",
+                        "group_by": ["domain_id", "system_index"],
+                    },
+                },
+                {
+                    "match": {"feature_role": "accent"},
+                    "group": {
+                        "id_prefix": "accent",
+                        "label_prefix": "Accent",
+                        "group_by": ["domain_id", "system_index"],
+                    },
+                },
+            ],
+        },
+    )
+    output_dir = tmp_path / "custom"
+
+    result = _run_cli(output_dir, job=job_path)
+
+    assert result.returncode == 0, result.stderr
+    audit = json.loads((output_dir / "design.json").read_text(encoding="utf-8"))
+    assert audit["projection"]["id"] == "orbital-by-system"
+    assert [entry["id"] for entry in audit["logical_layers"]] == [
+        "orbits",
+        "body-s-pentagon-i-0",
+        "body-s-square-i-0",
+        "body-s-triangle-i-0",
+        "accent-s-pentagon-i-0",
+        "accent-s-square-i-0",
+        "accent-s-triangle-i-0",
+    ]
+
+
+def test_cli_projection_object_matches_domain_before_fallback(tmp_path: Path) -> None:
+    job_path = _write_orbital_job_with_projection(
+        tmp_path,
+        {
+            "id": "orbital-by-domain",
+            "rules": [
+                {
+                    "match": {"domain_id": "square"},
+                    "layer": {"id": "square-artwork", "label": "Square artwork"},
+                },
+                {
+                    "match": {},
+                    "layer": {"id": "other-artwork", "label": "Other artwork"},
+                },
+            ],
+        },
+    )
+    output_dir = tmp_path / "by-domain"
+
+    result = _run_cli(output_dir, job=job_path)
+
+    assert result.returncode == 0, result.stderr
+    audit = json.loads((output_dir / "design.json").read_text(encoding="utf-8"))
+    assert [entry["id"] for entry in audit["logical_layers"]] == [
+        "square-artwork",
+        "other-artwork",
+    ]
+    assert audit["projection"]["rules"][0]["match"]["domain_id"] == "square"
+    assert audit["surfaces"][0]["logical_layer_ids"] == ["square-artwork"]
+    assert [surface["logical_layer_ids"] for surface in audit["surfaces"][1:]] == [
+        ["other-artwork"],
+        ["other-artwork"],
+    ]
+
+
+def test_cli_rejects_unknown_projection_key_without_replacing_output(
+    tmp_path: Path,
+) -> None:
+    job_path = _write_orbital_job_with_projection(
+        tmp_path,
+        {
+            "id": "invalid-grouping",
+            "rules": [
+                {
+                    "match": {},
+                    "group": {
+                        "id_prefix": "path",
+                        "label_prefix": "Path",
+                        "group_by": ["missing_key"],
+                    },
+                }
+            ],
+        },
+    )
+    output_dir = tmp_path / "existing"
+    output_dir.mkdir()
+    sentinel = output_dir / "keep.txt"
+    sentinel.write_text("original", encoding="utf-8")
+
+    result = _run_cli(output_dir, "--overwrite", job=job_path)
+
+    assert result.returncode != 0
+    assert "undeclared projection key" in result.stderr
+    assert sentinel.read_text(encoding="utf-8") == "original"
+    assert tuple(output_dir.iterdir()) == (sentinel,)
+
+
+def test_cli_rejects_projection_for_non_orbital_job(tmp_path: Path) -> None:
+    payload = json.loads(EXAMPLE.read_text(encoding="utf-8"))
+    payload["projection"] = "orbital-per-body"
+    job_path = tmp_path / "non-orbital-projection.json"
+    job_path.write_text(json.dumps(payload), encoding="utf-8")
+    output_dir = tmp_path / "bundle"
+
+    result = _run_cli(output_dir, job=job_path)
+
+    assert result.returncode != 0
+    assert "projection requires an orbital-concentric-only job" in result.stderr
+    assert not output_dir.exists()
+
+
+@pytest.mark.parametrize(
+    ("projection", "message"),
+    [
+        (
+            {
+                "id": "null-role",
+                "rules": [
+                    {
+                        "match": {"feature_role": None},
+                        "layer": {"id": "all", "label": "All"},
+                    }
+                ],
+            },
+            "feature_role must be a string",
+        ),
+        (
+            {"id": "unknown-field", "rules": [], "unexpected": True},
+            "projection has unknown field: unexpected",
+        ),
+    ],
+)
+def test_cli_rejects_malformed_projection_objects(
+    projection: object, message: str, tmp_path: Path
+) -> None:
+    job_path = _write_orbital_job_with_projection(tmp_path, projection)
+    output_dir = tmp_path / "bundle"
+
+    result = _run_cli(output_dir, job=job_path)
+
+    assert result.returncode != 0
+    assert message in result.stderr
+    assert not output_dir.exists()
 
 
 def test_orbital_semantic_presets_support_more_than_eight_owned_layers(tmp_path: Path) -> None:
@@ -299,6 +477,16 @@ def _run_cli(
         text=True,
         check=False,
     )
+
+
+def _write_orbital_job_with_projection(
+    tmp_path: Path, projection: object
+) -> Path:
+    payload = json.loads(ORBITAL_EXAMPLE.read_text(encoding="utf-8"))
+    payload["projection"] = projection
+    job_path = tmp_path / "projected-orbital.json"
+    job_path.write_text(json.dumps(payload), encoding="utf-8")
+    return job_path
 
 
 def _normalized_text(path: Path) -> str:

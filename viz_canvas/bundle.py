@@ -205,13 +205,16 @@ def _validate_projection_assignments(
 def _projection_payload(projection: ProjectionSpec) -> dict[str, object]:
     rules: list[dict[str, object]] = []
     for rule in projection.rules:
+        match: dict[str, object] = {
+            "feature_role": rule.match.feature_role,
+            "attributes": {
+                key: list(values) for key, values in sorted(rule.match.attributes.items())
+            },
+        }
+        if rule.match.domain_id is not None:
+            match["domain_id"] = rule.match.domain_id
         payload: dict[str, object] = {
-            "match": {
-                "feature_role": rule.match.feature_role,
-                "attributes": {
-                    key: list(values) for key, values in sorted(rule.match.attributes.items())
-                },
-            }
+            "match": match,
         }
         if rule.fixed is not None:
             payload["fixed"] = {"id": rule.fixed.id, "label": rule.fixed.label}
