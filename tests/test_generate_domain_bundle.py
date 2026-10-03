@@ -10,18 +10,17 @@ from pathlib import Path
 
 import pytest
 
-import concentric.models as orbital_models
-import concentric.service as orbital_service
-import lsystem.service as lsystem_service
-import scripts.generate_domain_bundle as cli_module
-import viz_canvas.bundle as bundle_module
-from lsystem.models import LSystemRequest
-from viz_canvas.job_io import read_domain_artwork_job
-from viz_canvas.jobs import DomainArtworkJob
-from viz_canvas.models import PolygonDomain
+import viz_virtualserver.canvas.bundle as bundle_module
+import viz_virtualserver.cli.domain_bundle as cli_module
+import viz_virtualserver.generators.concentric.models as orbital_models
+import viz_virtualserver.generators.concentric.service as orbital_service
+import viz_virtualserver.generators.lsystem.service as lsystem_service
+from viz_virtualserver.canvas.job_io import read_domain_artwork_job
+from viz_virtualserver.canvas.jobs import DomainArtworkJob
+from viz_virtualserver.canvas.models import PolygonDomain
+from viz_virtualserver.generators.lsystem.models import LSystemRequest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = REPO_ROOT / "scripts" / "generate_domain_bundle.py"
 EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "cootie-catcher.json"
 RADIAL_TILES_EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "radial-tiles-three-polygons.json"
 ORBITAL_EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "orbital-concentric-three-polygons.json"
@@ -466,7 +465,8 @@ def _run_cli(
     return subprocess.run(
         [
             sys.executable,
-            str(SCRIPT),
+            "-m",
+            "viz_virtualserver.cli.domain_bundle",
             str(job),
             "--output-dir",
             str(output_dir),

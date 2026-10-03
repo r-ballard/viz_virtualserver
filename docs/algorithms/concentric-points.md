@@ -1,7 +1,7 @@
 # Concentric-point generator
 
 The concentric-point generator consumes generic polygon-domain geometry through its design
-adapter. The adapter receives domains owned by `viz_canvas`, invokes the existing concentric
+adapter. The adapter receives domains owned by `viz_virtualserver.canvas`, invokes the existing concentric
 algorithm for a supported target, and returns neutral canvas-coordinate vector paths internally.
 The generic polygon model is not owned by the concentric package; see [canvas reference](../reference/canvas.md) for
 the shared domain grammar, semantics, metadata, and repository boundaries.
@@ -36,7 +36,7 @@ curl --fail-with-body -sS \
   'http://localhost:5699/ConcentricPointsSvg?stroke_width=1'
 ```
 
-The SVG keeps the intrinsic canvas metadata established by `viz_canvas`, adds the versioned
+The SVG keeps the intrinsic canvas metadata established by `viz_virtualserver.canvas`, adds the versioned
 polygon-domain metadata described in [canvas reference](../reference/canvas.md), defines the same polygonal clip under
 `<defs>`, and places all drawable geometry in a top-level strict `pen-N` group for downstream
 `plotter-workflow` compatibility. These are compatibility guarantees of the public endpoint; the

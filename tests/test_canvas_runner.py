@@ -4,17 +4,17 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from viz_canvas.design import (
+from viz_virtualserver.canvas.design import (
     AlgorithmCapabilities,
     DesignPass,
     DesignResult,
     VectorPath,
 )
-from viz_canvas.frames import AffineTransform, CompositionTransform
-from viz_canvas.jobs import DomainArtworkJob
-from viz_canvas.models import DomainProvenance, PolygonDomain
-from viz_canvas.runner import AlgorithmContext, run_domain_artwork_job
-from viz_canvas.semantics import (
+from viz_virtualserver.canvas.frames import AffineTransform, CompositionTransform
+from viz_virtualserver.canvas.jobs import DomainArtworkJob
+from viz_virtualserver.canvas.models import DomainProvenance, PolygonDomain
+from viz_virtualserver.canvas.runner import AlgorithmContext, run_domain_artwork_job
+from viz_virtualserver.canvas.semantics import (
     DomainRef,
     DomainRelation,
     PolygonGroup,

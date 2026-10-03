@@ -3,7 +3,7 @@ import random
 
 import pytest
 
-from viz_canvas.geometry import (
+from viz_virtualserver.canvas.geometry import (
     CanvasError,
     build_canvas,
     is_convex_polygon,
@@ -12,7 +12,7 @@ from viz_canvas.geometry import (
     polygon_winding,
     validate_simple_polygon,
 )
-from viz_canvas.models import CanvasSpec
+from viz_virtualserver.canvas.models import CanvasSpec
 
 
 def test_triangle_defaults_to_apex_up() -> None:

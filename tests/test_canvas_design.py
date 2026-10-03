@@ -3,7 +3,7 @@ from types import MappingProxyType
 
 import pytest
 
-from viz_canvas.design import (
+from viz_virtualserver.canvas.design import (
     AlgorithmCapabilities,
     DesignPass,
     DesignResult,
@@ -14,8 +14,8 @@ from viz_canvas.design import (
     execute_design_passes,
     validate_pass_graph,
 )
-from viz_canvas.geometry import CanvasGeometry
-from viz_canvas.models import DomainProvenance, PolygonDomain
+from viz_virtualserver.canvas.geometry import CanvasGeometry
+from viz_virtualserver.canvas.models import DomainProvenance, PolygonDomain
 
 
 def make_domain(domain_id: str, *, concave: bool = False) -> PolygonDomain:

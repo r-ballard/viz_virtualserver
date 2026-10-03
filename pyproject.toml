@@ -27,7 +27,7 @@ dev = [
 ]
 
 [tool.uv.build-backend]
-module-name = ["viz_virtualserver", "viz_canvas", "concentric", "lsystem", "radial_tiles", "voronoi_cells"]
+module-name = "viz_virtualserver"
 module-root = ""
 
 [tool.uv.workspace]
@@ -41,4 +41,4 @@ line-length = 100
 select = ["E", "F", "I", "UP"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["concentric", "lsystem", "radial_tiles", "scripts", "viz_canvas", "viz_virtualserver", "voronoi_cells"]
+known-first-party = ["scripts", "viz_virtualserver"]

@@ -1,7 +1,7 @@
 import pytest
 
-import lsystem.grammar as grammar
-from lsystem.grammar import ExpansionLimitError, iter_generations
+import viz_virtualserver.generators.lsystem.grammar as grammar
+from viz_virtualserver.generators.lsystem.grammar import ExpansionLimitError, iter_generations
 
 
 def test_iter_generations_rewrites_without_retaining_semantics():

@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from radial_tiles.service import RadialTilesDomainAlgorithm
-from viz_canvas.design import DesignPass, LogicalLayer
-from viz_canvas.geometry import CanvasGeometry
-from viz_canvas.models import PolygonDomain
-from viz_canvas.runner import AlgorithmContext
+from viz_virtualserver.canvas.design import DesignPass, LogicalLayer
+from viz_virtualserver.canvas.geometry import CanvasGeometry
+from viz_virtualserver.canvas.models import PolygonDomain
+from viz_virtualserver.canvas.runner import AlgorithmContext
+from viz_virtualserver.generators.radial_tiles.service import RadialTilesDomainAlgorithm
 
 LAYERS = (
     LogicalLayer("structural-rings"),

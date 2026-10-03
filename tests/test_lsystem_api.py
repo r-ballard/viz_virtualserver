@@ -2,7 +2,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from lsystem.api import router
+from viz_virtualserver.generators.lsystem.api import router
 
 app = FastAPI()
 app.include_router(router)

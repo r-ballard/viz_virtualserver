@@ -3,8 +3,8 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from viz_canvas import PathGeometry, SemanticAttributeSchema, SemanticPath
-from viz_canvas.logical_layers import (
+from viz_virtualserver.canvas import PathGeometry, SemanticAttributeSchema, SemanticPath
+from viz_virtualserver.canvas.logical_layers import (
     DynamicLayerSpec,
     FixedLayerSpec,
     LogicalLayerCatalog,
@@ -548,7 +548,7 @@ def test_semantic_path_rejects_other_non_scalar_attributes(value):
 
 
 def test_identifier_encoding_is_xml_safe_reversible_and_collision_free() -> None:
-    from viz_canvas.logical_layers import canonical_scalar
+    from viz_virtualserver.canvas.logical_layers import canonical_scalar
 
     values = ("a b", "a_20b", "é", "%", "a/b", "x-y.z", "~")
     encoded = [canonical_scalar(value) for value in values]

@@ -7,7 +7,6 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "three-polygons.json"
-SCRIPT = REPO_ROOT / "scripts" / "generate_domain_bundle.py"
 SURFACE_IDS = ["square", "triangle", "pentagon"]
 
 
@@ -25,7 +24,8 @@ def test_three_polygon_guide_example_generates_documented_bundle(tmp_path: Path)
     result = subprocess.run(
         [
             sys.executable,
-            str(SCRIPT),
+            "-m",
+            "viz_virtualserver.cli.domain_bundle",
             str(EXAMPLE),
             "--output-dir",
             str(output_dir),

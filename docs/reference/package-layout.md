@@ -1,6 +1,6 @@
-# Python package layout and compatibility
+# Python package layout
 
-HAR-39 makes `viz_virtualserver` the canonical installed package. Its source tree has four responsibilities:
+`viz_virtualserver` is the installed package. Its source tree has five responsibilities:
 
 ```text
 viz_virtualserver/
@@ -11,9 +11,9 @@ viz_virtualserver/
   server.py               FastAPI application
 ```
 
-The wheel contains this namespace and compatibility packages for the previous imports: `viz_canvas`, `concentric`, `lsystem`, `radial_tiles`, and `voronoi_cells`. Each compatibility package points its submodules at the canonical module object. Existing imports and monkeypatches therefore use the same classes and functions. New code should import from `viz_virtualserver`.
+The wheel contains only `viz_virtualserver`. Import canvas contracts from `viz_virtualserver.canvas`, algorithms from `viz_virtualserver.generators`, and the application from `viz_virtualserver.server`.
 
-The supported installed command is `viz-domain-bundle`. The repository path `python scripts/generate_domain_bundle.py` remains available and calls the same implementation. `server:app` remains an importable source-checkout alias; Docker starts `viz_virtualserver.server:app`. The HTTP route paths and versioned JSON/bundle formats did not change.
+The installed command is `viz-domain-bundle`. Docker starts `viz_virtualserver.server:app`. The HTTP route paths and versioned JSON/bundle formats did not change.
 
 From the repository root:
 
@@ -22,4 +22,4 @@ uv sync --locked --all-packages --dev
 uv run --locked viz-domain-bundle examples/domain-jobs/voronoi-three-polygons.json --output-dir output/voronoi-three-polygons
 ```
 
-The build declares the canonical package and compatibility packages explicitly in `pyproject.toml`. The aliases are a migration surface: remove one only after checking downstream callers and documenting a deprecation period. Root-level `server.py` and geometry-handler files are source-checkout shims; the installed package uses `viz_virtualserver.server` and `viz_virtualserver.legacy`.
+The build declares the canonical package in `pyproject.toml`. Root-level import and CLI shims have been removed. The `legacy/` directory contains the implementation of established HTTP endpoints; it is part of the canonical package.
