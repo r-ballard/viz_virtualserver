@@ -83,10 +83,20 @@ positions and sorts them, always retaining the outermost ring at the effective m
 - `radius_variation`: deterministic per-center reduction in `[0, 1)`. A value of `0.35` gives each
   center an outer-radius multiplier sampled from `[0.65, 1.0]`.
 - `overlap_mode`: `allow` or `avoid`.
+- `overlap_trim`: `none` (default), `outer`, or `all`. Requires `overlap_mode: "allow"`
+  for `outer` and `all`.
 
 For `avoid`, each center's outer radius is additionally capped at half the distance to its nearest
 neighbor. Therefore the outer rings of neighboring centers cannot intersect. This is most useful
 for isolated motifs. `allow` is the better default for dense, clipped triangle-filling artwork.
+
+With `overlap_mode: "allow"`, `overlap_trim: "outer"` replaces intersecting
+outermost rings with the boundary of their combined disks. It leaves inner
+rings complete. `overlap_trim: "all"` draws the same shared outer boundary and
+also removes each inner-ring arc that falls inside another center's outer disk.
+The border is drawn once, including when more than two motifs overlap. Rings
+from centers whose outer disks do not intersect remain independent. `none`
+retains the existing independent-circle output.
 
 ### Plotter metadata
 
