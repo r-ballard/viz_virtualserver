@@ -5,6 +5,8 @@ import random
 from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from shapely.geometry import LineString, Polygon
+from shapely.ops import linemerge, unary_union
 
 from viz_virtualserver.canvas.design import (
     AlgorithmCapabilities,
@@ -119,7 +121,7 @@ def _generate_concentric_points(
             }
         )
 
-    return {
+    payload = {
         "schema_version": 1,
         "algorithm": "concentric-points",
         "seed": data.seed,
@@ -147,6 +149,9 @@ def _generate_concentric_points(
         },
         "points": point_payloads,
     }
+    if data.overlap_trim != "none":
+        payload["settings"]["overlap_trim"] = data.overlap_trim
+    return payload
 
 
 class ConcentricDomainAlgorithm:
@@ -573,6 +578,10 @@ def generate_concentric_design_result(
 def _payload_vector_paths(
     result: dict, *, layer_id: str, domain_id: str = "concentric-source"
 ) -> list[VectorPath]:
+    trim = result["settings"].get("overlap_trim", "none")
+    if trim != "none":
+        return _trimmed_ring_paths(result["points"], trim, layer_id, domain_id)
+
     paths: list[VectorPath] = []
     for point in result["points"]:
         center_x, center_y = point["center"]
@@ -593,6 +602,85 @@ def _payload_vector_paths(
                 )
             )
     return paths
+
+
+def _trimmed_ring_paths(
+    points: list[dict], trim: str, layer_id: str, domain_id: str
+) -> list[VectorPath]:
+    """Merge outer disks and optionally trim inner rings hidden by neighbors."""
+
+    outer_disks = [
+        Polygon(_circle_points(tuple(point["center"]), point["radii"][-1], 256))
+        for point in points
+    ]
+    overlapping = any(
+        math.dist(points[left]["center"], points[right]["center"])
+        < points[left]["radii"][-1] + points[right]["radii"][-1] - 1e-9
+        for left in range(len(points))
+        for right in range(left + 1, len(points))
+    )
+    if not overlapping:
+        return _independent_ring_paths(points, layer_id, domain_id)
+
+    paths: list[VectorPath] = []
+    for index, point in enumerate(points):
+        center = tuple(point["center"])
+        neighbors = unary_union(
+            [disk for other_index, disk in enumerate(outer_disks) if other_index != index]
+        ) if trim == "all" else None
+        for radius in point["radii"][:-1]:
+            circle = _circle_points(center, radius, 256)
+            if neighbors is None:
+                paths.append(VectorPath(circle, True, layer_id, domain_id))
+            else:
+                visible = LineString((*circle, circle[0])).difference(neighbors)
+                if visible.geom_type == "MultiLineString":
+                    visible = linemerge(visible)
+                paths.extend(_geometry_vector_paths(visible, layer_id, domain_id))
+
+    border = unary_union(outer_disks).boundary
+    paths.extend(_geometry_vector_paths(border, layer_id, domain_id))
+    return paths
+
+
+def _independent_ring_paths(
+    points: list[dict], layer_id: str, domain_id: str
+) -> list[VectorPath]:
+    return [
+        VectorPath(_circle_points(tuple(point["center"]), radius, 256), True, layer_id, domain_id)
+        for point in points
+        for radius in point["radii"]
+    ]
+
+
+def _circle_points(center: Point, radius: float, segments: int) -> tuple[Point, ...]:
+    return tuple(
+        (
+            center[0] + radius * math.cos(math.tau * index / segments),
+            center[1] + radius * math.sin(math.tau * index / segments),
+        )
+        for index in range(segments)
+    )
+
+
+def _geometry_vector_paths(geometry, layer_id: str, domain_id: str) -> list[VectorPath]:
+    if geometry.is_empty:
+        return []
+    if hasattr(geometry, "geoms"):
+        return [
+            path
+            for part in geometry.geoms
+            for path in _geometry_vector_paths(part, layer_id, domain_id)
+        ]
+    if geometry.geom_type != "LineString":
+        return []
+    coordinates = tuple((float(x), float(y)) for x, y in geometry.coords)
+    closed = len(coordinates) >= 4 and coordinates[0] == coordinates[-1]
+    if closed:
+        coordinates = coordinates[:-1]
+    if len(coordinates) < (3 if closed else 2):
+        return []
+    return [VectorPath(coordinates, closed, layer_id, domain_id)]
 
 
 def _resolve_point_count(data: ConcentricPointsRequest, rng: random.Random) -> int:
