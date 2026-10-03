@@ -33,3 +33,16 @@ def test_grid_limit_checked_before_allocation():
     assert len(assemble_grid((0, 0, 100000, 1), tile_size=1, seed=1).tiles) == 100000
     with pytest.raises(ValueError, match="100,000"):
         assemble_grid((0, 0, 100001, 1), tile_size=1, seed=1)
+
+
+def test_decimal_tile_boundaries_preserve_arrangement_under_translation():
+    original = assemble_grid((0, 0, 0.3, 0.3), tile_size=0.1, seed=7)
+    translated = assemble_grid((-1, -1, -0.7, -0.7), tile_size=0.1, seed=7)
+    assert (original.columns, original.rows) == (3, 3)
+    assert (translated.columns, translated.rows) == (3, 3)
+    assert original.tiles == translated.tiles
+
+
+def test_meaningful_fractional_tile_is_still_covered():
+    arrangement = assemble_grid((0, 0, 0.30000001, 0.3), tile_size=0.1, seed=7)
+    assert (arrangement.columns, arrangement.rows) == (4, 3)

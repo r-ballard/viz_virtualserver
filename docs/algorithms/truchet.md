@@ -58,6 +58,11 @@ bounding grids above 100,000 tiles fail before allocation.
 - Triangle and hexagon tile grammars. A triangular target polygon currently
   clips square tiles; it does not select triangular tiles.
 - Additional arrangement policies and derivation inspection.
+- Numerical improvement: extraordinarily small curvature/tolerance combinations
+  (for example `arc_a=1e-310`, `curve_tolerance=1e-312`) can overflow the radius
+  calculation and incorrectly report a sampling limit. Ordinary near-straight
+  curves use a stable straight-segment shortcut. A future dimensionless sampler
+  can support these extreme inputs.
 
 ### Triangular reference
 

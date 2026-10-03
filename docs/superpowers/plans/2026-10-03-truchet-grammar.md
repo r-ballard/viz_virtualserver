@@ -46,13 +46,13 @@ geometry, render and trace its connections, then clip to each target domain.
 
 ## Execution Setup
 
-- [ ] Read the spec and this plan; detect existing isolation with git rev-parse.
+- [x] Read the spec and this plan; detect existing isolation with git rev-parse.
   Follow using-git-worktrees and the user's workspace preference. Work on a
   feature branch, not main; commit approved spec and plan there with explicit paths.
-- [ ] Inspect available Python/uv runtimes, use the locked development environment,
+- [x] Inspect available Python/uv runtimes, use the locked development environment,
   and run `uv run --frozen pytest -q` to establish the baseline. If uv is unavailable,
   locate or install the required runner rather than changing dependency pins.
-- [ ] Keep temporary PDF tools and renders out of commits. No deletion outside
+- [x] Keep temporary PDF tools and renders out of commits. No deletion outside
   verified workspace paths; do not stage unrelated files.
 
 ### Task 1: Parameters and Compiled Tile States
@@ -70,16 +70,16 @@ geometry, render and trace its connections, then clip to each target domain.
 Document edges clockwise as bottom, right, top, left; each signature follows
 the boundary traversal. Base connections pair edges (0,3) and (1,2).
 
-- [ ] Write failing tests for exact defaults, allowed endpoints, strict invalid
+- [x] Write failing tests for exact defaults, allowed endpoints, strict invalid
   types/nonfinite inputs, four rotations, complement swapping, and reversed-edge
   matching. Assert eight symbolic states remain even for symmetric geometry.
-- [ ] Run `uv run --frozen pytest tests/test_truchet_grammar.py -q`; confirm failures
+- [x] Run `uv run --frozen pytest tests/test_truchet_grammar.py -q`; confirm failures
   refer to the missing feature rather than environment problems.
-- [ ] Implement the records, parameters, rotated signatures, and compatibility.
+- [x] Implement the records, parameters, rotated signatures, and compatibility.
   Base corner regions occupy the bottom-left and top-right corners; complement
   swaps 0/1. Preserve the ordered first/second connection for arc_a/arc_b.
-- [ ] Run that test file; require all tests to pass.
-- [ ] Commit only this task's files: `feat: compile square Truchet tile states`.
+- [x] Run that test file; require all tests to pass.
+- [x] Commit only this task's files: `feat: compile square Truchet tile states`.
 
 ### Task 2: Seeded Compatible Assembly
 
@@ -92,17 +92,17 @@ the boundary traversal. Base connections pair edges (0,3) and (1,2).
 - `assemble_grid(bounds: tuple[float, float, float, float], *, tile_size: float,
   seed: int) -> TileArrangement`.
 
-- [ ] Write failing tests for identical seed output, variation across a set of
+- [x] Write failing tests for identical seed output, variation across a set of
   seeds, every shared edge matching, fractional bounds covered with whole tiles,
   and translation preserving states. Exhaustively enumerate reachable left/below
   constraints and assert candidate existence. Test 100,000 permitted tiles and
   rejection above the limit without allocating their records.
-- [ ] Run `uv run --frozen pytest tests/test_truchet_assembly.py -q`; confirm failure.
-- [ ] Implement row-major assembly using ceil bounds coverage, stable compiled
+- [x] Run `uv run --frozen pytest tests/test_truchet_assembly.py -q`; confirm failure.
+- [x] Implement row-major assembly using ceil bounds coverage, stable compiled
   candidate order, and random.Random(seed). Filter against left and below tiles;
   raise an invariant error for no candidates. Check tile count first.
-- [ ] Run grammar and assembly tests; require pass.
-- [ ] Commit: `feat: assemble seeded compatible Truchet grids`.
+- [x] Run grammar and assembly tests; require pass.
+- [x] Commit: `feat: assemble seeded compatible Truchet grids`.
 
 ### Task 3: Sample and Trace Motif Curves
 
@@ -116,20 +116,20 @@ the boundary traversal. Base connections pair edges (0,3) and (1,2).
 - `render_arrangement(arrangement: TileArrangement,
   parameters: TruchetParameters) -> tuple[CurvePath, ...]`.
 
-- [ ] Write failing tests for classic radius=tile_size/2, exact endpoints,
+- [x] Write failing tests for classic radius=tile_size/2, exact endpoints,
   zero-sagitta straight segments, positive/negative extremes staying inside tiles,
   near-zero stability, and chord error <= tolerance. Test asymmetric rotations
   and complement geometry equality. Exercise open chains and closed loops,
   asserting each tile connection is consumed once and joins aren't duplicated.
   Assert parameter changes never mutate symbolic arrangement.
-- [ ] Run geometry tests and confirm feature failures.
-- [ ] Implement stable circular sampling with an explicit straight case and
+- [x] Run geometry tests and confirm feature failures.
+- [x] Implement stable circular sampling with an explicit straight case and
   numerically stable small-sagitta evaluation. Estimate point count for all arcs
   before allocation and reject totals over 2,000,000, including tiny tolerance.
   Use integer lattice midpoint keys (twice grid coordinates) for connectivity;
   trace degree-one chains first, then remaining cycles, in stable order.
-- [ ] Run grammar, assembly, and geometry tests; require pass.
-- [ ] Commit: `feat: render and trace continuous Truchet curves`.
+- [x] Run grammar, assembly, and geometry tests; require pass.
+- [x] Commit: `feat: render and trace continuous Truchet curves`.
 
 ### Task 4: Polygon Clipping and Domain Adapter
 
@@ -142,19 +142,19 @@ the boundary traversal. Base connections pair edges (0,3) and (1,2).
   domains: tuple[PolygonDomain, ...], design_pass: DesignPass,
   context: AlgorithmContext) -> DesignResult`.
 
-- [ ] Write failing clipping tests for fully retained loops, partially cut loops,
+- [x] Write failing clipping tests for fully retained loops, partially cut loops,
   multiple components across a concavity, vertex tangencies, and clockwise input.
   Verify entire emitted LineStrings are covered by polygon.buffer(1e-9), rather
   than checking vertices alone. Test negative/transformed domain positions.
   Write service tests for repeated output, exact layer validation, domain seed
   independence, invalid controls, neutral ownership, and no derived domains.
-- [ ] Run geometry/service tests; confirm failures.
-- [ ] Implement Shapely intersection and recursive extraction of line components,
+- [x] Run geometry/service tests; confirm failures.
+- [x] Implement Shapely intersection and recursive extraction of line components,
   dropping point-only/degenerate results. Normalize closed/open representation,
   component direction, and sort order. Never merge disconnected clipped pieces.
   Implement the adapter with simple/concave capabilities and strict layer checks.
-- [ ] Run all Truchet tests; require pass.
-- [ ] Commit: `feat: clip Truchet curves to polygon domains`.
+- [x] Run all Truchet tests; require pass.
+- [x] Commit: `feat: clip Truchet curves to polygon domains`.
 
 ### Task 5: Bundle Integration, Examples, and Visual Verification
 
@@ -162,22 +162,22 @@ the boundary traversal. Base connections pair edges (0,3) and (1,2).
 
 **Interfaces:** Existing `ALGORITHMS['truchet']` and versioned domain job schema.
 
-- [ ] Add a failing CLI test using a small truchet job and assert audit JSON,
+- [x] Add a failing CLI test using a small truchet job and assert audit JSON,
   combined SVG, and per-surface SVG retain domain IDs and truchet-curves layer.
-- [ ] Run the focused CLI test and confirm unknown-algorithm failure.
-- [ ] Register the adapter. Add classic, asymmetric (`arc_a=0.08`, `arc_b=0.35`),
+- [x] Run the focused CLI test and confirm unknown-algorithm failure.
+- [x] Register the adapter. Add classic, asymmetric (`arc_a=0.08`, `arc_b=0.35`),
   and polygon-target examples with explicit seeds/layers. Document parameters,
   clipping, tangent limitations, subset of paper rules, limits, and backlog.
-- [ ] Run `uv run --frozen pytest -q` and `uv run --frozen ruff check .`.
+- [x] Run `uv run --frozen pytest -q` and `uv run --frozen ruff check .`.
   Require no introduced failures; compare any existing lint issues to baseline.
-- [ ] Generate all three examples with scripts/generate_domain_bundle.py into
+- [x] Generate all three examples with scripts/generate_domain_bundle.py into
   `tmp/truchet-preview/`. Render their SVGs using an available SVG renderer and
   inspect images for seams, unintended borders, duplicated strokes, clipping
   gaps, and readable asymmetric curves. Keep preview tools outside dependencies.
-- [ ] Run `git diff --check` and review the whole feature diff against the spec.
+- [x] Run `git diff --check` and review the whole feature diff against the spec.
   Resolve findings and rerun affected tests. Follow requesting-code-review for
   the execution method selected by the user.
-- [ ] Commit explicit files: `feat: expose Truchet domain bundle generator`.
+- [x] Commit explicit files: `feat: expose Truchet domain bundle generator`.
 
 ## Completion
 
@@ -185,3 +185,20 @@ Report implemented behavior, verification evidence, example commands, and any
 remaining limitations. Preserve backlog in the algorithm guide. Follow the
 development-branch finishing workflow without merging or publishing unless
 authorized. Mark plan checkboxes only after each step actually succeeds.
+
+## Execution record
+
+Native execution completed in .worktrees/truchet-grammar on
+eat/truchet-grammar, using the existing locked development environment.
+PowerShell equivalents replaced the bash bookkeeping commands on Windows.
+Tasks 3 and 4 share one commit; other component and integration commits remain
+separate. Arc controls were narrowed to the correct outward quarter-circle bound.
+Visual QA caught and verified a second-corner chord-direction correction.
+Independent review found decimal-boundary grid sizing changes under translation;
+the fix snaps only within coordinate-derived floating-point error and its
+regression passed RED then GREEN.
+
+Deferred minor: extreme subnormal curvature/tolerance can incorrectly trigger
+the sampling limit through radius overflow; documented in the algorithm guide.
+Clipping pieces at a closed path starting point may add a pen lift; geometry
+remains correct, so further stitching is an optional optimization.
