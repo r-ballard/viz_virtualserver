@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "seed": 20261003,
+  "domains": [{"id": "square", "vertices": [[0, 0], [100, 0], [100, 100], [0, 100]]}],
+  "passes": [{
+    "id": "truchet-pattern", "algorithm": "truchet", "target_domain_ids": ["square"],
+    "parameters": {"tile_size": 10.0, "curve_tolerance": 0.02},
+    "logical_layers": [{"id": "truchet-curves", "label": "Truchet curves"}]
+  }]
+}
