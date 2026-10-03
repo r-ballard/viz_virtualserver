@@ -32,11 +32,20 @@ def test_default_arc_is_quarter_circle_sagitta():
     assert p.tile_size == 10
 
 
-@pytest.mark.parametrize('values', [
-    {'tile_size': 0}, {'tile_size': True}, {'tile_size': '10'},
-    {'arc_a': float('nan')}, {'arc_b': 0.46}, {'arc_a': -0.45},
-    {'curve_tolerance': float('inf')}, {'curve_tolerance': 0}, {'other': 2},
-])
+@pytest.mark.parametrize(
+    "values",
+    [
+        {"tile_size": 0},
+        {"tile_size": True},
+        {"tile_size": "10"},
+        {"arc_a": float("nan")},
+        {"arc_b": 0.46},
+        {"arc_a": -0.45},
+        {"curve_tolerance": float("inf")},
+        {"curve_tolerance": 0},
+        {"other": 2},
+    ],
+)
 def test_invalid_controls_rejected(values):
     with pytest.raises(ValueError):
         TruchetParameters.model_validate(values)

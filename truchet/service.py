@@ -16,11 +16,17 @@ if TYPE_CHECKING:
 
 class TruchetDomainAlgorithm:
     name = "truchet"
-    capabilities = AlgorithmCapabilities(supports_simple_polygon=True, supports_concave_polygon=True)
+    capabilities = AlgorithmCapabilities(
+        supports_simple_polygon=True, supports_concave_polygon=True
+    )
 
     def generate(
-        self, *, canvas: CanvasGeometry, domains: tuple[PolygonDomain, ...],
-        design_pass: DesignPass, context: AlgorithmContext,
+        self,
+        *,
+        canvas: CanvasGeometry,
+        domains: tuple[PolygonDomain, ...],
+        design_pass: DesignPass,
+        context: AlgorithmContext,
     ) -> DesignResult:
         del canvas
         if tuple(layer.id for layer in design_pass.logical_layers) != ("truchet-curves",):
@@ -30,7 +36,8 @@ class TruchetDomainAlgorithm:
         for domain in domains:
             xs, ys = zip(*domain.vertices, strict=True)
             arrangement = assemble_grid(
-                (min(xs), min(ys), max(xs), max(ys)), tile_size=parameters.tile_size,
+                (min(xs), min(ys), max(xs), max(ys)),
+                tile_size=parameters.tile_size,
                 seed=context.domain_seeds[domain.id],
             )
             for path in clip_paths(render_arrangement(arrangement, parameters), domain):

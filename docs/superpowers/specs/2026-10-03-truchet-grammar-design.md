@@ -2,7 +2,7 @@
 
 ## Status and intent
 
-Draft for user review following approval of the architectural approach.
+Approved design, implemented on feat/truchet-grammar.
 
 Create reproducible, plotter-ready Truchet curves in the existing polygon-domain
 bundle workflow. The user selected a compiled grammar, uniform-size square tiles,
@@ -10,7 +10,7 @@ parameterized corner arcs, complementary region identities, compatible pattern
 assembly, and square-grid coverage clipped to arbitrary supported polygons.
 Mixed tile sizes and filled-area processing are explicitly deferred.
 
-The source is Walter, Ligler, and Gürsoy's *The Truchet Tile Grammar: A Generative
+The source is Walter, Ligler, and GÃ¼rsoy's *The Truchet Tile Grammar: A Generative
 System for Versatile Tile and Pattern Design* (2024), DOI
 10.1007/s00004-024-00779-8, especially Figures 6, 9, 13, 14, and 17.
 This release implements its non-overlapping square-tile subset, rather than a
@@ -78,11 +78,12 @@ Expose strict parameters:
 | `arc_b` | sqrt(2) / 2 - 0.5 | Same control for the opposite corner |
 | `curve_tolerance` | 0.02 | Maximum chord approximation error in domain units; finite and positive |
 
-For both arc controls, allow values in [-0.45, 0.45]. Positive sagitta bows the
+For both arc controls, allow values in [0.5 - sqrt(2)/2, 0.45]. Positive sagitta bows the
 connection toward the square center; negative sagitta bows it toward its corner.
 Zero produces the straight connection in R2. Equal classic defaults reproduce
 Smith's quarter-circle motif. Independent values permit asymmetric motifs and
-four distinct orientations. This range keeps the selected opposing regions
+four distinct orientations. Execution correction: outward arcs below 0.5 - sqrt(2)/2 leave their tile.
+The corrected range keeps the selected opposing regions
 non-overlapping and curves inside the square.
 
 Construct circular arcs from endpoints and sagitta. Sample with an error bound,

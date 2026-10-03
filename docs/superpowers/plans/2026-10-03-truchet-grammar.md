@@ -19,7 +19,7 @@ geometry, render and trace its connections, then clip to each target domain.
 - Domain-local output; independent runner-provided domain seeds; no derived domains.
 - No changes to shared job/bundle schemas or physical plotting responsibilities.
 - `tile_size=10.0`, `arc_a=arc_b=sqrt(2)/2-0.5`, `curve_tolerance=0.02`.
-- Arc controls range from -0.45 to 0.45; size and tolerance finite and positive.
+- Arc controls range from 0.5-sqrt(2)/2 to 0.45 (corrected during execution); size and tolerance finite and positive.
 - Maximum 100,000 tiles and 2,000,000 estimated sampled points per domain.
 - Exclude overlapping motifs, fill paths, mixed sizes, and additional tile shapes.
 

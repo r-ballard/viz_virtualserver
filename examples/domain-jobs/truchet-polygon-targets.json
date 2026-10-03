@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "seed": 20261003,
+  "domains": [
+    {"id": "square", "vertices": [[0, 0], [100, 0], [100, 100], [0, 100]]},
+    {"id": "triangle", "vertices": [[0, 0], [100, 0], [50, 86.6]]},
+    {"id": "concave", "vertices": [[0, 0], [100, 0], [100, 100], [50, 40], [0, 100]]}
+  ],
+  "composition_transforms": [
+    {"domain_id": "square", "matrix": [1, 0, 0, 1, 0, 0]},
+    {"domain_id": "triangle", "matrix": [1, 0, 0, 1, 120, 0]},
+    {"domain_id": "concave", "matrix": [1, 0, 0, 1, 240, 0]}
+  ],
+  "passes": [{
+    "id": "truchet-pattern", "algorithm": "truchet",
+    "target_domain_ids": ["square", "triangle", "concave"],
+    "parameters": {"tile_size": 10.0, "curve_tolerance": 0.02},
+    "logical_layers": [{"id": "truchet-curves", "label": "Truchet curves"}]
+  }]
+}

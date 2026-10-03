@@ -17,6 +17,7 @@ from concentric.service import (  # noqa: E402
     generate_orbital_design,
 )
 from radial_tiles.service import RadialTilesDomainAlgorithm  # noqa: E402
+from truchet.service import TruchetDomainAlgorithm  # noqa: E402
 from viz_canvas.bundle import write_design_bundle, write_neutral_bundle  # noqa: E402
 from viz_canvas.job_io import load_domain_artwork_job  # noqa: E402
 from viz_canvas.logical_layers import (  # noqa: E402
@@ -34,6 +35,7 @@ ALGORITHMS = {
     "orbital-concentric": OrbitalConcentricDomainAlgorithm(),
     "radial-tiles": RadialTilesDomainAlgorithm(),
     "voronoi-cells": VoronoiCellsDomainAlgorithm(),
+    "truchet": TruchetDomainAlgorithm(),
 }
 _MISSING = object()
 

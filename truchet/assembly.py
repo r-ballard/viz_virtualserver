@@ -27,7 +27,8 @@ def assemble_grid(
     for row in range(rows):
         for column in range(columns):
             candidates = tuple(
-                state for state in states
+                state
+                for state in states
                 if (not column or compatible(tiles[-1].state, 1, state, 3))
                 and (not row or compatible(tiles[(row - 1) * columns + column].state, 2, state, 0))
             )

@@ -46,8 +46,12 @@ def sample_connection(
         angle = half_angle * (2 * index / count - 1)
         along = length / 2 + radius * math.sin(angle)
         across = sign * (ratio * length - 2 * radius * math.sin(angle / 2) ** 2)
-        points.append((start[0] + (dx * along + dy * across) / length,
-                       start[1] + (dy * along - dx * across) / length))
+        points.append(
+            (
+                start[0] + (dx * along + dy * across) / length,
+                start[1] + (dy * along - dx * across) / length,
+            )
+        )
     points.append(end)
     return tuple(points)
 
@@ -67,12 +71,26 @@ def render_arrangement(
         keys = tuple((2 * tile.column + x, 2 * tile.row + y) for x, y in offsets)
         for index, (a, b) in enumerate(tile.state.connections):
             start, end = keys[a], keys[b]
+            # Orient the chord so its right-hand normal points toward tile center.
+            # Opposing corner connections have opposite directed orientations.
+            dx, dy = end[0] - start[0], end[1] - start[1]
+            cx, cy = 2 * tile.column + 1, 2 * tile.row + 1
+            toward_center = dy * (2 * cx - start[0] - end[0]) - dx * (2 * cy - start[1] - end[1])
+            if toward_center < 0:
+                start, end = end, start
+
             def position(key):
-                return (arrangement.origin[0] + key[0] * arrangement.tile_size / 2,
-                        arrangement.origin[1] + key[1] * arrangement.tile_size / 2)
-            points = sample_connection(position(start), position(end),
-                                       sagitta_ratio=ratios[index],
-                                       tolerance=parameters.curve_tolerance)
+                return (
+                    arrangement.origin[0] + key[0] * arrangement.tile_size / 2,
+                    arrangement.origin[1] + key[1] * arrangement.tile_size / 2,
+                )
+
+            points = sample_connection(
+                position(start),
+                position(end),
+                sagitta_ratio=ratios[index],
+                tolerance=parameters.curve_tolerance,
+            )
             curve_id = len(curves)
             curves.append((start, end, points))
             adjacency[start].append(curve_id)

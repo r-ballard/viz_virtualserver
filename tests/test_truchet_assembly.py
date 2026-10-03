@@ -12,8 +12,7 @@ def test_seeded_grid_is_compatible_reproducible_and_translation_invariant():
     translated = assemble_grid((-20, -30, 23, 2), tile_size=10, seed=7)
     assert first.tiles == translated.tiles
     assert (first.columns, first.rows) == (5, 4)
-    assert len({assemble_grid((0, 0, 43, 32), tile_size=10, seed=s).tiles
-                for s in range(5)}) > 1
+    assert len({assemble_grid((0, 0, 43, 32), tile_size=10, seed=s).tiles for s in range(5)}) > 1
     by_position = {(t.column, t.row): t.state for t in first.tiles}
     for t in first.tiles:
         if t.column:
@@ -27,11 +26,10 @@ def test_all_reachable_neighbor_constraints_admit_a_state():
     # Left and below neighbors are linked through the diagonal predecessor.
     for diagonal, left, below in product(states, repeat=3):
         if compatible(diagonal, 2, left, 0) and compatible(diagonal, 1, below, 3):
-            assert any(compatible(left, 1, s, 3) and compatible(below, 2, s, 0)
-                       for s in states)
+            assert any(compatible(left, 1, s, 3) and compatible(below, 2, s, 0) for s in states)
 
 
 def test_grid_limit_checked_before_allocation():
     assert len(assemble_grid((0, 0, 100000, 1), tile_size=1, seed=1).tiles) == 100000
-    with pytest.raises(ValueError, match='100,000'):
+    with pytest.raises(ValueError, match="100,000"):
         assemble_grid((0, 0, 100001, 1), tile_size=1, seed=1)

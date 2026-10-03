@@ -28,6 +28,7 @@ Inspect `output/voronoi-three-polygons/design.svg` and the individual SVGs under
 | --- | --- | --- |
 | Recursive Voronoi cells | [Voronoi cells](docs/how-to/voronoi-cells.md) | `examples/domain-jobs/voronoi-three-polygons.json` |
 | Radial tiles | [Radial tiles](docs/algorithms/radial-tiles.md) | `examples/domain-jobs/radial-tiles-three-polygons.json` |
+| Truchet grammar | [Truchet tiles](docs/algorithms/truchet.md) | `examples/domain-jobs/truchet-*.json` |
 | Orbital concentric | [Orbital concentric](docs/algorithms/orbital-concentric.md) | `examples/domain-jobs/orbital-concentric-*.json` |
 | Concentric points | [Concentric points](docs/algorithms/concentric-points.md) | `examples/concentric/` and `examples/domain-jobs/three-polygons.json` |
 | L-systems | [L-systems](docs/algorithms/lsystem.md) and [lineage layers](docs/algorithms/lsystem-lineage.md) | `examples/lsystems/` |

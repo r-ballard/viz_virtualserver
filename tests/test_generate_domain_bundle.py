@@ -47,6 +47,27 @@ PARAMETERS = {
 }
 
 
+def test_truchet_cli_exports_owned_curve_layer(tmp_path: Path) -> None:
+    job = {
+        "schema_version": 1, "seed": 7,
+        "domains": [{"id": "panel", "vertices": [[0,0],[30,0],[30,30],[0,30]]}],
+        "passes": [{"id": "tiles", "algorithm": "truchet",
+                    "target_domain_ids": ["panel"], "parameters": {},
+                    "logical_layers": [{"id": "truchet-curves"}]}],
+    }
+    source = tmp_path / "job.json"
+    source.write_text(json.dumps(job), encoding="utf-8")
+    destination = tmp_path / "bundle"
+    assert cli_module.main([str(source), "--output-dir", str(destination)]) == 0
+    audit = json.loads((destination / "design.json").read_text(encoding="utf-8"))
+    assert audit["domains"][0]["id"] == "panel"
+    assert (destination / "design.svg").is_file()
+    root = ET.fromstring((destination / "surfaces" / "panel.svg").read_text(encoding="utf-8"))
+    groups = root.findall("{http://www.w3.org/2000/svg}g[@data-viz-layer]")
+    assert [g.attrib["data-viz-layer"] for g in groups] == ["truchet-curves"]
+    assert groups[0].findall("{http://www.w3.org/2000/svg}path")
+
+
 @pytest.mark.parametrize("mode, births, path_count", [
     ("cumulative", [1, 2, 3, 4], 15),
     ("delta", [4], 1),
