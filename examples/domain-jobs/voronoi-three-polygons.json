@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "seed": 17,
+  "domains": [
+    {"id": "square", "vertices": [[0, 0], [100, 0], [100, 100], [0, 100]]},
+    {"id": "triangle", "vertices": [[50, 0], [100, 100], [0, 100]]},
+    {"id": "pentagon", "vertices": [[50, 0], [100, 38], [81, 100], [19, 100], [0, 38]]}
+  ],
+  "surfaces": [
+    {"id": "square", "domain_id": "square"},
+    {"id": "triangle", "domain_id": "triangle"},
+    {"id": "pentagon", "domain_id": "pentagon"}
+  ],
+  "groups": [],
+  "relations": [],
+  "composition_transforms": [],
+  "passes": [
+    {
+      "id": "draw-cells",
+      "algorithm": "voronoi-cells",
+      "target_domain_ids": ["square", "triangle", "pentagon"],
+      "parameters": {
+        "branch": 3,
+        "depth": 4,
+        "inset_ratio": 0.0035,
+        "corner_radius_ratio": 0.0065,
+        "curve_segments": 6
+      },
+      "logical_layers": [{"id": "cell-contours", "label": "Cell contours"}]
+    }
+  ]
+}

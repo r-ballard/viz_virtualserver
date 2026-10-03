@@ -27,11 +27,13 @@ from viz_canvas.logical_layers import (  # noqa: E402
     ProjectionSpec,
 )
 from viz_canvas.runner import run_domain_artwork_job  # noqa: E402
+from voronoi_cells.service import VoronoiCellsDomainAlgorithm  # noqa: E402
 
 ALGORITHMS = {
     "concentric-points": ConcentricDomainAlgorithm(),
     "orbital-concentric": OrbitalConcentricDomainAlgorithm(),
     "radial-tiles": RadialTilesDomainAlgorithm(),
+    "voronoi-cells": VoronoiCellsDomainAlgorithm(),
 }
 _MISSING = object()
 
