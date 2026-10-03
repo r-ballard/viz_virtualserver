@@ -6,16 +6,16 @@ Python geometry producers for generative artwork. A versioned polygon-domain job
 
 | Goal | Entrypoint |
 | --- | --- |
-| Generate a polygon design bundle | `scripts/generate_domain_bundle.py` and [the operator guide](docs/how-to/generate-polygon-artwork.md) |
+| Generate a polygon design bundle | `viz-domain-bundle` and [the operator guide](docs/how-to/generate-polygon-artwork.md) |
 | Understand the job and geometry contract | [Polygon canvas reference](docs/reference/canvas.md) |
-| Use the legacy HTTP endpoints | `server.py` and the algorithm guides below |
+| Use the HTTP endpoints | `viz_virtualserver/server.py` and the algorithm guides below |
 | Run the py5 renderer service | `renderer/` and [runtime setup](docs/reference/runtime-modernization.md) |
 
 From the repository root, with Python 3.12 and `uv` installed:
 
 ```bash
 uv sync --locked --all-packages --dev
-uv run --frozen python scripts/generate_domain_bundle.py \
+uv run --locked viz-domain-bundle \
   examples/domain-jobs/voronoi-three-polygons.json \
   --output-dir output/voronoi-three-polygons
 ```
@@ -32,6 +32,6 @@ Inspect `output/voronoi-three-polygons/design.svg` and the individual SVGs under
 | Concentric points | [Concentric points](docs/algorithms/concentric-points.md) | `examples/concentric/` and `examples/domain-jobs/three-polygons.json` |
 | L-systems | [L-systems](docs/algorithms/lsystem.md) and [lineage layers](docs/algorithms/lsystem-lineage.md) | `examples/lsystems/` |
 
-The domain-bundle runner currently registers its algorithms in `scripts/generate_domain_bundle.py`. Generator implementations live in top-level packages (`concentric/`, `radial_tiles/`, `voronoi_cells/`, `lsystem/`); the shared domain and bundle contract lives in `viz_canvas/`. The older `polygon_handlers.py`, `voronoi_handlers.py`, and `datatypes.py` serve compatibility endpoints in `server.py`.
+The domain-bundle runner registers algorithms in `viz_virtualserver/cli/domain_bundle.py`. Generator implementations live under `viz_virtualserver/generators/`; the shared domain and bundle contract lives in `viz_virtualserver/canvas/`. The older handler algorithms live under `viz_virtualserver/legacy/` for HTTP compatibility. Previous import paths and the repository script path still work through compatibility shims. See the [package layout reference](docs/reference/package-layout.md).
 
 See the [documentation index](docs/README.md) for references, gallery files, and development plans.

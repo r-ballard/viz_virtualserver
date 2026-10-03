@@ -1,5 +1,13 @@
-"""L-system expansion, geometry generation, layering, and export."""
+"""Compatibility imports for the namespaced package."""
 
-from .service import generate_lsystem
+import importlib as _importlib
+import sys as _sys
 
-__all__ = ["generate_lsystem"]
+_target = _importlib.import_module("viz_virtualserver.generators.lsystem")
+for _name in ("api", "geometry", "grammar", "layers", "models", "service", "svg"):
+    _module = _importlib.import_module(f"viz_virtualserver.generators.lsystem.{_name}")
+    _sys.modules[f"{__name__}.{_name}"] = _module
+    globals()[_name] = _module
+for _name in getattr(_target, "__all__", ()):
+    globals()[_name] = getattr(_target, _name)
+__all__ = getattr(_target, "__all__", ())

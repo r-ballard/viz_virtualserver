@@ -1,100 +1,29 @@
-"""Intrinsic canvas geometry for generative vector artwork."""
+"""Compatibility imports for the namespaced package."""
 
-from .bundle import DesignBundle, write_design_bundle
-from .design import (
-    AlgorithmCapabilities,
-    DesignPass,
-    DesignResult,
-    DesignState,
-    DomainAlgorithm,
-    LogicalLayer,
-    VectorPath,
-    execute_design_pass,
-    execute_design_passes,
-    validate_pass_graph,
-)
-from .frames import (
-    AffineTransform,
-    CompositionTransform,
-    resolve_composition_transforms,
-)
-from .geometry import (
-    CanvasError,
-    CanvasGeometry,
-    build_canvas,
-    is_convex_polygon,
-    polygon_centroid,
-    polygon_edges,
-    polygon_signed_area,
-    polygon_winding,
-    validate_simple_polygon,
-)
-from .job_io import load_domain_artwork_job, read_domain_artwork_job
-from .jobs import DomainArtworkJob, derive_domain_seed
-from .logical_layers import PathGeometry, SemanticAttributeSchema, SemanticPath
-from .models import CanvasSpec, DomainProvenance, Edge, Point, PolygonDomain
-from .projection import SurfaceProjection, project_surfaces
-from .runner import AlgorithmContext, run_domain_artwork_job
-from .semantics import (
-    DomainRef,
-    DomainRelation,
-    FeatureRef,
-    FeatureType,
-    PolygonGroup,
-    PolygonSurface,
-    RelationEndpoint,
-    RelationType,
-    validate_semantics,
-)
+import importlib as _importlib
+import sys as _sys
 
-__all__ = [
-    "AlgorithmContext",
-    "AlgorithmCapabilities",
-    "AffineTransform",
-    "CanvasError",
-    "CanvasGeometry",
-    "CanvasSpec",
-    "CompositionTransform",
-    "DesignBundle",
-    "DesignPass",
-    "DesignResult",
-    "DesignState",
-    "DomainProvenance",
-    "DomainRef",
-    "DomainRelation",
-    "DomainAlgorithm",
-    "DomainArtworkJob",
-    "Edge",
-    "FeatureRef",
-    "FeatureType",
-    "LogicalLayer",
-    "Point",
-    "PolygonDomain",
-    "PathGeometry",
-    "PolygonGroup",
-    "PolygonSurface",
-    "RelationEndpoint",
-    "RelationType",
-    "SurfaceProjection",
-    "SemanticAttributeSchema",
-    "SemanticPath",
-    "VectorPath",
-    "build_canvas",
-    "execute_design_pass",
-    "execute_design_passes",
-    "derive_domain_seed",
-    "is_convex_polygon",
-    "load_domain_artwork_job",
-    "polygon_centroid",
-    "polygon_edges",
-    "polygon_signed_area",
-    "polygon_winding",
-    "project_surfaces",
-    "resolve_composition_transforms",
-    "read_domain_artwork_job",
-    "run_domain_artwork_job",
-    "validate_simple_polygon",
-    "validate_semantics",
-    "validate_pass_graph",
-    "write_design_bundle",
-]
+_target = _importlib.import_module("viz_virtualserver.canvas")
+for _name in (
+    "api",
+    "bundle",
+    "design",
+    "frames",
+    "geometry",
+    "job_io",
+    "jobs",
+    "json_values",
+    "logical_layers",
+    "models",
+    "projection",
+    "runner",
+    "semantics",
+    "state_validation",
+    "svg",
+):
+    _module = _importlib.import_module(f"viz_virtualserver.canvas.{_name}")
+    _sys.modules[f"{__name__}.{_name}"] = _module
+    globals()[_name] = _module
+for _name in getattr(_target, "__all__", ()):
+    globals()[_name] = getattr(_target, _name)
+__all__ = getattr(_target, "__all__", ())

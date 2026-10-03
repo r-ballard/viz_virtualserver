@@ -379,7 +379,7 @@ plotter-workflow
 From the `viz_virtualserver` repository root in Git Bash, generate the example bundle with:
 
 ```bash
-uv run python scripts/generate_domain_bundle.py \
+uv run --locked viz-domain-bundle \
   examples/domain-jobs/cootie-catcher.json \
   --output-dir output/cootie-design-bundle
 ```
@@ -387,7 +387,7 @@ uv run python scripts/generate_domain_bundle.py \
 The command refuses to replace an existing destination. Regenerate it intentionally with:
 
 ```bash
-uv run python scripts/generate_domain_bundle.py \
+uv run --locked viz-domain-bundle \
   examples/domain-jobs/cootie-catcher.json \
   --output-dir output/cootie-design-bundle \
   --overwrite

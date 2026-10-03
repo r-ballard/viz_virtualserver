@@ -54,7 +54,7 @@ Confirm that you are in the correct directory:
 ```bash
 pwd
 test -f pyproject.toml
-test -f scripts/generate_domain_bundle.py
+test -f viz_virtualserver/cli/domain_bundle.py
 ```
 
 The two `test` commands are silent on success. If either command reports an
@@ -73,7 +73,7 @@ The ready-to-run tutorial job is
 `examples/domain-jobs/three-polygons.json`. Generate it with:
 
 ```bash
-uv run python scripts/generate_domain_bundle.py \
+uv run --locked viz-domain-bundle \
   examples/domain-jobs/three-polygons.json \
   --output-dir output/three-polygons
 ```
@@ -210,7 +210,7 @@ message, leaving the original bundle untouched.
 When replacement is intentional, run:
 
 ```bash
-uv run python scripts/generate_domain_bundle.py \
+uv run --locked viz-domain-bundle \
   examples/domain-jobs/three-polygons.json \
   --output-dir output/three-polygons \
   --overwrite
@@ -225,11 +225,11 @@ design variants.
 Generate two independent bundles:
 
 ```bash
-uv run python scripts/generate_domain_bundle.py \
+uv run --locked viz-domain-bundle \
   examples/domain-jobs/three-polygons.json \
   --output-dir output/three-polygons-a
 
-uv run python scripts/generate_domain_bundle.py \
+uv run --locked viz-domain-bundle \
   examples/domain-jobs/three-polygons.json \
   --output-dir output/three-polygons-b
 
@@ -260,7 +260,7 @@ Then edit `my-polygons.json`:
 Generate the edited job:
 
 ```bash
-uv run python scripts/generate_domain_bundle.py \
+uv run --locked viz-domain-bundle \
   examples/domain-jobs/my-polygons.json \
   --output-dir output/my-polygons
 ```
@@ -277,7 +277,7 @@ including a valid surface whose algorithm emits no paths.
 The same command runs the larger placement-free example:
 
 ```bash
-uv run python scripts/generate_domain_bundle.py \
+uv run --locked viz-domain-bundle \
   examples/domain-jobs/cootie-catcher.json \
   --output-dir output/cootie-design-bundle
 ```
@@ -304,7 +304,7 @@ MSYS_NO_PATHCONV=1 docker compose run --rm --no-deps \
   -v "$PWD:/workspace" \
   -w /workspace \
   compute \
-  /app/.venv/bin/python scripts/generate_domain_bundle.py \
+  /app/.venv/bin/viz-domain-bundle \
   examples/domain-jobs/three-polygons.json \
   --output-dir output/three-polygons-docker
 ```
@@ -327,7 +327,7 @@ add `--overwrite` only when replacement is intended.
 ### `unknown algorithm`
 
 The job's `algorithm` value is not registered by
-`scripts/generate_domain_bundle.py`. Use `concentric-points`, or implement and
+`viz_virtualserver/cli/domain_bundle.py`. Use `concentric-points`, or implement and
 register another domain algorithm before referencing it in JSON.
 
 ### Validation error mentioning an unknown field

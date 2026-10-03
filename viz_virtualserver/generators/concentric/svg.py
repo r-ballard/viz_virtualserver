@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 
-from viz_canvas.design import DesignResult
-from viz_canvas.geometry import CanvasGeometry, build_canvas
-from viz_canvas.models import PolygonDomain
-from viz_canvas.svg import SVG_NS, serialize_design_result_svg
+from viz_virtualserver.canvas.design import DesignResult
+from viz_virtualserver.canvas.geometry import CanvasGeometry, build_canvas
+from viz_virtualserver.canvas.models import PolygonDomain
+from viz_virtualserver.canvas.svg import SVG_NS, serialize_design_result_svg
 
 from .models import ConcentricPointsRequest
 from .service import _payload_vector_paths

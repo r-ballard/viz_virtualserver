@@ -1,6 +1,13 @@
-"""Canvas-aware concentric-point vector generation."""
+"""Compatibility imports for the namespaced package."""
 
-from .models import ConcentricPointsRequest
-from .service import ConcentricError, generate_concentric_points
+import importlib as _importlib
+import sys as _sys
 
-__all__ = ["ConcentricError", "ConcentricPointsRequest", "generate_concentric_points"]
+_target = _importlib.import_module("viz_virtualserver.generators.concentric")
+for _name in ("api", "models", "service", "svg"):
+    _module = _importlib.import_module(f"viz_virtualserver.generators.concentric.{_name}")
+    _sys.modules[f"{__name__}.{_name}"] = _module
+    globals()[_name] = _module
+for _name in getattr(_target, "__all__", ()):
+    globals()[_name] = getattr(_target, _name)
+__all__ = getattr(_target, "__all__", ())

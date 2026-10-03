@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from viz_canvas.logical_layers import (
+from viz_virtualserver.canvas.logical_layers import (
     DynamicLayerSpec,
     FixedLayerSpec,
     MatchSpec,
@@ -12,7 +12,7 @@ from viz_canvas.logical_layers import (
     ProjectionSpec,
     SemanticAttributeSchema,
 )
-from viz_canvas.models import CanvasSpec
+from viz_virtualserver.canvas.models import CanvasSpec
 
 BoundaryMode = Literal["inscribed", "clip"]
 RingSpacingMode = Literal["linear", "random", "progressive"]

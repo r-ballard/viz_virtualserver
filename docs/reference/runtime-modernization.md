@@ -4,7 +4,7 @@ This change establishes a Python 3.12 + uv workspace and two containerized servi
 
 ## Components
 
-- `compute`: existing FastAPI application (`server:app`) on port `5699`
+- `compute`: FastAPI application (`viz_virtualserver.server:app`) on port `5699`
 - `renderer`: Python 3 / py5 rendering service on port `5700`
 - one root `uv.lock` shared by the workspace
 

@@ -14,8 +14,8 @@ not the first appearance of geometry at a coordinate. The default preserves the
 multicolor plant-booklet behavior in `examples/lsystems/plant-booklet.json`.
 
 ```python
-from lsystem.models import LSystemRequest
-from lsystem.service import generate_lsystem_design, generate_lsystem_growth_pages
+from viz_virtualserver.generators.lsystem.models import LSystemRequest
+from viz_virtualserver.generators.lsystem.service import generate_lsystem_design, generate_lsystem_growth_pages
 
 request = LSystemRequest(
     axiom="X", rules={"X": "FX", "F": "FF"}, generations=4,
