@@ -3,7 +3,7 @@
 The concentric-point generator consumes generic polygon-domain geometry through its design
 adapter. The adapter receives domains owned by `viz_canvas`, invokes the existing concentric
 algorithm for a supported target, and returns neutral canvas-coordinate vector paths internally.
-The generic polygon model is not owned by the concentric package; see [CANVAS.md](CANVAS.md) for
+The generic polygon model is not owned by the concentric package; see [canvas reference](../reference/canvas.md) for
 the shared domain grammar, semantics, metadata, and repository boundaries.
 
 The generator is intentionally canvas-aware. A triangular source is generated as a triangular
@@ -37,7 +37,7 @@ curl --fail-with-body -sS \
 ```
 
 The SVG keeps the intrinsic canvas metadata established by `viz_canvas`, adds the versioned
-polygon-domain metadata described in [CANVAS.md](CANVAS.md), defines the same polygonal clip under
+polygon-domain metadata described in [canvas reference](../reference/canvas.md), defines the same polygonal clip under
 `<defs>`, and places all drawable geometry in a top-level strict `pen-N` group for downstream
 `plotter-workflow` compatibility. These are compatibility guarantees of the public endpoint; the
 adapter's neutral internal paths use logical layers instead of physical pen groups.
