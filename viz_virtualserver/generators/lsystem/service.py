@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from viz_canvas.logical_layers import (
+from viz_virtualserver.canvas.logical_layers import (
     FixedLayerSpec,
     MatchSpec,
     ProjectedDesign,

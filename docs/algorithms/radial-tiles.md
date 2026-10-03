@@ -18,7 +18,7 @@ workspace that contains `.tools/`, then run:
 ```bash
 : "${workspace_root:?set workspace_root to the portable workspace root}"
 
-"$workspace_root/.tools/uv.exe" run python scripts/generate_domain_bundle.py \
+"$workspace_root/.tools/uv.exe" run --locked viz-domain-bundle \
   examples/domain-jobs/radial-tiles-three-polygons.json \
   --output-dir "$workspace_root/artifacts/radial-tiles-three-polygons"
 ```

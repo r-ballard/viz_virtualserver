@@ -27,4 +27,4 @@ EXPOSE 5699
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
     CMD ["/app/.venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5699/', timeout=2)"]
 
-CMD ["/app/.venv/bin/uvicorn", "server:app", "--host", "0.0.0.0", "--port", "5699"]
+CMD ["/app/.venv/bin/uvicorn", "viz_virtualserver.server:app", "--host", "0.0.0.0", "--port", "5699"]

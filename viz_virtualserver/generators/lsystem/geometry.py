@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from viz_canvas.logical_layers import PathGeometry, SemanticPath, encode_identifier
+from viz_virtualserver.canvas.logical_layers import PathGeometry, SemanticPath, encode_identifier
 
 Point = tuple[float, float]
 Path = list[Point]

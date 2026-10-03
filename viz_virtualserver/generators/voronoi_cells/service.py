@@ -8,12 +8,17 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from viz_canvas.design import AlgorithmCapabilities, DesignPass, DesignResult, VectorPath
-from viz_canvas.geometry import CanvasGeometry
-from viz_canvas.models import Point, PolygonDomain
+from viz_virtualserver.canvas.design import (
+    AlgorithmCapabilities,
+    DesignPass,
+    DesignResult,
+    VectorPath,
+)
+from viz_virtualserver.canvas.geometry import CanvasGeometry
+from viz_virtualserver.canvas.models import Point, PolygonDomain
 
 if TYPE_CHECKING:
-    from viz_canvas.runner import AlgorithmContext
+    from viz_virtualserver.canvas.runner import AlgorithmContext
 
 Polygon = list[Point]
 EPSILON = 1e-10

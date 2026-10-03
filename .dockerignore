@@ -1,4 +1,8 @@
 .git
+.worktrees
+.artifacts
+artifacts
+output
 .github
 .venv
 __pycache__

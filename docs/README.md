@@ -5,6 +5,7 @@
 - [Canvas and job contract](reference/canvas.md): domains, surfaces, logical layers, frames, bundles, and downstream boundary.
 - [Neutral logical layers](reference/logical-layer-bundles.md): projection rules and bundle metadata.
 - [Runtime modernization](reference/runtime-modernization.md): Docker and service setup.
+- [Python package layout](reference/package-layout.md): canonical imports, wheel contents, and compatibility paths.
 - [Algorithm guides](algorithms/): concentric points, orbital concentric, radial tiles, and L-systems.
 - [Checked-in artwork gallery](../examples/gallery/README.md): visual validation examples, separate from runnable JSON jobs.
 

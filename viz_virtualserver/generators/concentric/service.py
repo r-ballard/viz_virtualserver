@@ -6,14 +6,14 @@ from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from viz_canvas.design import (
+from viz_virtualserver.canvas.design import (
     AlgorithmCapabilities,
     DesignPass,
     DesignResult,
     VectorPath,
 )
-from viz_canvas.geometry import CanvasGeometry, build_canvas
-from viz_canvas.logical_layers import (
+from viz_virtualserver.canvas.geometry import CanvasGeometry, build_canvas
+from viz_virtualserver.canvas.logical_layers import (
     PathGeometry,
     ProjectedDesign,
     ProjectionSpec,
@@ -21,13 +21,13 @@ from viz_canvas.logical_layers import (
     encode_identifier,
     project_paths,
 )
-from viz_canvas.models import PolygonDomain
+from viz_virtualserver.canvas.models import PolygonDomain
 
 from .models import ORBITAL_ATTRIBUTE_SCHEMA, ConcentricPointsRequest, orbital_projection
 
 if TYPE_CHECKING:
-    from viz_canvas.jobs import DomainArtworkJob
-    from viz_canvas.runner import AlgorithmContext
+    from viz_virtualserver.canvas.jobs import DomainArtworkJob
+    from viz_virtualserver.canvas.runner import AlgorithmContext
 
 Point = tuple[float, float]
 _CIRCLE_PATH_SEGMENTS = 64
@@ -251,7 +251,7 @@ def generate_orbital_design(
 ) -> ProjectedDesign:
     """Run an orbital job and return neutral paths with an authoritative catalog."""
 
-    from viz_canvas.runner import run_domain_artwork_job
+    from viz_virtualserver.canvas.runner import run_domain_artwork_job
 
     spec = orbital_projection(projection) if isinstance(projection, str) else projection
     state = run_domain_artwork_job(

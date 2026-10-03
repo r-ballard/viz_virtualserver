@@ -12,10 +12,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.generate_domain_bundle import ALGORITHMS  # noqa: E402
-from viz_canvas import bundle as bundle_module  # noqa: E402
-from viz_canvas.job_io import read_domain_artwork_job  # noqa: E402
-from viz_canvas.runner import run_domain_artwork_job  # noqa: E402
+from viz_virtualserver.canvas import bundle as bundle_module  # noqa: E402
+from viz_virtualserver.canvas.job_io import read_domain_artwork_job  # noqa: E402
+from viz_virtualserver.canvas.runner import run_domain_artwork_job  # noqa: E402
+from viz_virtualserver.cli.domain_bundle import ALGORITHMS  # noqa: E402
 
 VARIANTS: dict[str, dict[str, int | float | list[int | float]]] = {
     "density-low": {"orbit_count": 5},
