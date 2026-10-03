@@ -3,8 +3,8 @@ import dataclasses
 import pytest
 from pydantic import ValidationError
 
-from viz_canvas.geometry import CanvasGeometry
-from viz_canvas.models import CanvasSpec, DomainProvenance, PolygonDomain
+from viz_virtualserver.canvas.geometry import CanvasGeometry
+from viz_virtualserver.canvas.models import CanvasSpec, DomainProvenance, PolygonDomain
 
 
 def test_square_requires_equal_dimensions() -> None:

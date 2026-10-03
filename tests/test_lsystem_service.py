@@ -5,12 +5,12 @@ from pathlib import Path
 
 import pytest
 
-import lsystem.service as lsystem_service
-import lsystem.svg as lsystem_svg
-from lsystem.grammar import iter_tagged_generations
-from lsystem.models import LSystemRequest
-from lsystem.service import generate_lsystem
-from lsystem.svg import result_to_svg
+import viz_virtualserver.generators.lsystem.service as lsystem_service
+import viz_virtualserver.generators.lsystem.svg as lsystem_svg
+from viz_virtualserver.generators.lsystem.grammar import iter_tagged_generations
+from viz_virtualserver.generators.lsystem.models import LSystemRequest
+from viz_virtualserver.generators.lsystem.service import generate_lsystem
+from viz_virtualserver.generators.lsystem.svg import result_to_svg
 
 SVG = "{http://www.w3.org/2000/svg}"
 

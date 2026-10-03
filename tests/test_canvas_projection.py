@@ -4,11 +4,17 @@ from dataclasses import FrozenInstanceError, replace
 
 import pytest
 
-from viz_canvas import projection as surface_projection
-from viz_canvas.design import DesignPass, DesignResult, DesignState, LogicalLayer, VectorPath
-from viz_canvas.frames import AffineTransform, CompositionTransform
-from viz_canvas.jobs import DomainArtworkJob
-from viz_canvas.logical_layers import (
+from viz_virtualserver.canvas import projection as surface_projection
+from viz_virtualserver.canvas.design import (
+    DesignPass,
+    DesignResult,
+    DesignState,
+    LogicalLayer,
+    VectorPath,
+)
+from viz_virtualserver.canvas.frames import AffineTransform, CompositionTransform
+from viz_virtualserver.canvas.jobs import DomainArtworkJob
+from viz_virtualserver.canvas.logical_layers import (
     DynamicLayerSpec,
     FixedLayerSpec,
     LogicalLayerCatalog,
@@ -20,9 +26,9 @@ from viz_canvas.logical_layers import (
     SemanticPath,
     project_paths,
 )
-from viz_canvas.models import PolygonDomain
-from viz_canvas.projection import project_surfaces
-from viz_canvas.semantics import PolygonSurface
+from viz_virtualserver.canvas.models import PolygonDomain
+from viz_virtualserver.canvas.projection import project_surfaces
+from viz_virtualserver.canvas.semantics import PolygonSurface
 
 
 def _job(

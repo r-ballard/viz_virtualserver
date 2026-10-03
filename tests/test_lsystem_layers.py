@@ -1,4 +1,4 @@
-from lsystem.layers import resolve_pen_layers
+from viz_virtualserver.generators.lsystem.layers import resolve_pen_layers
 
 
 def test_seventeen_generations_partition_across_eight_pens():

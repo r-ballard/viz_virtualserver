@@ -4,7 +4,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from viz_canvas import (
+from viz_virtualserver.canvas import (
     AffineTransform,
     CompositionTransform,
     DesignPass,

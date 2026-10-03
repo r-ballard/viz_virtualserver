@@ -2,12 +2,12 @@ import math
 
 import pytest
 
-from viz_canvas.frames import (
+from viz_virtualserver.canvas.frames import (
     AffineTransform,
     CompositionTransform,
     resolve_composition_transforms,
 )
-from viz_canvas.models import PolygonDomain
+from viz_virtualserver.canvas.models import PolygonDomain
 
 
 @pytest.fixture

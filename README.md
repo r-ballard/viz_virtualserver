@@ -32,6 +32,6 @@ Inspect `output/voronoi-three-polygons/design.svg` and the individual SVGs under
 | Concentric points | [Concentric points](docs/algorithms/concentric-points.md) | `examples/concentric/` and `examples/domain-jobs/three-polygons.json` |
 | L-systems | [L-systems](docs/algorithms/lsystem.md) and [lineage layers](docs/algorithms/lsystem-lineage.md) | `examples/lsystems/` |
 
-The domain-bundle runner registers algorithms in `viz_virtualserver/cli/domain_bundle.py`. Generator implementations live under `viz_virtualserver/generators/`; the shared domain and bundle contract lives in `viz_virtualserver/canvas/`. The older handler algorithms live under `viz_virtualserver/legacy/` for HTTP compatibility. Previous import paths and the repository script path still work through compatibility shims. See the [package layout reference](docs/reference/package-layout.md).
+The domain-bundle runner registers algorithms in `viz_virtualserver/cli/domain_bundle.py`. Generator implementations live under `viz_virtualserver/generators/`; the shared domain and bundle contract lives in `viz_virtualserver/canvas/`. The older handler algorithms live under `viz_virtualserver/legacy/` for the established HTTP endpoints. Use `viz_virtualserver` imports and the installed `viz-domain-bundle` command. See the [package layout reference](docs/reference/package-layout.md).
 
 See the [documentation index](docs/README.md) for references, gallery files, and development plans.

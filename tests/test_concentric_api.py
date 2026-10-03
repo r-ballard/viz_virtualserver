@@ -3,7 +3,7 @@ import xml.etree.ElementTree as ET
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from concentric.api import router
+from viz_virtualserver.generators.concentric.api import router
 
 app = FastAPI()
 app.include_router(router)

@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from concentric.models import ConcentricPointsRequest
+from viz_virtualserver.generators.concentric.models import ConcentricPointsRequest
 
 
 def test_defaults_use_clip_mode_and_one_pen() -> None:
