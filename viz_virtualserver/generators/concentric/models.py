@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from viz_canvas.logical_layers import (
+from viz_virtualserver.canvas.logical_layers import (
     DynamicLayerSpec,
     FixedLayerSpec,
     MatchSpec,
@@ -12,11 +12,12 @@ from viz_canvas.logical_layers import (
     ProjectionSpec,
     SemanticAttributeSchema,
 )
-from viz_canvas.models import CanvasSpec
+from viz_virtualserver.canvas.models import CanvasSpec
 
 BoundaryMode = Literal["inscribed", "clip"]
 RingSpacingMode = Literal["linear", "random", "progressive"]
 OverlapMode = Literal["allow", "avoid"]
+OverlapTrim = Literal["none", "outer", "all"]
 CenterBias = Literal["uniform", "centroid", "boundary", "vertices"]
 
 ORBITAL_ATTRIBUTE_SCHEMA = SemanticAttributeSchema(
@@ -91,6 +92,7 @@ class ConcentricPointsRequest(BaseModel):
     min_ring_radius: float = Field(default=0.0, ge=0.0)
     max_ring_radius: float | None = Field(default=None, gt=0.0)
     overlap_mode: OverlapMode = "allow"
+    overlap_trim: OverlapTrim = "none"
     center_margin: float = Field(default=0.0, ge=0.0)
     min_center_spacing: float = Field(default=0.0, ge=0.0)
     center_bias: CenterBias = "uniform"
@@ -110,5 +112,8 @@ class ConcentricPointsRequest(BaseModel):
 
         if self.max_ring_radius is not None and self.max_ring_radius <= self.min_ring_radius:
             raise ValueError("max_ring_radius must be greater than min_ring_radius")
+
+        if self.overlap_mode == "avoid" and self.overlap_trim != "none":
+            raise ValueError("overlap_trim requires overlap_mode='allow'")
 
         return self

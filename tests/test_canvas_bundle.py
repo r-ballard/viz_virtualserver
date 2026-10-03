@@ -8,12 +8,18 @@ from pathlib import Path
 
 import pytest
 
-import viz_canvas.bundle as bundle_module
-from viz_canvas.bundle import write_design_bundle
-from viz_canvas.design import DesignPass, DesignResult, DesignState, LogicalLayer, VectorPath
-from viz_canvas.frames import AffineTransform, CompositionTransform
-from viz_canvas.jobs import DomainArtworkJob
-from viz_canvas.logical_layers import (
+import viz_virtualserver.canvas.bundle as bundle_module
+from viz_virtualserver.canvas.bundle import write_design_bundle
+from viz_virtualserver.canvas.design import (
+    DesignPass,
+    DesignResult,
+    DesignState,
+    LogicalLayer,
+    VectorPath,
+)
+from viz_virtualserver.canvas.frames import AffineTransform, CompositionTransform
+from viz_virtualserver.canvas.jobs import DomainArtworkJob
+from viz_virtualserver.canvas.logical_layers import (
     DynamicLayerSpec,
     FixedLayerSpec,
     LogicalLayerCatalog,
@@ -25,8 +31,8 @@ from viz_canvas.logical_layers import (
     SemanticPath,
     project_paths,
 )
-from viz_canvas.models import DomainProvenance, PolygonDomain
-from viz_canvas.semantics import (
+from viz_virtualserver.canvas.models import DomainProvenance, PolygonDomain
+from viz_virtualserver.canvas.semantics import (
     DomainRef,
     DomainRelation,
     FeatureRef,
@@ -35,7 +41,7 @@ from viz_canvas.semantics import (
     PolygonSurface,
     RelationType,
 )
-from viz_canvas.svg import SVG_NS
+from viz_virtualserver.canvas.svg import SVG_NS
 
 NS = {"svg": SVG_NS}
 

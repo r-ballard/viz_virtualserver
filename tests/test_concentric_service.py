@@ -5,17 +5,17 @@ from dataclasses import fields
 import pytest
 from pydantic import ValidationError
 
-from concentric.models import ConcentricPointsRequest
-from concentric.service import (
+from viz_virtualserver.canvas.design import DesignPass, DesignResult, LogicalLayer
+from viz_virtualserver.canvas.geometry import CanvasGeometry, build_canvas
+from viz_virtualserver.canvas.jobs import DomainArtworkJob
+from viz_virtualserver.canvas.models import PolygonDomain
+from viz_virtualserver.canvas.runner import AlgorithmContext, run_domain_artwork_job
+from viz_virtualserver.generators.concentric.models import ConcentricPointsRequest
+from viz_virtualserver.generators.concentric.service import (
     ConcentricDomainAlgorithm,
     ConcentricError,
     generate_concentric_points,
 )
-from viz_canvas.design import DesignPass, DesignResult, LogicalLayer
-from viz_canvas.geometry import CanvasGeometry, build_canvas
-from viz_canvas.jobs import DomainArtworkJob
-from viz_canvas.models import PolygonDomain
-from viz_canvas.runner import AlgorithmContext, run_domain_artwork_job
 
 
 def _triangle_request(**overrides) -> ConcentricPointsRequest:

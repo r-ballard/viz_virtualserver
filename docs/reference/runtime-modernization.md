@@ -1,10 +1,10 @@
-# Runtime modernization
+# Runtime setup
 
-This change establishes a Python 3.12 + uv workspace and two containerized services without modifying the legacy application source files.
+The repository uses a Python 3.12 `uv` workspace and two containerized services.
 
 ## Components
 
-- `compute`: existing FastAPI application (`server:app`) on port `5699`
+- `compute`: FastAPI application (`viz_virtualserver.server:app`) on port `5699`
 - `renderer`: Python 3 / py5 rendering service on port `5700`
 - one root `uv.lock` shared by the workspace
 
@@ -13,12 +13,11 @@ This change establishes a Python 3.12 + uv workspace and two containerized servi
 From the repository root:
 
 ```bash
-uv python pin 3.12
-uv lock
-uv sync --all-packages --dev
+uv python install 3.12
+uv sync --locked --all-packages --dev
 ```
 
-Commit `uv.lock`. The container builds intentionally require the committed lockfile.
+The container builds use the committed `uv.lock`.
 
 ## Run
 
@@ -45,7 +44,3 @@ Exercise the actual py5/Processing runtime:
 docker compose run --rm renderer \
   xvfb-run -a /app/.venv/bin/python smoke_sketch.py
 ```
-
-## Why this patch is additive
-
-The first modernization pass intentionally does not edit `server.py`, `polygon_handlers.py`, or `voronoi_handlers.py`. Runtime/deprecation cleanup and L-system endpoints should be separate commits so infrastructure changes do not conflict with local changes in the legacy geometry code.

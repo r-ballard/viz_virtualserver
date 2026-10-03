@@ -11,7 +11,7 @@ values on attributes express membership. Dynamic `group_by` keys may also includ
 Generate the per-body example from Git Bash:
 
 ```bash
-".venv/Scripts/python.exe" "scripts/generate_domain_bundle.py" \
+uv run --locked viz-domain-bundle \
   "examples/domain-jobs/orbital-per-body.json" \
   --output-dir ".artifacts/orbital-per-body"
 ```

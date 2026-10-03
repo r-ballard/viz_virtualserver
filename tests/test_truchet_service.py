@@ -1,11 +1,11 @@
 import pytest
 from shapely.geometry import LineString, Polygon
 
-from truchet.service import TruchetDomainAlgorithm
-from viz_canvas.design import DesignPass, LogicalLayer
-from viz_canvas.geometry import CanvasGeometry
-from viz_canvas.models import PolygonDomain
-from viz_canvas.runner import AlgorithmContext
+from viz_virtualserver.canvas.design import DesignPass, LogicalLayer
+from viz_virtualserver.canvas.geometry import CanvasGeometry
+from viz_virtualserver.canvas.models import PolygonDomain
+from viz_virtualserver.canvas.runner import AlgorithmContext
+from viz_virtualserver.generators.truchet.service import TruchetDomainAlgorithm
 
 
 def generate(domains, *, params=None, layers=("truchet-curves",)):

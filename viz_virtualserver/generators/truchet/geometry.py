@@ -5,7 +5,7 @@ from collections import defaultdict
 
 from shapely.geometry import LineString, Polygon
 
-from viz_canvas.models import Point, PolygonDomain
+from viz_virtualserver.canvas.models import Point, PolygonDomain
 
 from .models import CurvePath, TileArrangement, TruchetParameters
 

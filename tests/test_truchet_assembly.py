@@ -2,8 +2,8 @@ from itertools import product
 
 import pytest
 
-from truchet.assembly import assemble_grid
-from truchet.grammar import compatible, compile_states
+from viz_virtualserver.generators.truchet.assembly import assemble_grid
+from viz_virtualserver.generators.truchet.grammar import compatible, compile_states
 
 
 def test_seeded_grid_is_compatible_reproducible_and_translation_invariant():

@@ -297,7 +297,7 @@ A triangle template contains root metadata similar to:
 </svg>
 ```
 
-Future SVG exporters should reuse `viz_canvas.svg.canvas_root_attributes()` and `append_canvas_clip()` rather than reproduce these attributes independently. `append_canvas_clip()` returns `url(#viz-canvas-clip)` so the exporter can apply the clip directly to each drawable group.
+Future SVG exporters should reuse `viz_virtualserver.canvas.svg.canvas_root_attributes()` and `append_canvas_clip()` rather than reproduce these attributes independently. `append_canvas_clip()` returns `url(#viz-canvas-clip)` so the exporter can apply the clip directly to each drawable group.
 
 For legacy strict multi-pen output, the existing `pen-N` groups must remain **top-level** SVG children. Apply the canvas clip to those groups directly rather than nesting them inside a canvas wrapper:
 
@@ -379,7 +379,7 @@ plotter-workflow
 From the `viz_virtualserver` repository root in Git Bash, generate the example bundle with:
 
 ```bash
-uv run python scripts/generate_domain_bundle.py \
+uv run --locked viz-domain-bundle \
   examples/domain-jobs/cootie-catcher.json \
   --output-dir output/cootie-design-bundle
 ```
@@ -387,7 +387,7 @@ uv run python scripts/generate_domain_bundle.py \
 The command refuses to replace an existing destination. Regenerate it intentionally with:
 
 ```bash
-uv run python scripts/generate_domain_bundle.py \
+uv run --locked viz-domain-bundle \
   examples/domain-jobs/cootie-catcher.json \
   --output-dir output/cootie-design-bundle \
   --overwrite
@@ -414,4 +414,4 @@ fit, rotation, clipping, and pen planning. Do not copy those placement fields in
 
 ## Repository boundaries
 
-`viz_canvas` owns the generic immutable polygon, semantic-reference, pass-execution, and neutral SVG contracts. Algorithms consume those contracts through adapters and declare their geometry capabilities. HTTP request models and legacy endpoint wrappers remain outside that generic core so existing clients can retain their established API and SVG behavior.
+`viz_virtualserver.canvas` owns the generic immutable polygon, semantic-reference, pass-execution, and neutral SVG contracts. Algorithms consume those contracts through adapters and declare their geometry capabilities. HTTP request models and legacy endpoint wrappers remain outside that generic core so existing clients can retain their established API and SVG behavior.

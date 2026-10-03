@@ -4,9 +4,9 @@ from dataclasses import replace
 
 import pytest
 
-from viz_canvas.design import DesignResult, LogicalLayer, VectorPath
-from viz_canvas.geometry import CanvasGeometry, build_canvas
-from viz_canvas.logical_layers import (
+from viz_virtualserver.canvas.design import DesignResult, LogicalLayer, VectorPath
+from viz_virtualserver.canvas.geometry import CanvasGeometry, build_canvas
+from viz_virtualserver.canvas.logical_layers import (
     FixedLayerSpec,
     LogicalLayerCatalog,
     MatchSpec,
@@ -17,10 +17,10 @@ from viz_canvas.logical_layers import (
     SemanticPath,
     project_paths,
 )
-from viz_canvas.models import CanvasSpec, DomainProvenance, PolygonDomain
-from viz_canvas.projection import SurfaceProjection
-from viz_canvas.semantics import PolygonSurface
-from viz_canvas.svg import (
+from viz_virtualserver.canvas.models import CanvasSpec, DomainProvenance, PolygonDomain
+from viz_virtualserver.canvas.projection import SurfaceProjection
+from viz_virtualserver.canvas.semantics import PolygonSurface
+from viz_virtualserver.canvas.svg import (
     CLIP_ID,
     SVG_NS,
     build_domain_metadata_payload,

@@ -2,8 +2,8 @@ import math
 
 import pytest
 
-from truchet.grammar import compatible, compile_states
-from truchet.models import TruchetParameters
+from viz_virtualserver.generators.truchet.grammar import compatible, compile_states
+from viz_virtualserver.generators.truchet.models import TruchetParameters
 
 
 def test_rotations_and_complements_preserve_connections_and_swap_regions():

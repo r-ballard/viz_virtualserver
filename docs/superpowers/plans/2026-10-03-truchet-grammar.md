@@ -202,3 +202,11 @@ Deferred minor: extreme subnormal curvature/tolerance can incorrectly trigger
 the sampling limit through radius overflow; documented in the algorithm guide.
 Clipping pieces at a closed path starting point may add a pen lift; geometry
 remains correct, so further stitching is an optional optimization.
+
+PR integration update: merged current main's package consolidation into the
+feature branch. The generator now lives at `viz_virtualserver/generators/truchet/`,
+uses `viz_virtualserver.canvas` imports, and is registered in
+`viz_virtualserver/cli/domain_bundle.py`. The operator command is
+`uv run --locked viz-domain-bundle`. The historical task paths above describe
+the initial implementation; no compatibility aliases were reintroduced.
+Full post-integration verification: 532 tests passed and Ruff checks passed.

@@ -5,7 +5,7 @@ polygon domains. It is a sibling of `concentric-points`; the existing algorithm 
 compatibility behavior remain unchanged.
 
 ```bash
-uv run python scripts/generate_domain_bundle.py \
+uv run --locked viz-domain-bundle \
   examples/domain-jobs/orbital-concentric-three-polygons.json \
   --output-dir artifacts/orbital-concentric
 ```
@@ -52,7 +52,7 @@ general-purpose generator behavior.
 Generate the circular example into its own directory:
 
 ```bash
-uv run python scripts/generate_domain_bundle.py \
+uv run --locked viz-domain-bundle \
   examples/domain-jobs/orbital-concentric-circular.json \
   --output-dir artifacts/orbital-concentric-circular
 ```
@@ -60,7 +60,7 @@ uv run python scripts/generate_domain_bundle.py \
 Generate the elliptical example into a separate directory:
 
 ```bash
-uv run python scripts/generate_domain_bundle.py \
+uv run --locked viz-domain-bundle \
   examples/domain-jobs/orbital-concentric-elliptical.json \
   --output-dir artifacts/orbital-concentric-elliptical
 ```
@@ -73,7 +73,7 @@ contains no placement transforms; arrange and plot the resulting surfaces with
 `plotter-workflow`.
 
 ```bash
-uv run python scripts/generate_domain_bundle.py \
+uv run --locked viz-domain-bundle \
   examples/domain-jobs/cootie-catcher-orbital.json \
   --output-dir artifacts/cootie-catcher-orbital
 ```

@@ -2,16 +2,20 @@ import math
 
 import pytest
 
-from truchet.assembly import assemble_grid
-from truchet.geometry import render_arrangement, sample_connection
-from truchet.grammar import compile_states
-from truchet.models import TileArrangement, TilePlacement, TruchetParameters
+from viz_virtualserver.generators.truchet.assembly import assemble_grid
+from viz_virtualserver.generators.truchet.geometry import render_arrangement, sample_connection
+from viz_virtualserver.generators.truchet.grammar import compile_states
+from viz_virtualserver.generators.truchet.models import (
+    TileArrangement,
+    TilePlacement,
+    TruchetParameters,
+)
 
 
 def test_clipping_preserves_loops_and_splits_exterior_gaps():
-    from truchet.geometry import clip_paths
-    from truchet.models import CurvePath
-    from viz_canvas.models import PolygonDomain
+    from viz_virtualserver.canvas.models import PolygonDomain
+    from viz_virtualserver.generators.truchet.geometry import clip_paths
+    from viz_virtualserver.generators.truchet.models import CurvePath
 
     square = PolygonDomain("s", ((0, 0), (10, 0), (10, 10), (0, 10)))
     loop = CurvePath(((2, 2), (8, 2), (8, 8), (2, 8)), True)

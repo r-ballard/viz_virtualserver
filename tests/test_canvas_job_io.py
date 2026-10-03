@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from viz_canvas.job_io import load_domain_artwork_job, read_domain_artwork_job
+from viz_virtualserver.canvas.job_io import load_domain_artwork_job, read_domain_artwork_job
 
 TWO_DOMAIN_PAYLOAD: dict[str, object] = {
     "schema_version": 1,

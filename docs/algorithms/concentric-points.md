@@ -1,7 +1,7 @@
 # Concentric-point generator
 
 The concentric-point generator consumes generic polygon-domain geometry through its design
-adapter. The adapter receives domains owned by `viz_canvas`, invokes the existing concentric
+adapter. The adapter receives domains owned by `viz_virtualserver.canvas`, invokes the existing concentric
 algorithm for a supported target, and returns neutral canvas-coordinate vector paths internally.
 The generic polygon model is not owned by the concentric package; see [canvas reference](../reference/canvas.md) for
 the shared domain grammar, semantics, metadata, and repository boundaries.
@@ -36,7 +36,7 @@ curl --fail-with-body -sS \
   'http://localhost:5699/ConcentricPointsSvg?stroke_width=1'
 ```
 
-The SVG keeps the intrinsic canvas metadata established by `viz_canvas`, adds the versioned
+The SVG keeps the intrinsic canvas metadata established by `viz_virtualserver.canvas`, adds the versioned
 polygon-domain metadata described in [canvas reference](../reference/canvas.md), defines the same polygonal clip under
 `<defs>`, and places all drawable geometry in a top-level strict `pen-N` group for downstream
 `plotter-workflow` compatibility. These are compatibility guarantees of the public endpoint; the
@@ -83,10 +83,20 @@ positions and sorts them, always retaining the outermost ring at the effective m
 - `radius_variation`: deterministic per-center reduction in `[0, 1)`. A value of `0.35` gives each
   center an outer-radius multiplier sampled from `[0.65, 1.0]`.
 - `overlap_mode`: `allow` or `avoid`.
+- `overlap_trim`: `none` (default), `outer`, or `all`. Requires `overlap_mode: "allow"`
+  for `outer` and `all`.
 
 For `avoid`, each center's outer radius is additionally capped at half the distance to its nearest
 neighbor. Therefore the outer rings of neighboring centers cannot intersect. This is most useful
 for isolated motifs. `allow` is the better default for dense, clipped triangle-filling artwork.
+
+With `overlap_mode: "allow"`, `overlap_trim: "outer"` replaces intersecting
+outermost rings with the boundary of their combined disks. It leaves inner
+rings complete. `overlap_trim: "all"` draws the same shared outer boundary and
+also removes each inner-ring arc that falls inside another center's outer disk.
+The border is drawn once, including when more than two motifs overlap. Rings
+from centers whose outer disks do not intersect remain independent. `none`
+retains the existing independent-circle output.
 
 ### Plotter metadata
 

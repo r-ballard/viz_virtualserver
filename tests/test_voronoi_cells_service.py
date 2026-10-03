@@ -5,11 +5,16 @@ import random
 import pytest
 from shapely.geometry import Polygon as ShapelyPolygon
 
-from viz_canvas.design import DesignPass, DesignState, LogicalLayer, execute_design_pass
-from viz_canvas.geometry import CanvasGeometry
-from viz_canvas.models import PolygonDomain
-from viz_canvas.runner import AlgorithmContext
-from voronoi_cells.service import (
+from viz_virtualserver.canvas.design import (
+    DesignPass,
+    DesignState,
+    LogicalLayer,
+    execute_design_pass,
+)
+from viz_virtualserver.canvas.geometry import CanvasGeometry
+from viz_virtualserver.canvas.models import PolygonDomain
+from viz_virtualserver.canvas.runner import AlgorithmContext
+from viz_virtualserver.generators.voronoi_cells.service import (
     VoronoiCellsDomainAlgorithm,
     VoronoiCellsParameters,
     inset,

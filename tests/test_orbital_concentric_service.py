@@ -7,17 +7,17 @@ import random
 
 import pytest
 
-import concentric.service as orbital_service
-from concentric.service import (
+import viz_virtualserver.generators.concentric.service as orbital_service
+from viz_virtualserver.canvas.design import DesignPass, LogicalLayer
+from viz_virtualserver.canvas.geometry import CanvasGeometry
+from viz_virtualserver.canvas.models import PolygonDomain
+from viz_virtualserver.canvas.runner import AlgorithmContext
+from viz_virtualserver.generators.concentric.service import (
     OrbitalConcentricDomainAlgorithm,
     OrbitalConcentricParameters,
     _body_angles,
     _orbit_paths,
 )
-from viz_canvas.design import DesignPass, LogicalLayer
-from viz_canvas.geometry import CanvasGeometry
-from viz_canvas.models import PolygonDomain
-from viz_canvas.runner import AlgorithmContext
 
 LAYERS = tuple(LogicalLayer(layer_id) for layer_id in ("orbits", "primary-bodies", "accent-bodies"))
 

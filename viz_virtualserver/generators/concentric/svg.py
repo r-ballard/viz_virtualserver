@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 
-from viz_canvas.design import DesignResult
-from viz_canvas.geometry import CanvasGeometry, build_canvas
-from viz_canvas.models import PolygonDomain
-from viz_canvas.svg import SVG_NS, serialize_design_result_svg
+from viz_virtualserver.canvas.design import DesignResult
+from viz_virtualserver.canvas.geometry import CanvasGeometry, build_canvas
+from viz_virtualserver.canvas.models import PolygonDomain
+from viz_virtualserver.canvas.svg import SVG_NS, serialize_design_result_svg
 
 from .models import ConcentricPointsRequest
 from .service import _payload_vector_paths
@@ -52,6 +52,9 @@ def result_to_svg(
             "data-viz-center-bias": str(result["settings"]["center_bias"]),
         }
     )
+    trim = result["settings"].get("overlap_trim", "none")
+    if trim != "none":
+        root.attrib["data-viz-overlap-trim"] = trim
 
     for child in list(root):
         if child.tag == _tag("g") and child.attrib.get("data-viz-role") == "logical-layer":
@@ -73,6 +76,18 @@ def result_to_svg(
             "clip-path": "url(#viz-canvas-clip)",
         },
     )
+
+    if trim != "none":
+        for path in _payload_vector_paths(result, layer_id="concentric"):
+            coordinates = path.points
+            commands = [f"M {_fmt(coordinates[0][0])} {_fmt(coordinates[0][1])}"]
+            commands.extend(f"L {_fmt(x)} {_fmt(y)}" for x, y in coordinates[1:])
+            if path.closed:
+                commands.append("Z")
+            ET.SubElement(layer, _tag("path"), {"d": " ".join(commands)})
+        return '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(
+            root, encoding="unicode", short_empty_elements=True
+        )
 
     for point in result["points"]:
         center_x, center_y = point["center"]

@@ -1,7 +1,7 @@
 import pytest
 
-import lsystem.geometry as lsystem_geometry
-from lsystem.geometry import GeometryError, commands_to_geometry
+import viz_virtualserver.generators.lsystem.geometry as lsystem_geometry
+from viz_virtualserver.generators.lsystem.geometry import GeometryError, commands_to_geometry
 
 
 def geometry(commands: str, angle: float = 90.0):

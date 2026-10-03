@@ -9,7 +9,7 @@ separate operations; this is a compiled grammar rather than a rule interpreter.
 ## Generate artwork
 
 ```powershell
-uv run --frozen python scripts/generate_domain_bundle.py examples/domain-jobs/truchet-classic.json --output-dir output/truchet-classic
+uv run --locked viz-domain-bundle examples/domain-jobs/truchet-classic.json --output-dir output/truchet-classic
 ```
 
 Open `design.svg` or an SVG under `surfaces/`. Use `truchet-asymmetric.json` for

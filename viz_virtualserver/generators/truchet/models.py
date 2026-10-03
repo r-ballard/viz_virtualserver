@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from viz_canvas.models import Point
+from viz_virtualserver.canvas.models import Point
 
 
 class TruchetParameters(BaseModel):

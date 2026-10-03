@@ -35,10 +35,10 @@ languages, physical pen assignment, and transport are outside this release.
 
 ## Components and integration
 
-Use a new `truchet/` package with focused modules for validated parameters,
+Use a new `viz_virtualserver/generators/truchet/` package with focused modules for validated parameters,
 compiled tile states, assembly, geometry, and the domain algorithm adapter.
 Register `TruchetDomainAlgorithm` under `truchet` in
-`scripts/generate_domain_bundle.py`. Its `generate` method follows the existing
+`viz_virtualserver/cli/domain_bundle.py`. Its `generate` method follows the existing
 `DomainAlgorithm` contract and returns `DesignResult` with no derived domains.
 All paths use domain coordinates and the single logical layer `truchet-curves`.
 Require exactly that layer to avoid ambiguous output assignments.

@@ -2,33 +2,31 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from collections.abc import Mapping
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
-
-from concentric.models import ORBITAL_ATTRIBUTE_SCHEMA, orbital_projection  # noqa: E402
-from concentric.service import (  # noqa: E402
-    ConcentricDomainAlgorithm,
-    OrbitalConcentricDomainAlgorithm,
-    generate_orbital_design,
-)
-from radial_tiles.service import RadialTilesDomainAlgorithm  # noqa: E402
-from truchet.service import TruchetDomainAlgorithm  # noqa: E402
-from viz_canvas.bundle import write_design_bundle, write_neutral_bundle  # noqa: E402
-from viz_canvas.job_io import load_domain_artwork_job  # noqa: E402
-from viz_canvas.logical_layers import (  # noqa: E402
+from viz_virtualserver.canvas.bundle import write_design_bundle, write_neutral_bundle
+from viz_virtualserver.canvas.job_io import load_domain_artwork_job
+from viz_virtualserver.canvas.logical_layers import (
     DynamicLayerSpec,
     FixedLayerSpec,
     MatchSpec,
     ProjectionRule,
     ProjectionSpec,
 )
-from viz_canvas.runner import run_domain_artwork_job  # noqa: E402
-from voronoi_cells.service import VoronoiCellsDomainAlgorithm  # noqa: E402
+from viz_virtualserver.canvas.runner import run_domain_artwork_job
+from viz_virtualserver.generators.concentric.models import (
+    ORBITAL_ATTRIBUTE_SCHEMA,
+    orbital_projection,
+)
+from viz_virtualserver.generators.concentric.service import (
+    ConcentricDomainAlgorithm,
+    OrbitalConcentricDomainAlgorithm,
+    generate_orbital_design,
+)
+from viz_virtualserver.generators.radial_tiles.service import RadialTilesDomainAlgorithm
+from viz_virtualserver.generators.truchet.service import TruchetDomainAlgorithm
+from viz_virtualserver.generators.voronoi_cells.service import VoronoiCellsDomainAlgorithm
 
 ALGORITHMS = {
     "concentric-points": ConcentricDomainAlgorithm(),

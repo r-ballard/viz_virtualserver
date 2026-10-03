@@ -2,16 +2,21 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from viz_canvas.design import AlgorithmCapabilities, DesignPass, DesignResult, VectorPath
-from viz_canvas.geometry import CanvasGeometry
-from viz_canvas.models import PolygonDomain
+from viz_virtualserver.canvas.design import (
+    AlgorithmCapabilities,
+    DesignPass,
+    DesignResult,
+    VectorPath,
+)
+from viz_virtualserver.canvas.geometry import CanvasGeometry
+from viz_virtualserver.canvas.models import PolygonDomain
 
 from .assembly import assemble_grid
 from .geometry import clip_paths, render_arrangement
 from .models import TruchetParameters
 
 if TYPE_CHECKING:
-    from viz_canvas.runner import AlgorithmContext
+    from viz_virtualserver.canvas.runner import AlgorithmContext
 
 
 class TruchetDomainAlgorithm:

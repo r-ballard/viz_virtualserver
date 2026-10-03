@@ -1,9 +1,9 @@
 import json
 import xml.etree.ElementTree as ET
 
-from concentric.models import ConcentricPointsRequest
-from concentric.service import generate_concentric_points
-from concentric.svg import result_to_svg
+from viz_virtualserver.generators.concentric.models import ConcentricPointsRequest
+from viz_virtualserver.generators.concentric.service import generate_concentric_points
+from viz_virtualserver.generators.concentric.svg import result_to_svg
 
 SVG = "{http://www.w3.org/2000/svg}"
 

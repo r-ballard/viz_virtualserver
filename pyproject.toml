@@ -12,6 +12,9 @@ dependencies = [
     "uvicorn[standard]>=0.51,<1",
 ]
 
+[project.scripts]
+viz-domain-bundle = "viz_virtualserver.cli.domain_bundle:main"
+
 [build-system]
 requires = ["uv_build>=0.11.32,<0.12"]
 build-backend = "uv_build"
@@ -24,7 +27,7 @@ dev = [
 ]
 
 [tool.uv.build-backend]
-module-name = "lsystem"
+module-name = "viz_virtualserver"
 module-root = ""
 
 [tool.uv.workspace]
@@ -36,3 +39,6 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["scripts", "viz_virtualserver"]

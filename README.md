@@ -1,28 +1,54 @@
 # viz_virtualserver
 
-Python geometry producers for generative artwork. A versioned polygon-domain job creates a placement-free design bundle with `design.json`, `design.svg`, and one SVG per surface. The separate plotter workflow handles paper placement, pens, HP-GL, and transport.
+Generate vector artwork from versioned polygon-domain jobs, or run the geometry
+and py5 renderer services. A bundle contains `design.json`, `design.svg`, and
+one SVG per surface. The separate
+[`plotter-workflow`](https://github.com/r-ballard/plotter-workflow) repository
+handles paper placement, pens, HP-GL conversion, and plotter transport.
 
-## Start here
+## Redeploy locally
 
-| Goal | Entrypoint |
-| --- | --- |
-| Generate a polygon design bundle | `scripts/generate_domain_bundle.py` and [the operator guide](docs/how-to/generate-polygon-artwork.md) |
-| Understand the job and geometry contract | [Polygon canvas reference](docs/reference/canvas.md) |
-| Use the legacy HTTP endpoints | `server.py` and the algorithm guides below |
-| Run the py5 renderer service | `renderer/` and [runtime setup](docs/reference/runtime-modernization.md) |
+Install Python 3.12 and `uv`. From this repository's root:
 
-From the repository root, with Python 3.12 and `uv` installed:
-
-```bash
+```powershell
+uv python install 3.12
 uv sync --locked --all-packages --dev
-uv run --frozen python scripts/generate_domain_bundle.py \
-  examples/domain-jobs/voronoi-three-polygons.json \
-  --output-dir output/voronoi-three-polygons
+uv run --locked viz-domain-bundle --help
 ```
 
-Inspect `output/voronoi-three-polygons/design.svg` and the individual SVGs under `surfaces/`. Choose a different job in `examples/domain-jobs/` to try another algorithm.
+`viz_virtualserver` is the only installed Python package. Import from
+`viz_virtualserver.canvas`, `viz_virtualserver.generators`, or
+`viz_virtualserver.server`; the old root import aliases and
+`scripts/generate_domain_bundle.py` have been removed.
 
-## Algorithms
+Generate a checked-in example and inspect its SVGs:
+
+```powershell
+uv run --locked viz-domain-bundle examples/domain-jobs/voronoi-three-polygons.json --output-dir output/voronoi-three-polygons
+```
+
+Choose another job from `examples/domain-jobs/` for a different algorithm.
+Generated bundles belong in `output/` or another chosen directory and are
+ignored by Git.
+
+## Run the services
+
+With Docker Desktop's Linux engine running:
+
+```powershell
+docker compose build
+docker compose up -d
+Invoke-WebRequest http://localhost:5699/
+Invoke-WebRequest http://localhost:5700/health
+```
+
+`compute` serves the FastAPI geometry endpoints on port 5699;
+`renderer` serves the py5 runtime on port 5700. Stop them with
+`docker compose down`. The [runtime guide](docs/reference/runtime-modernization.md)
+includes a renderer smoke check. The HTTP route paths and versioned bundle
+formats remain stable across the package cleanup.
+
+## Algorithms and documentation
 
 | Algorithm | Guide | Example jobs |
 | --- | --- | --- |
@@ -30,9 +56,16 @@ Inspect `output/voronoi-three-polygons/design.svg` and the individual SVGs under
 | Radial tiles | [Radial tiles](docs/algorithms/radial-tiles.md) | `examples/domain-jobs/radial-tiles-three-polygons.json` |
 | Truchet grammar | [Truchet tiles](docs/algorithms/truchet.md) | `examples/domain-jobs/truchet-*.json` |
 | Orbital concentric | [Orbital concentric](docs/algorithms/orbital-concentric.md) | `examples/domain-jobs/orbital-concentric-*.json` |
-| Concentric points | [Concentric points](docs/algorithms/concentric-points.md) | `examples/concentric/` and `examples/domain-jobs/three-polygons.json` |
-| L-systems | [L-systems](docs/algorithms/lsystem.md) and [lineage layers](docs/algorithms/lsystem-lineage.md) | `examples/lsystems/` |
+| Concentric points | [Concentric points](docs/algorithms/concentric-points.md) | `examples/concentric/` |
+| L-systems | [L-systems](docs/algorithms/lsystem.md) | `examples/lsystems/` |
 
-The domain-bundle runner currently registers its algorithms in `scripts/generate_domain_bundle.py`. Generator implementations live in top-level packages (`concentric/`, `radial_tiles/`, `voronoi_cells/`, `lsystem/`); the shared domain and bundle contract lives in `viz_canvas/`. The older `polygon_handlers.py`, `voronoi_handlers.py`, and `datatypes.py` serve compatibility endpoints in `server.py`.
+The [operator guide](docs/how-to/generate-polygon-artwork.md) explains the job
+format and bundle handoff. The [documentation map](docs/README.md) links the
+canvas contract, package layout, gallery, and other references.
 
-See the [documentation index](docs/README.md) for references, gallery files, and development plans.
+## Verify a redeployment
+
+```powershell
+uv run --locked python -m pytest -q
+uv run --locked ruff check .
+```

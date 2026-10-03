@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query, Response
 
-from viz_canvas.geometry import CanvasError
+from viz_virtualserver.canvas.geometry import CanvasError
 
 from .models import ConcentricPointsRequest
 from .service import ConcentricError, generate_concentric_points
