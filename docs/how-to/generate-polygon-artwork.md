@@ -376,5 +376,5 @@ is published when the container never starts.
 
 ## Reference
 
-See [`CANVAS.md`](../../CANVAS.md) for the complete geometry, job-schema, frame,
+See [`canvas reference`](../reference/canvas.md) for the complete geometry, job-schema, frame,
 SVG metadata, audit, and repository-boundary contracts.

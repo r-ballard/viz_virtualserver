@@ -1,86 +1,37 @@
 # viz_virtualserver
 
-See [RADIAL_TILES.md](RADIAL_TILES.md) for the plotter-native radial tile field
-algorithm and its runnable three-polygon example.
+Python geometry producers for generative artwork. A versioned polygon-domain job creates a placement-free design bundle with `design.json`, `design.svg`, and one SVG per surface. The separate plotter workflow handles paper placement, pens, HP-GL, and transport.
 
-See [Recursive Voronoi cell artwork](docs/how-to/voronoi-cells.md) for the seeded,
-inset cell contours and a runnable polygon-domain job.
-See [ORBITAL_CONCENTRIC.md](ORBITAL_CONCENTRIC.md) for simplified orbital diagrams
-with independently seeded polygon surfaces and three logical layers.
-A Python 3 virtual server using fastapi and gunicorn to render graphs with Python 3 using Processing Python Mode
+## Start here
 
-## Guides
+| Goal | Entrypoint |
+| --- | --- |
+| Generate a polygon design bundle | `scripts/generate_domain_bundle.py` and [the operator guide](docs/how-to/generate-polygon-artwork.md) |
+| Understand the job and geometry contract | [Polygon canvas reference](docs/reference/canvas.md) |
+| Use the legacy HTTP endpoints | `server.py` and the algorithm guides below |
+| Run the py5 renderer service | `renderer/` and [runtime setup](docs/reference/runtime-modernization.md) |
 
-- [Generate artwork for arbitrary polygon sets](docs/how-to/generate-polygon-artwork.md)
-- [Polygon-domain architecture and format reference](CANVAS.md)
-
-## Neutral logical-layer bundles
-
-The domain-bundle CLI accepts an optional top-level `projection` field for
-`orbital-concentric`-only jobs. A string selects a shipped preset; a projection
-object declares ordered `match` rules with exactly one `layer` or `group`. Job
-files without `projection` keep the existing legacy bundle behavior. A `match`
-can select `feature_role`, `domain_id`, or declared orbital attributes; list
-values on attributes express membership. Dynamic `group_by` keys may also include
-`domain_id`.
-
-Generate the per-body example from Git Bash:
+From the repository root, with Python 3.12 and `uv` installed:
 
 ```bash
-".venv/Scripts/python.exe" "scripts/generate_domain_bundle.py" \
-  "examples/domain-jobs/orbital-per-body.json" \
-  --output-dir ".artifacts/orbital-per-body"
+uv sync --locked --all-packages --dev
+uv run --frozen python scripts/generate_domain_bundle.py \
+  examples/domain-jobs/voronoi-three-polygons.json \
+  --output-dir output/voronoi-three-polygons
 ```
 
-Inspect `design.json` for `logical_layer_contract`, the normalized `projection`,
-the ordered `logical_layers` catalog, and each surface's layer inventory. Neutral
-surface SVGs repeat the contract on the root as `data-viz-layer-contract`; layer
-groups expose `data-viz-layer-id`, `data-viz-layer-ordinal`, and
-`data-viz-layer-label`, while paths retain semantic provenance attributes.
+Inspect `output/voronoi-three-polygons/design.svg` and the individual SVGs under `surfaces/`. Choose a different job in `examples/domain-jobs/` to try another algorithm.
 
-Logical layers are not physical pens. The producer permits any finite layer
-count and never allocates pen slots. A bundle with more than eight included
-layers, including this per-body example, requires an explicit merge or multi-pass
-plan in the downstream plotter workflow before plotting.
+## Algorithms
 
-## L-system lineage layers
+| Algorithm | Guide | Example jobs |
+| --- | --- | --- |
+| Recursive Voronoi cells | [Voronoi cells](docs/how-to/voronoi-cells.md) | `examples/domain-jobs/voronoi-three-polygons.json` |
+| Radial tiles | [Radial tiles](docs/algorithms/radial-tiles.md) | `examples/domain-jobs/radial-tiles-three-polygons.json` |
+| Orbital concentric | [Orbital concentric](docs/algorithms/orbital-concentric.md) | `examples/domain-jobs/orbital-concentric-*.json` |
+| Concentric points | [Concentric points](docs/algorithms/concentric-points.md) | `examples/concentric/` and `examples/domain-jobs/three-polygons.json` |
+| L-systems | [L-systems](docs/algorithms/lsystem.md) and [lineage layers](docs/algorithms/lsystem-lineage.md) | `examples/lsystems/` |
 
-Set `lineage_policy` on `LSystemRequest` (or in its JSON input) to choose how
-replacement symbols inherit birth-generation labels:
+The domain-bundle runner currently registers its algorithms in `scripts/generate_domain_bundle.py`. Generator implementations live in top-level packages (`concentric/`, `radial_tiles/`, `voronoi_cells/`, `lsystem/`); the shared domain and bundle contract lives in `viz_canvas/`. The older `polygon_handlers.py`, `voronoi_handlers.py`, and `datatypes.py` serve compatibility endpoints in `server.py`.
 
-| Policy | Replacement rule |
-| --- | --- |
-| `inherit_all` (C, default) | All children matching the parent symbol retain its birth; different symbols receive the current generation. |
-| `rewrite` (B) | Every child of an explicit production receives the current generation, including `F -> F`. |
-| `inherit_first` (A) | The first child matching the parent symbol retains its birth; all other children receive the current generation. |
-
-Symbols with no production always retain their birth. These are lineage labels,
-not the first appearance of geometry at a coordinate. The default preserves the
-multicolor plant-booklet behavior in `examples/lsystems/plant-booklet.json`.
-
-```python
-from lsystem.models import LSystemRequest
-from lsystem.service import generate_lsystem_design, generate_lsystem_growth_pages
-
-request = LSystemRequest(
-    axiom="X", rules={"X": "FX", "F": "FF"}, generations=4,
-    lineage_policy="inherit_all", growth_mode="cumulative",
-)
-design = generate_lsystem_design(request, domain_id="page-4")
-pages = generate_lsystem_growth_pages(request, generation_numbers=(1, 2, 3, 4))
-```
-
-Neutral designs use native logical IDs such as `generation-1` and `generation-4`;
-growth pages retain the legacy pen mapping. Each page uses its selected generation's
-geometry. `cumulative` includes its present birth groups from 1 through N; `delta`
-includes only birth N. Missing groups are omitted, and delta can be empty. For
-example, with C, `X -> F` followed by `F -> FF` leaves both segments at birth 1,
-so delta 2 is empty. Birth 0 is unplotted: axiom `F` with `F -> FF` remains
-unplotted under C. Policy changes can therefore change the selected strokes,
-even though the underlying turtle geometry is the same.
-
-Lineage policies apply to neutral semantic designs and growth pages. The ordinary
-`generate_lsystem()` service and `/LSystem` and `/LSystemSvg` endpoints continue to
-render complete generation snapshots grouped by generation, independently of this
-policy. Use `result_to_generation_svgs()` for separate complete-generation pages;
-lineage layers do not overlay earlier snapshots.
+See the [documentation index](docs/README.md) for references, gallery files, and development plans.
