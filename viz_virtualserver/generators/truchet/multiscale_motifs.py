@@ -81,10 +81,15 @@ def _segments(arc: _Arc, tolerance: float) -> int:
     step = 4 * math.asin(math.sqrt(min(1.0, fraction)))
     if step == 0:
         raise ValueError("multi-scale sampling exceeds 2,000,000 points")
-    count = abs(arc.sweep) / step
-    if not math.isfinite(count) or count > MAX_POINTS:
+    # A quarter and a three-quarter arc on the same circle must use the same
+    # angular mesh. Otherwise neighboring wings differ by sampling slivers.
+    quarter_count = math.pi / 2 / step
+    if not math.isfinite(quarter_count) or quarter_count > MAX_POINTS:
         raise ValueError("multi-scale sampling exceeds 2,000,000 points")
-    return max(2, math.ceil(count))
+    count = max(2, math.ceil(quarter_count)) * round(abs(arc.sweep) / (math.pi / 2))
+    if count > MAX_POINTS:
+        raise ValueError("multi-scale sampling exceeds 2,000,000 points")
+    return count
 
 
 def _circuit_arcs(circuit: tuple[int, ...]):
