@@ -12,6 +12,7 @@ from viz_virtualserver.canvas.geometry import CanvasGeometry
 from viz_virtualserver.canvas.models import PolygonDomain
 
 from .assembly import assemble_grid
+from .curve_layers import component_layer, curve_layer_ids
 from .geometry import clip_paths, render_arrangement
 from .models import TruchetParameters
 
@@ -34,8 +35,7 @@ class TruchetDomainAlgorithm:
         context: AlgorithmContext,
     ) -> DesignResult:
         del canvas
-        if tuple(layer.id for layer in design_pass.logical_layers) != ("truchet-curves",):
-            raise ValueError("truchet requires exactly one logical layer: truchet-curves")
+        layer_ids = curve_layer_ids(design_pass.logical_layers)
         parameters = TruchetParameters.model_validate(dict(design_pass.parameters))
         paths = []
         for domain in domains:
@@ -45,6 +45,16 @@ class TruchetDomainAlgorithm:
                 tile_size=parameters.tile_size,
                 seed=context.domain_seeds[domain.id],
             )
-            for path in clip_paths(render_arrangement(arrangement, parameters), domain):
-                paths.append(VectorPath(path.points, path.closed, "truchet-curves", domain.id))
+            curves = render_arrangement(arrangement, parameters)
+            if len(layer_ids) == 1:
+                paths.extend(VectorPath(p.points, p.closed, layer_ids[0], domain.id)
+                             for p in clip_paths(curves, domain))
+                continue
+            domain_paths = []
+            for component_id, curve in enumerate(curves):
+                layer_id = component_layer(component_id, seed=context.domain_seeds[domain.id],
+                                           layer_ids=layer_ids)
+                for path in clip_paths((curve,), domain):
+                    domain_paths.append(VectorPath(path.points, path.closed, layer_id, domain.id))
+            paths.extend(sorted(domain_paths, key=lambda p: (p.points, p.closed)))
         return DesignResult(tuple(paths), (), design_pass.id)

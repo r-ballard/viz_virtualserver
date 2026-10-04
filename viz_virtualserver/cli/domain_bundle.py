@@ -25,6 +25,10 @@ from viz_virtualserver.generators.concentric.service import (
     generate_orbital_design,
 )
 from viz_virtualserver.generators.radial_tiles.service import RadialTilesDomainAlgorithm
+from viz_virtualserver.generators.truchet.color_bundle import (
+    project_truchet_color_paths,
+    truchet_color_projection,
+)
 from viz_virtualserver.generators.truchet.multiscale_service import TruchetMultiscaleDomainAlgorithm
 from viz_virtualserver.generators.truchet.service import TruchetDomainAlgorithm
 from viz_virtualserver.generators.voronoi_cells.service import VoronoiCellsDomainAlgorithm
@@ -65,8 +69,15 @@ def main(argv: list[str] | None = None) -> int:
     try:
         job, projection = _read_cli_job(args.job)
         if projection is None:
+            curve_projection = truchet_color_projection(job)
             state = run_domain_artwork_job(job, ALGORITHMS)
-            bundle = write_design_bundle(job, state, output_dir, overwrite=args.overwrite)
+            if curve_projection is None:
+                bundle = write_design_bundle(job, state, output_dir, overwrite=args.overwrite)
+            else:
+                design = project_truchet_color_paths(state, curve_projection)
+                bundle = write_neutral_bundle(
+                    job, design, output_dir, projection=curve_projection, overwrite=args.overwrite
+                )
         else:
             design = generate_orbital_design(job, projection=projection)
             bundle = write_neutral_bundle(

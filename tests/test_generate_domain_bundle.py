@@ -66,6 +66,48 @@ def test_multiscale_cli_exports_deterministic_bundles(tmp_path: Path) -> None:
     assert [g.attrib["data-viz-layer"] for g in groups] == ["truchet-curves"]
 
 
+@pytest.mark.parametrize("algorithm", ["truchet", "truchet-multiscale"])
+def test_truchet_multicolor_cli_preserves_channel_groups(tmp_path: Path, algorithm) -> None:
+    channels = ["curve-blue", "curve-orange", "curve-green"]
+    job = {
+        "schema_version": 1, "seed": 31,
+        "domains": [{"id": "panel", "vertices": [[0,0],[80,0],[80,80],[0,80]]}],
+        "passes": [{"id": "tiles", "algorithm": algorithm,
+                    "target_domain_ids": ["panel"], "parameters": {},
+                    "logical_layers": [{"id": layer, "label": layer} for layer in channels]}],
+    }
+    source = tmp_path / "job.json"
+    source.write_text(json.dumps(job), encoding="utf-8")
+    roots = [tmp_path / "first", tmp_path / "second"]
+    for root in roots:
+        assert cli_module.main([str(source), "--output-dir", str(root)]) == 0
+        for relative in ("design.svg", "surfaces/panel.svg"):
+            xml = ET.fromstring((root / relative).read_text(encoding="utf-8"))
+            assert xml.attrib["data-viz-layer-contract"] == "viz-logical-layers/v1"
+            groups = xml.findall("{http://www.w3.org/2000/svg}g[@data-viz-layer-id]")
+            assert [g.attrib["data-viz-layer-id"] for g in groups] == channels
+            assert all(g.findall("{http://www.w3.org/2000/svg}path") for g in groups)
+            assert len({g.attrib["stroke"] for g in groups}) == 3
+            assert all(path.attrib["data-viz-path-id"]
+                       for g in groups for path in g.findall("{http://www.w3.org/2000/svg}path"))
+        audit = json.loads((root / "design.json").read_text(encoding="utf-8"))
+        assert audit["logical_layer_contract"] == "viz-logical-layers/v1"
+    for relative in ("design.json", "design.svg", "surfaces/panel.svg"):
+        assert (roots[0] / relative).read_bytes() == (roots[1] / relative).read_bytes()
+
+
+def test_multicolor_cli_rejects_mixed_algorithm_bundle_without_publication(tmp_path, capsys):
+    payload = json.loads((REPO_ROOT / "examples/domain-jobs/truchet-multicolor.json").read_text())
+    payload["passes"][0]["algorithm"] = "radial-tiles"
+    source, destination = tmp_path / "mixed.json", tmp_path / "bundle"
+    source.write_text(json.dumps(payload))
+    with pytest.raises(SystemExit) as error:
+        cli_module.main([str(source), "--output-dir", str(destination)])
+    assert error.value.code == 2
+    assert "Truchet-only" in capsys.readouterr().err
+    assert not destination.exists()
+
+
 @pytest.mark.parametrize("invalid", ["parameter", "later-domain-limit"])
 def test_multiscale_cli_failure_never_publishes_partial_bundle(
     tmp_path: Path, invalid, capsys
