@@ -46,6 +46,50 @@ PARAMETERS = {
 }
 
 
+def test_multiscale_cli_exports_deterministic_bundles(tmp_path: Path) -> None:
+    job = {
+        "schema_version": 1, "seed": 31,
+        "domains": [{"id": "panel", "vertices": [[0,0],[40,0],[40,40],[0,40]]}],
+        "passes": [{"id": "tiles", "algorithm": "truchet-multiscale",
+                    "target_domain_ids": ["panel"], "parameters": {"max_depth": 1},
+                    "logical_layers": [{"id": "truchet-curves"}]}],
+    }
+    source = tmp_path / "job.json"
+    source.write_text(json.dumps(job), encoding="utf-8")
+    first, second = tmp_path / "first", tmp_path / "second"
+    for dest in (first, second):
+        assert cli_module.main([str(source), "--output-dir", str(dest)]) == 0
+    for relative in ("design.json", "design.svg", "surfaces/panel.svg"):
+        assert (first / relative).read_bytes() == (second / relative).read_bytes()
+    root = ET.fromstring((first / "surfaces/panel.svg").read_text(encoding="utf-8"))
+    groups = root.findall("{http://www.w3.org/2000/svg}g[@data-viz-layer]")
+    assert [g.attrib["data-viz-layer"] for g in groups] == ["truchet-curves"]
+
+
+@pytest.mark.parametrize("invalid", ["parameter", "later-domain-limit"])
+def test_multiscale_cli_failure_never_publishes_partial_bundle(
+    tmp_path: Path, invalid, capsys
+) -> None:
+    domains = [{"id": "small", "vertices": [[0,0],[40,0],[40,40],[0,40]]}]
+    parameters = {}
+    if invalid == "parameter":
+        parameters["arc_a"] = 0.2
+    else:
+        domains.append({"id": "huge", "vertices":
+                        [[0,0],[40000,0],[40000,40000],[0,40000]]})
+    job = {"schema_version": 1, "seed": 31, "domains": domains,
+           "passes": [{"id": "tiles", "algorithm": "truchet-multiscale",
+                       "target_domain_ids": [d["id"] for d in domains],
+                       "parameters": parameters, "logical_layers": [{"id": "truchet-curves"}]}]}
+    source, dest = tmp_path / "invalid.json", tmp_path / "bundle"
+    source.write_text(json.dumps(job), encoding="utf-8")
+    with pytest.raises(SystemExit) as error:
+        cli_module.main([str(source), "--output-dir", str(dest)])
+    assert error.value.code == 2
+    assert ("arc_a" if invalid == "parameter" else "10,000 leaves") in capsys.readouterr().err
+    assert not dest.exists()
+
+
 def test_truchet_cli_exports_owned_curve_layer(tmp_path: Path) -> None:
     job = {
         "schema_version": 1, "seed": 7,
