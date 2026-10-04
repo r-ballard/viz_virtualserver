@@ -3,14 +3,14 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 
 from viz_virtualserver.canvas.models import Point
 
+from .panel_models import PanelParameters
 
-class TruchetParameters(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
 
+class TruchetParameters(PanelParameters):
     tile_size: float = Field(default=10.0, gt=0)
     arc_a: float = Field(default=math.sqrt(2) / 2 - 0.5, ge=0.5 - math.sqrt(2) / 2, le=0.45)
     arc_b: float = Field(default=math.sqrt(2) / 2 - 0.5, ge=0.5 - math.sqrt(2) / 2, le=0.45)

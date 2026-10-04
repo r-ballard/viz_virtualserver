@@ -29,7 +29,8 @@ def truchet_color_projection(job: DomainArtworkJob) -> ProjectionSpec | None:
         raise ValueError("multi-channel Truchet export requires a Truchet-only job")
     layers: dict[str, LogicalLayer] = {}
     for design_pass in job.passes:
-        curve_layer_ids(design_pass.logical_layers)
+        curve_layer_ids(design_pass.logical_layers,
+                        outline_layer_id=design_pass.parameters.get("outline_layer_id"))
         for layer in design_pass.logical_layers:
             resolved = LogicalLayer(layer.id, layer.label or layer.id)
             previous = layers.setdefault(layer.id, resolved)
@@ -50,7 +51,8 @@ def project_truchet_color_paths(
             path_id=f"{result.producing_pass_id}:path:{index}",
             domain_id=path.domain_id,
             geometry=PathGeometry(path.points, path.closed, path.coordinate_frame),
-            feature_role="truchet-curve",
+            feature_role=(path.semantic_path.feature_role
+                          if path.semantic_path else "truchet-curve"),
             attributes={"curve_channel": path.layer_id},
         )
         for result in state.results

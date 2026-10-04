@@ -4,6 +4,7 @@ import math
 from collections import defaultdict
 
 from shapely.geometry import LineString, Polygon
+from shapely.geometry.base import BaseGeometry
 
 from viz_virtualserver.canvas.models import Point, PolygonDomain
 
@@ -140,7 +141,13 @@ def _canonical_path(points: tuple[Point, ...]) -> CurvePath | None:
 
 
 def clip_paths(paths: tuple[CurvePath, ...], domain: PolygonDomain) -> tuple[CurvePath, ...]:
-    polygon = Polygon(domain.vertices)
+    return clip_paths_to_geometry(paths, Polygon(domain.vertices))
+
+
+def clip_paths_to_geometry(
+    paths: tuple[CurvePath, ...], polygon: BaseGeometry,
+) -> tuple[CurvePath, ...]:
+    """Clip curves to a polygon or multipolygon without adding perimeter strokes."""
     clipped = []
     for path in paths:
         points = path.points + (path.points[:1] if path.closed else ())

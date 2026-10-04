@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "seed": 31,
+  "domains": [
+    {"id": "square", "vertices": [[0, 0], [120, 0], [120, 120], [0, 120]]},
+    {"id": "triangle", "vertices": [[60, 0], [120, 120], [0, 120]]},
+    {"id": "concave", "vertices": [[0, 0], [120, 0], [120, 120], [80, 120], [80, 45], [40, 45], [40, 120], [0, 120]]}
+  ],
+  "composition_transforms": [
+    {"domain_id": "square", "matrix": [1, 0, 0, 1, 0, 0]},
+    {"domain_id": "triangle", "matrix": [1, 0, 0, 1, 140, 0]},
+    {"domain_id": "concave", "matrix": [1, 0, 0, 1, 280, 0]}
+  ],
+  "passes": [
+    {
+      "id": "classic-panels", "algorithm": "truchet", "target_domain_ids": ["square", "concave"],
+      "parameters": {"tile_size": 15.0, "curve_tolerance": 0.02, "artwork_inset": 5.0, "outline_layer_id": "polygon-border"},
+      "logical_layers": [
+        {"id": "curve-blue", "label": "Blue curves"},
+        {"id": "curve-orange", "label": "Orange curves"},
+        {"id": "curve-green", "label": "Green curves"},
+        {"id": "polygon-border", "label": "Polygon borders"}
+      ]
+    },
+    {
+      "id": "multiscale-panel", "algorithm": "truchet-multiscale", "target_domain_ids": ["triangle"],
+      "parameters": {"base_tile_size": 40.0, "max_depth": 3, "split_probability": 0.45, "curve_tolerance": 0.02, "artwork_inset": 5.0, "outline_layer_id": "polygon-border"},
+      "logical_layers": [
+        {"id": "curve-blue", "label": "Blue curves"},
+        {"id": "curve-orange", "label": "Orange curves"},
+        {"id": "curve-green", "label": "Green curves"},
+        {"id": "polygon-border", "label": "Polygon borders"}
+      ]
+    }
+  ]
+}
