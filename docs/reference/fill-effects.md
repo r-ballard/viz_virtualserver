@@ -1,0 +1,102 @@
+# Reusable fill effects
+
+`viz_virtualserver.fill_effects` converts composed polygon regions into explicit
+vector strokes. Generators choose the regions, frame, ownership, and logical
+layers. The library returns geometry without domain IDs, semantic roles, pen
+assignments, or styling.
+
+## Catalogue and standalone use
+
+```python
+from shapely.geometry import box
+from viz_virtualserver.fill_effects import list_fill_effects, render_fill_effect
+
+effects = list_fill_effects()
+strokes = render_fill_effect(
+    box(1, 1, 9, 9),
+    effect="parallel-hatch",
+    parameters={"spacing": 2, "angle": 0},
+)
+print(tuple(stroke.points for stroke in strokes))
+```
+
+The result is four open strokes:
+
+```text
+(((1.0, 2.0), (9.0, 2.0)), ((1.0, 4.0), (9.0, 4.0)),
+ ((1.0, 6.0), (9.0, 6.0)), ((1.0, 8.0), (9.0, 8.0)))
+```
+
+`list_fill_effects()` returns an ordered tuple of frozen descriptors with `id`,
+`name`, `description`, and a tuple of `parameters`. Each parameter exposes `name`,
+`default`, `unit`, and `exclusive_minimum`. Rendering uses those same declarations.
+The public API does not expose mutable registration state.
+
+| Effect | Control | Default | Meaning |
+| --- | --- | --- | --- |
+| `parallel-hatch` | `spacing` | 2 | Positive distance between scan rows in input units |
+| `parallel-hatch` | `angle` | 45 | Finite degrees, positive clockwise in SVG coordinates |
+
+Omitted parameters use defaults. Controls accept real numeric values, excluding
+booleans; strings, unknown controls, unknown effect IDs, and non-finite values
+raise `ValueError`. Validation also occurs for empty regions.
+
+## Geometry and frames
+
+Supply valid `Polygon`, `MultiPolygon`, or recursively polygonal
+`GeometryCollection` input. Empty polygonal geometry returns `()`. Invalid
+polygons and non-polygonal inputs raise `ValueError`; the engine does not repair
+geometry or reconstruct regions from tile curves. Union adjacent regions first
+if their seams should disappear.
+
+Angles repeat every 180 degrees: 0 is horizontal and 90 is vertical. Rows lie on
+a lattice anchored at coordinate zero in the supplied frame. Translating a
+region changes its relationship to that lattice; the library never silently
+recenters it. Spacing has the same units as the coordinates, with no implied
+millimetres or physical pen width.
+
+Clipping produces a separate stroke for each fragment. Strokes do not bridge
+holes or disconnected polygons, and point-only tangent contacts produce no
+stroke. Endpoints and strokes have deterministic ordering. Rendering rejects
+more than 100,000 scan rows, more than 2,000,000 sampled points, or spacing that
+cannot be reliably represented at the projected coordinates. Clipping failures
+raise `ValueError`.
+
+`FillStroke` contains immutable `points` and `closed` values. Coordinates must
+be finite 2D values, with at least two distinct vertices for open strokes and
+three for closed strokes. If a caller scales or translates the result, it must
+discard collapsed fragments and validate the transformed geometry.
+
+## Generator and export integration
+
+A generator selects its composed region, calls the effect, then converts strokes
+to its own path type and attaches domain ownership, feature roles, and logical
+layers. Export preserves those assignments. Physical scaling, pens, ink
+compensation, device commands, and plotting order belong downstream.
+
+[Multiscale Truchet](../algorithms/truchet.md#plotter-hatching-of-multiscale-regions)
+uses this engine in its normalized frame. It retains painted/unpainted selection,
+world-coordinate spacing checks, post-transform canonicalization, insets, curve
+colors, borders, and neutral provenance. Its existing `hatch_*` job controls are
+unchanged. `generators.truchet.hatching.parallel_hatches` remains a compatibility
+adapter returning `CurvePath` values, with the old limit names still importable.
+
+## Future effects and Patternfills
+
+[Patternfills](https://github.com/iros/patternfills) is a reference collection
+for motif families. Its SVG/CSS pattern assets need adaptation to explicit,
+clipped plotter geometry. No Patternfills assets are bundled here. When copying
+its source or assets, retain the notices required by its
+[MIT license](https://github.com/iros/patternfills/blob/master/LICENSE).
+
+| Motif | Proposed native geometry | Status |
+| --- | --- | --- |
+| Horizontal, vertical, diagonal stripes | Parallel hatch with angle/spacing | Available |
+| Crosshatch | Two clipped hatch families | Next effect |
+| Circles | Repeated rings sampled with a stated curve tolerance | Future |
+| Filled dots | A designed plotted mark, such as rings, spirals or short strokes | Future |
+| Houndstooth and filled motifs | Repeating polygon regions with outlines or another fill effect | Future |
+
+Only implemented effects appear in the catalogue. Classic Truchet region
+reconstruction, dithering, arbitrary SVG/image import, a generic fill CLI, and
+plugin discovery remain separate work.

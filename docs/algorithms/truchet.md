@@ -202,6 +202,10 @@ Colored solid SVG fills remain separate future work.
 
 ## Plotter hatching of multiscale regions
 
+Hatching uses the [shared fill-effects library](../reference/fill-effects.md),
+which other generators can call with their own composed polygon regions.
+Truchet retains responsibility for region selection, frames, and logical layers.
+
 `truchet-multiscale` can render a composed region as parallel open strokes.
 Curves remain present and can have their existing single or multiple color channels.
 Hatching is opt-in through a separate declared hatch layer:
