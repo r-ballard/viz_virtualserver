@@ -131,12 +131,20 @@ seeded, without balancing stroke length or guaranteeing every channel is used
 in a small drawing. Geometry/tolerance changes can change component indexing;
 these IDs are internal and are not a persistent curve catalog.
 
-Bundle SVGs retain neutral black strokes and expose the separate channel groups.
-Style those groups in Inkscape for a colored preview, or map them to physical pen
-colors in the downstream plotter workflow. Layer labels do not allocate pen slots
-or imply physical ink colors. No new palette, seed, or color-count parameter is
-needed: the declared layers are the channels. Colored region fills remain separate
-future work.
+When any Truchet pass declares multiple channels, a Truchet-only job exports the
+existing `viz-logical-layers/v1` neutral contract automatically. Its audit contains
+the ordered channel catalog and per-surface inventory; SVG paths carry semantic
+IDs and channel provenance. Shared channel IDs across passes must have consistent
+labels. Unused channels are omitted from the catalog. All-single-channel jobs keep
+their legacy export format. A multi-channel Truchet job mixed with other generator
+families is rejected explicitly; export those families separately for now.
+
+Neutral SVG groups receive the existing preview palette, so the generated SVG is
+already colored for inspection. These preview colors are not physical pen
+assignments. Map channel IDs to actual pen slots using the downstream neutral-layer
+workflow. Layer labels do not imply ink colors. No new palette, seed, projection,
+or color-count job parameter is needed: the declared layers are the channels.
+Colored region fills remain separate future work.
 
 ## Later work
 
