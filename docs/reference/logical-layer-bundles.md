@@ -4,7 +4,7 @@ The domain-bundle CLI accepts an optional top-level `projection` field for
 `orbital-concentric`-only jobs. A string selects a shipped preset; a projection
 object declares ordered `match` rules with exactly one `layer` or `group`. Job
 files without `projection` keep the existing legacy bundle behavior, except
-Truchet-only jobs with multiple curve channels or a separate polygon outline layer:
+Truchet-only jobs with multiple curve channels or separate outline or hatch layers:
 those automatically use
 the neutral contract described in the [Truchet guide](../algorithms/truchet.md).
 A `match`

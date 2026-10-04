@@ -78,7 +78,7 @@ in Carlson's [Multi-Scale Truchet Patterns](https://christophercarlson.com/portf
 and [Bridges paper](https://archive.bridgesmathart.org/2018/bridges2018-39.pdf).
 Regions extend beyond each content square and are composited from coarse to fine,
 inverting their identity with depth. Only the resulting boundaries are exported;
-regions are internal geometry, with no plotted fills. Equal-depth operations are
+regions are internal geometry, with optional hatching described below. Equal-depth operations are
 batched after verifying equivalence with sequential painting. Shared circles use
 a common angular sampling mesh to prevent artificial seams.
 
@@ -124,7 +124,7 @@ For one artwork channel and a border, declare:
 ]
 ```
 
-At least one curve channel must remain besides the outline layer. The outline
+At least one curve channel must remain besides outline and hatch layers. The outline
 layer is excluded from seeded curve-color assignment, wherever it occurs in the
 declared list. Adding a border therefore does not recolor the existing curves.
 The CLI automatically publishes a neutral bundle for curves plus outlines, even
@@ -159,7 +159,7 @@ the downstream imposition workflow. Omitting both options preserves existing out
 ## Multicolor curve channels
 
 Both generators accept any ordered list of unique, nonblank curve-layer IDs.
-After excluding an optional outline layer, one curve layer keeps the monochrome
+After excluding optional outline and hatch layers, one curve layer keeps the monochrome
 behavior. Multiple curve layers assign each complete
 curve or loop to one channel using a stable hash of its component index and the
 existing domain seed. Declare, for example:
@@ -198,13 +198,66 @@ already colored for inspection. These preview colors are not physical pen
 assignments. Map channel IDs to actual pen slots using the downstream neutral-layer
 workflow. Layer labels do not imply ink colors. No new palette, seed, projection,
 or color-count job parameter is needed: the declared layers are the channels.
-Colored region fills remain separate future work.
+Colored solid SVG fills remain separate future work.
+
+## Plotter hatching of multiscale regions
+
+`truchet-multiscale` can render a composed region as parallel open strokes.
+Curves remain present and can have their existing single or multiple color channels.
+Hatching is opt-in through a separate declared hatch layer:
+
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| `hatch_layer_id` | null | Declared logical layer used only for hatching in this pass; null disables hatching |
+| `hatch_spacing` | 2 | Positive finite perpendicular distance between hatch rows, in SVG design units |
+| `hatch_angle` | 45 | Finite angle in degrees; 0 is horizontal, 90 vertical, positive rotates clockwise in SVG coordinates |
+| `hatch_region` | painted | `painted` selects the final composed region; `unpainted` selects its complement inside the polygon |
+
+The hatch layer must differ from the outline layer, and at least one curve layer
+must remain. Like outlines, the hatch layer is excluded from seeded curve-color
+assignment. Enabling or changing hatching does not alter tile subdivision,
+orientation, boundary curves, or their color assignments. Spacing, angle, and
+region controls are validated but do not affect output while `hatch_layer_id`
+is null. These controls are specific to `truchet-multiscale`; classic region
+reconstruction has not yet been implemented.
+
+The generator composes and unions all tile regions before hatching, using the
+same depth-parity painting as the boundary curves. It does not hatch each tile
+individually. Scan strokes cross tile joins without seams and split at region
+holes, disconnected pieces, and polygon gaps; those gaps never receive connecting
+strokes. Tangent point contacts and fragments that collapse after coordinate
+conversion are discarded. Each stroke is open, with no solid
+SVG fill. Hatches expose the semantic role `truchet-hatch` in the existing neutral
+bundle, so their channel can be mapped or omitted independently downstream.
+
+Hatch rows use a regular lattice anchored to each polygon's minimum x/y, in the
+same independent frame as tile placement. Angles repeat every 180 degrees. The
+artwork inset clips hatches as well as curves without moving the lattice; the
+polygon border remains at its original edge. A large spacing can leave a small
+region with no hatch strokes, in which case its unused layer is omitted from the
+export catalog. Generation rejects more than 100,000 scan rows or 2,000,000 hatch
+points per domain, and spacing below reliable floating-point resolution in
+either normalized or domain coordinates fails
+explicitly. Hatch points have their own limit in addition to the motif sampling
+limit. These guards fail without publishing a partial bundle.
+
+```powershell
+uv run --locked viz-domain-bundle examples/domain-jobs/truchet-hatching.json --output-dir output/truchet-hatching
+```
+
+The example hatches the painted region of a square and the unpainted region of
+a triangle, with separate boundaries, hatch strokes, and polygon borders. SVG
+preview colors are not physical pen assignments. Spacing is measured between
+stroke centerlines; pen-width compensation and conversion to millimeters remain
+downstream concerns. Crosshatching, stippling, dithering, and stroke-order
+optimization remain future work.
 
 ## Later work
 
 - More multi-scale motif families and spatial subdivision controls.
-- Filled regions: reconstruct and union matching regions, then generate hatching,
-  crosshatching, stippling, or dithering. Python is the preferred reproducible
+- Classic filled regions: reconstruct and union matching regions. Multiscale
+  parallel hatching is available; crosshatching, stippling, and dithering remain
+  future work. Python is the preferred reproducible
   route; consider Inkscape extensions or scripted finishing as another option.
 - Overlapping motifs and the paper's R7 third region field.
 - Triangle and hexagon tile grammars. A triangular target polygon currently
