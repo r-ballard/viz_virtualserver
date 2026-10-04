@@ -133,3 +133,16 @@ def test_unrepresentable_precision_and_excessive_sampling_reject():
                                   (1e8+80, 1e8+40), (1e8, 1e8+40)))
     with pytest.raises(ValueError, match="precision"):
         render_multiscale(large, domain, curve_tolerance=1e-9)
+
+
+def test_total_sampling_limit_rejects_before_any_motif_allocation(monkeypatch):
+    import viz_virtualserver.generators.truchet.multiscale_composition as composition
+    a = assemble_multiscale((0, 0, 40, 40), parameters=MultiscaleParameters(
+        max_depth=3, split_probability=1), seed=31)
+
+    def allocation_not_allowed(**kwargs):
+        pytest.fail("motif allocation ran before resource rejection")
+
+    monkeypatch.setattr(composition, "build_motif", allocation_not_allowed)
+    with pytest.raises(ValueError, match="2,000,000 points"):
+        compose_regions(a, curve_tolerance=0.000001)

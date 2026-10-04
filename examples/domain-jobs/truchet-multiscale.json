@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "seed": 31,
+  "domains": [
+    {"id": "panel", "vertices": [[0, 0], [160, 0], [160, 160], [0, 160]]}
+  ],
+  "passes": [{
+    "id": "truchet-pattern", "algorithm": "truchet-multiscale",
+    "target_domain_ids": ["panel"],
+    "parameters": {"base_tile_size": 40.0, "max_depth": 3, "split_probability": 0.45, "curve_tolerance": 0.02},
+    "logical_layers": [{"id": "truchet-curves", "label": "Truchet curves"}]
+  }]
+}

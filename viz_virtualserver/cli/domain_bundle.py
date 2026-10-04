@@ -25,6 +25,7 @@ from viz_virtualserver.generators.concentric.service import (
     generate_orbital_design,
 )
 from viz_virtualserver.generators.radial_tiles.service import RadialTilesDomainAlgorithm
+from viz_virtualserver.generators.truchet.multiscale_service import TruchetMultiscaleDomainAlgorithm
 from viz_virtualserver.generators.truchet.service import TruchetDomainAlgorithm
 from viz_virtualserver.generators.voronoi_cells.service import VoronoiCellsDomainAlgorithm
 
@@ -34,6 +35,7 @@ ALGORITHMS = {
     "radial-tiles": RadialTilesDomainAlgorithm(),
     "voronoi-cells": VoronoiCellsDomainAlgorithm(),
     "truchet": TruchetDomainAlgorithm(),
+    "truchet-multiscale": TruchetMultiscaleDomainAlgorithm(),
 }
 _MISSING = object()
 

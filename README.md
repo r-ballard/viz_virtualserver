@@ -54,7 +54,7 @@ formats remain stable across the package cleanup.
 | --- | --- | --- |
 | Recursive Voronoi cells | [Voronoi cells](docs/how-to/voronoi-cells.md) | `examples/domain-jobs/voronoi-three-polygons.json` |
 | Radial tiles | [Radial tiles](docs/algorithms/radial-tiles.md) | `examples/domain-jobs/radial-tiles-three-polygons.json` |
-| Truchet grammar | [Truchet tiles](docs/algorithms/truchet.md) | `examples/domain-jobs/truchet-*.json` |
+| Truchet grammar and multi-scale curves | [Truchet tiles](docs/algorithms/truchet.md) | `examples/domain-jobs/truchet-*.json` |
 | Orbital concentric | [Orbital concentric](docs/algorithms/orbital-concentric.md) | `examples/domain-jobs/orbital-concentric-*.json` |
 | Concentric points | [Concentric points](docs/algorithms/concentric-points.md) | `examples/concentric/` |
 | L-systems | [L-systems](docs/algorithms/lsystem.md) | `examples/lsystems/` |

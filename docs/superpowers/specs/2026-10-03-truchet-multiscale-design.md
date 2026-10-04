@@ -2,7 +2,7 @@
 
 ## Status and intent
 
-Draft for review. The user approved proceeding with seeded random subdivision,
+Approved October 4, 2026. The user approved proceeding with seeded random subdivision,
 plotter-ready curves, and independent artwork for each polygon. Preserve tile
 geometry for future imposition; shared-coordinate generation, separated tile
 panels, margins, and borders are future work.
