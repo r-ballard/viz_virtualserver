@@ -58,8 +58,8 @@ def test_domains_are_independent_and_translation_preserves_relative_geometry():
             assert (ax - 20, ay - 30) == pytest.approx((bx, by))
 
 
-@pytest.mark.parametrize("layers", [(), ("wrong",), ("truchet-curves", "extra")])
+@pytest.mark.parametrize("layers", [(), ("",), ("truchet-curves", "truchet-curves")])
 def test_wrong_layers_rejected(layers):
     d = PolygonDomain("a", ((0, 0), (10, 0), (10, 10), (0, 10)))
-    with pytest.raises(ValueError, match="truchet-curves"):
+    with pytest.raises(ValueError, match="curve layer"):
         generate((d,), layers=layers)

@@ -14,8 +14,8 @@ uv run --locked viz-domain-bundle examples/domain-jobs/truchet-classic.json --ou
 
 Open `design.svg` or an SVG under `surfaces/`. Use `truchet-asymmetric.json` for
 independent corner curvature, or `truchet-polygon-targets.json` for square,
-triangle, and concave canvases. All examples emit the `truchet-curves` layer.
-The domain pass must declare exactly that logical layer.
+triangle, and concave canvases. Monochrome examples emit `truchet-curves`.
+Declare one or more curve layers; their IDs must be unique and nonblank.
 
 ## Controls
 
@@ -86,7 +86,7 @@ Each polygon generates independently in a frame anchored to its minimum x/y.
 A full base-tile halo supplies wing interactions before clipping. Extracting
 boundaries before polygon clipping avoids introducing polygon perimeter strokes.
 Open curves end at the target boundary; closed curves remain loops. Exact tangent
-contacts that contain no linework are discarded. All output uses `truchet-curves`.
+contacts that contain no linework are discarded. The default examples use `truchet-curves`.
 
 For topology, effective tolerance is capped at the smallest leaf side / 100.
 Composition uses base-tile units and a precision grid of
@@ -102,6 +102,41 @@ bounds, depth and orientation for future placement work. They are not a persiste
 tile catalog. Shared-coordinate generation, separated polygon panels, margins,
 borders and physical imposition remain future work. Separating individual leaves
 will require a decision about cross-tile wings and clipping.
+
+## Multicolor curve channels
+
+Both generators accept any ordered list of unique, nonblank curve-layer IDs.
+One layer keeps the monochrome behavior. Multiple layers assign each complete
+curve or loop to one channel using a stable hash of its component index and the
+existing domain seed. Declare, for example:
+
+```json
+"logical_layers": [
+  {"id": "curve-blue", "label": "Blue channel"},
+  {"id": "curve-orange", "label": "Orange channel"},
+  {"id": "curve-green", "label": "Green channel"}
+]
+```
+
+```powershell
+uv run --locked viz-domain-bundle examples/domain-jobs/truchet-multicolor.json --output-dir output/truchet-multicolor
+```
+
+This example places classic and multi-scale artwork side by side. Assignment
+happens before polygon clipping, so separated fragments of the same curve keep
+one channel. It uses an independent hash stream and does not change subdivision,
+orientation, curvature, or linework. Repeating a job gives the same assignments;
+renaming channels preserves assignment by their ordered positions. Colors are
+seeded, without balancing stroke length or guaranteeing every channel is used
+in a small drawing. Geometry/tolerance changes can change component indexing;
+these IDs are internal and are not a persistent curve catalog.
+
+Bundle SVGs retain neutral black strokes and expose the separate channel groups.
+Style those groups in Inkscape for a colored preview, or map them to physical pen
+colors in the downstream plotter workflow. Layer labels do not allocate pen slots
+or imply physical ink colors. No new palette, seed, or color-count parameter is
+needed: the declared layers are the channels. Colored region fills remain separate
+future work.
 
 ## Later work
 

@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "seed": 31,
+  "domains": [
+    {"id": "classic", "vertices": [[0, 0], [120, 0], [120, 120], [0, 120]]},
+    {"id": "multiscale", "vertices": [[0, 0], [120, 0], [120, 120], [0, 120]]}
+  ],
+  "composition_transforms": [
+    {"domain_id": "classic", "matrix": [1, 0, 0, 1, 0, 0]},
+    {"domain_id": "multiscale", "matrix": [1, 0, 0, 1, 140, 0]}
+  ],
+  "passes": [
+    {
+      "id": "classic-curves", "algorithm": "truchet", "target_domain_ids": ["classic"],
+      "parameters": {"tile_size": 15.0, "curve_tolerance": 0.02},
+      "logical_layers": [
+        {"id": "curve-blue", "label": "Blue channel"},
+        {"id": "curve-orange", "label": "Orange channel"},
+        {"id": "curve-green", "label": "Green channel"}
+      ]
+    },
+    {
+      "id": "multiscale-curves", "algorithm": "truchet-multiscale",
+      "target_domain_ids": ["multiscale"],
+      "parameters": {"base_tile_size": 40.0, "max_depth": 3, "split_probability": 0.45, "curve_tolerance": 0.02},
+      "logical_layers": [
+        {"id": "curve-blue", "label": "Blue channel"},
+        {"id": "curve-orange", "label": "Orange channel"},
+        {"id": "curve-green", "label": "Green channel"}
+      ]
+    }
+  ]
+}

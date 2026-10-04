@@ -66,6 +66,30 @@ def test_multiscale_cli_exports_deterministic_bundles(tmp_path: Path) -> None:
     assert [g.attrib["data-viz-layer"] for g in groups] == ["truchet-curves"]
 
 
+@pytest.mark.parametrize("algorithm", ["truchet", "truchet-multiscale"])
+def test_truchet_multicolor_cli_preserves_channel_groups(tmp_path: Path, algorithm) -> None:
+    channels = ["curve-blue", "curve-orange", "curve-green"]
+    job = {
+        "schema_version": 1, "seed": 31,
+        "domains": [{"id": "panel", "vertices": [[0,0],[80,0],[80,80],[0,80]]}],
+        "passes": [{"id": "tiles", "algorithm": algorithm,
+                    "target_domain_ids": ["panel"], "parameters": {},
+                    "logical_layers": [{"id": layer, "label": layer} for layer in channels]}],
+    }
+    source = tmp_path / "job.json"
+    source.write_text(json.dumps(job), encoding="utf-8")
+    roots = [tmp_path / "first", tmp_path / "second"]
+    for root in roots:
+        assert cli_module.main([str(source), "--output-dir", str(root)]) == 0
+        for relative in ("design.svg", "surfaces/panel.svg"):
+            xml = ET.fromstring((root / relative).read_text(encoding="utf-8"))
+            groups = xml.findall("{http://www.w3.org/2000/svg}g[@data-viz-layer]")
+            assert {g.attrib["data-viz-layer"] for g in groups} == set(channels)
+            assert all(g.findall("{http://www.w3.org/2000/svg}path") for g in groups)
+    for relative in ("design.json", "design.svg", "surfaces/panel.svg"):
+        assert (roots[0] / relative).read_bytes() == (roots[1] / relative).read_bytes()
+
+
 @pytest.mark.parametrize("invalid", ["parameter", "later-domain-limit"])
 def test_multiscale_cli_failure_never_publishes_partial_bundle(
     tmp_path: Path, invalid, capsys

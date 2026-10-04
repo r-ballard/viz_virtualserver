@@ -44,9 +44,9 @@ def test_domain_seeds_are_independent_and_owned():
     assert pa != pb
 
 
-@pytest.mark.parametrize("layers", [(), ("wrong",), ("truchet-curves", "extra")])
+@pytest.mark.parametrize("layers", [(), ("",), ("truchet-curves", "truchet-curves")])
 def test_invalid_layers_rejected(layers):
-    with pytest.raises(ValueError, match="truchet-curves"):
+    with pytest.raises(ValueError, match="curve layer"):
         generate((), layers=layers)
 
 

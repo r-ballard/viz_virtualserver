@@ -5,7 +5,7 @@ from itertools import groupby
 
 from shapely import affinity, set_precision
 from shapely.errors import GEOSException
-from shapely.geometry import GeometryCollection, Polygon
+from shapely.geometry import GeometryCollection, LineString, Polygon
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import linemerge, unary_union
 
@@ -80,9 +80,9 @@ def _line_parts(geometry: BaseGeometry) -> list[BaseGeometry]:
     return lines
 
 
-def render_multiscale(
+def _boundary_and_target(
     arrangement: MultiscaleArrangement, domain: PolygonDomain, *, curve_tolerance: float
-) -> tuple[CurvePath, ...]:
+) -> tuple[BaseGeometry, Polygon]:
     effective, _ = _precision(arrangement, curve_tolerance)
     size = arrangement.base_tile_size
     # Round-trip output and subtraction must fit the reserved precision budget.
@@ -98,11 +98,18 @@ def render_multiscale(
     painted = compose_regions(arrangement, curve_tolerance=curve_tolerance)
     # Remove the Boolean precision model before clipping: clipping must retain
     # original polygon edges, not snap intersection points outside the target.
-    clipped = set_precision(painted.boundary, 0).intersection(target)
+    return set_precision(painted.boundary, 0), target
+
+
+def _clipped_paths(
+    clipped: BaseGeometry, arrangement: MultiscaleArrangement
+) -> tuple[CurvePath, ...]:
+    size = arrangement.base_tile_size
     lines = _line_parts(clipped)
     if not lines:
         return ()
-    merged = linemerge(unary_union(lines))
+    joined = unary_union(lines)
+    merged = joined if joined.geom_type == "LineString" else linemerge(joined)
     paths = set()
     for line in _line_parts(merged):
         normalized = _canonical_path(tuple(line.coords))
@@ -114,3 +121,33 @@ def render_multiscale(
         if path is not None:
             paths.add(path)
     return tuple(sorted(paths, key=lambda p: (p.points, p.closed)))
+
+
+def render_multiscale(
+    arrangement: MultiscaleArrangement, domain: PolygonDomain, *, curve_tolerance: float
+) -> tuple[CurvePath, ...]:
+    boundary, target = _boundary_and_target(arrangement, domain, curve_tolerance=curve_tolerance)
+    return _clipped_paths(boundary.intersection(target), arrangement)
+
+
+def render_multiscale_components(
+    arrangement: MultiscaleArrangement, domain: PolygonDomain, *, curve_tolerance: float
+) -> tuple[tuple[int, CurvePath], ...]:
+    """Assign identities before clipping so separated fragments share a channel."""
+    boundary, target = _boundary_and_target(arrangement, domain, curve_tolerance=curve_tolerance)
+    lines = _line_parts(boundary)
+    if not lines:
+        return ()
+    sources = set()
+    joined = unary_union(lines)
+    merged = joined if joined.geom_type == "LineString" else linemerge(joined)
+    for line in _line_parts(merged):
+        curve = _canonical_path(tuple(line.coords))
+        if curve is not None:
+            sources.add(curve)
+    result = []
+    for component_id, source in enumerate(sorted(sources, key=lambda p: (p.points, p.closed))):
+        points = source.points + (source.points[:1] if source.closed else ())
+        for path in _clipped_paths(LineString(points).intersection(target), arrangement):
+            result.append((component_id, path))
+    return tuple(sorted(result, key=lambda item: (item[1].points, item[1].closed, item[0])))
