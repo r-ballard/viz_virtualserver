@@ -89,15 +89,11 @@ def render_multiscale(
     budget = effective * size / 4
     if any(math.ulp(c) * 4 > budget for p in domain.vertices for c in p):
         raise ValueError("multi-scale domain coordinates cannot represent requested precision")
-    vertices = []
-    for point in domain.vertices:
-        local = []
-        for value, origin in zip(point, arrangement.origin, strict=True):
-            coordinate = (value - origin) / size
-            nearest = round(coordinate)
-            error = 4 * ((math.ulp(value) + math.ulp(origin)) / size + math.ulp(coordinate))
-            local.append(nearest if abs(coordinate - nearest) <= error else coordinate)
-        vertices.append(tuple(local))
+    # Grid counts may normalize near-integer extents, but the clipping polygon
+    # must retain all representable input detail, including very thin domains.
+    vertices = tuple(tuple((value - origin) / size
+                           for value, origin in zip(point, arrangement.origin, strict=True))
+                     for point in domain.vertices)
     target = Polygon(vertices)
     painted = compose_regions(arrangement, curve_tolerance=curve_tolerance)
     # Remove the Boolean precision model before clipping: clipping must retain

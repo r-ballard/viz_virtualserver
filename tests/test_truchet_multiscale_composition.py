@@ -1,3 +1,4 @@
+import math
 from dataclasses import replace
 
 import pytest
@@ -146,3 +147,58 @@ def test_total_sampling_limit_rejects_before_any_motif_allocation(monkeypatch):
     monkeypatch.setattr(composition, "build_motif", allocation_not_allowed)
     with pytest.raises(ValueError, match="2,000,000 points"):
         compose_regions(a, curve_tolerance=0.000001)
+
+
+def test_closed_corner_loop_is_preserved_then_opens_when_clipped():
+    # Odd depth selects region zero, including a complete circle centered at (0,0).
+    a = MultiscaleArrangement((0, 0), 40, (
+        MultiscaleLeaf(TileAddress(0, 0, (0,)), TileAddress(0, 0), (0, 0, 1, 1), 1, 0),))
+    full = PolygonDomain("full", ((-20,-20), (60,-20), (60,60), (-20,60)))
+    cut = PolygonDomain("cut", ((0,-20), (20,-20), (20,20), (0,20)))
+
+    def corner_circle(paths):
+        return [p for p in paths if all(abs(math.hypot(x, y)-40/3) < .002
+                                       for x, y in p.points)]
+
+    loops = corner_circle(render_multiscale(a, full, curve_tolerance=.02))
+    assert len(loops) == 1 and loops[0].closed
+    arcs = corner_circle(render_multiscale(a, cut, curve_tolerance=.02))
+    assert len(arcs) == 1 and not arcs[0].closed
+    assert arcs[0].points[0] == pytest.approx((0, -40/3), abs=.002)
+    assert arcs[0].points[-1] == pytest.approx((0, 40/3), abs=.002)
+
+
+def test_exact_point_tangency_emits_no_stroke():
+    a = MultiscaleArrangement((0, 0), 40, (
+        MultiscaleLeaf(TileAddress(0, 0, (0,)), TileAddress(0, 0), (0, 0, 1, 1), 1, 0),))
+    minimum_x = compose_regions(a, curve_tolerance=.02).bounds[0] * 40
+    tangent = PolygonDomain("tangent", ((minimum_x-10,-1), (minimum_x,-1),
+                                         (minimum_x,1), (minimum_x-10,1)))
+    assert render_multiscale(a, tangent, curve_tolerance=.02) == ()
+
+
+def test_thin_translated_target_is_not_collapsed_by_grid_normalization():
+    width = 4 * math.ulp(1e8)
+    p = MultiscaleParameters(max_depth=0)
+    results = []
+    for shift in (0, 1e8):
+        domain = PolygonDomain("thin", ((shift,0), (shift+width,0),
+                                         (shift+width,40), (shift,40)))
+        a = assemble_multiscale((shift, 0, shift+width, 40), parameters=p, seed=31)
+        paths = render_multiscale(a, domain, curve_tolerance=.02)
+        assert len(paths) == 2
+        assert all(Polygon(domain.vertices).covers(LineString(v.points)) for v in paths)
+        results.append(paths)
+    for original, translated in zip(*results):
+        for (x, y), (tx, ty) in zip(original.points, translated.points):
+            assert (x + 1e8, y) == pytest.approx((tx, ty), abs=1e-7)
+
+
+def test_clipping_does_not_snap_target_edge_outward():
+    x0, x1 = 1e8, 1e8 + 40 - 1e-7
+    domain = PolygonDomain("p", ((x0,0), (x1,0), (x1,40), (x0,40)))
+    a = assemble_multiscale((x0, 0, x1, 40),
+                           parameters=MultiscaleParameters(max_depth=0), seed=31)
+    paths = render_multiscale(a, domain, curve_tolerance=.02)
+    assert paths
+    assert all(x0 <= x <= x1 and 0 <= y <= 40 for v in paths for x, y in v.points)

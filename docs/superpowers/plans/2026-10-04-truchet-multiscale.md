@@ -119,9 +119,9 @@ Use the targeted test file for each task's RED/GREEN cycle. Existing Windows tem
 
 ### Task 5: Independent review and completion
 
-- [ ] Request one fresh independent whole-branch review against the approved spec and this plan; use the requesting-code-review skill and native execution's final review convention.
-- [ ] Resolve actionable findings with a reproducing test first; rerun affected checks. Repeat full verification if changes affect integration or geometry.
-- [ ] Report verified behavior, test evidence, rendered SVG locations and any remaining limitations. Follow finishing-a-development-branch guidance within the user's existing integration authorization; do not silently merge or discard worktrees.
+- [x] Request one fresh independent whole-branch review against the approved spec and this plan; use the requesting-code-review skill and native execution's final review convention.
+- [x] Resolve actionable findings with a reproducing test first; rerun affected checks. Repeat full verification if changes affect integration or geometry.
+- [x] Report verified behavior, test evidence, rendered SVG locations and any remaining limitations. Follow finishing-a-development-branch guidance within the user's existing integration authorization; do not silently merge or discard worktrees.
 
 ## Plan Self-Review
 
