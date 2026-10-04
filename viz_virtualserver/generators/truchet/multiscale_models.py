@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 
 from viz_virtualserver.canvas.models import Point
 
+from .panel_models import PanelParameters
 
-class MultiscaleParameters(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True, allow_inf_nan=False)
 
+class MultiscaleParameters(PanelParameters):
     base_tile_size: float = Field(default=40.0, gt=0)
     max_depth: int = Field(default=3, ge=0, le=6)
     split_probability: float = Field(default=0.45, ge=0, le=1)

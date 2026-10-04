@@ -42,7 +42,7 @@ symbolic tile arrangement. Domains generate independently, including overlapping
 domains, and composition transforms are handled by the existing bundle workflow.
 
 Interior tile endpoints join into open chains or closed loops before clipping.
-No tile borders or polygon perimeter are added. Clipping can split chains and
+No tile borders or polygon perimeter are added by default. Clipping can split chains and
 open loops; exterior gaps are never bridged. Arbitrary curvature guarantees
 endpoint continuity, but can produce kinks at joins. Classic defaults give smooth
 ordinary tile joins. Sampling estimates are capped at 2,000,000 points per domain;
@@ -99,14 +99,68 @@ preflighted against 2,000,000 points per domain before motif allocation.
 
 Immutable internal leaf records retain root indices, quadrant addresses, parents,
 bounds, depth and orientation for future placement work. They are not a persisted
-tile catalog. Shared-coordinate generation, separated polygon panels, margins,
-borders and physical imposition remain future work. Separating individual leaves
+tile catalog. Shared-coordinate generation, separating individual tile leaves,
+and physical imposition remain future work. Separating individual leaves
 will require a decision about cross-tile wings and clipping.
+
+## Polygon outlines and artwork inset
+
+Both generators support optional borders and clearance inside each target polygon.
+The target polygons remain independent artwork surfaces; these options do not
+separate the individual square tiles or change their placement.
+
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| `artwork_inset` | 0 | Nonnegative finite inward clipping distance, in SVG design units |
+| `outline_layer_id` | null | ID of a declared logical layer used only for polygon outlines in this pass |
+
+For one artwork channel and a border, declare:
+
+```json
+"parameters": {"artwork_inset": 5.0, "outline_layer_id": "polygon-border"},
+"logical_layers": [
+  {"id": "truchet-curves", "label": "Curves"},
+  {"id": "polygon-border", "label": "Polygon borders"}
+]
+```
+
+At least one curve channel must remain besides the outline layer. The outline
+layer is excluded from seeded curve-color assignment, wherever it occurs in the
+declared list. Adding a border therefore does not recolor the existing curves.
+The CLI automatically publishes a neutral bundle for curves plus outlines, even
+when the artwork has only one color. Border paths expose `polygon-outline` as
+their semantic feature role and can be mapped to a separate physical pen downstream.
+
+The generator first builds the same seeded arrangement and curves for the original
+domain, then clips the artwork inward. Insets do not rescale, regenerate, or reseed
+the pattern, and every surviving fragment retains its original color. Polygon
+offsets use straight miter joins (with GEOS's default miter limit of 5). Concave
+insets may split into multiple regions; those regions are clipped independently
+without connecting across gaps. An inset that removes the entire polygon area,
+or is too small to represent reliably at the domain coordinates, fails explicitly
+without publishing a bundle. A surviving inset region need not contain any curves.
+
+The border is one closed path following the original polygon vertices, emitted
+once per target domain per opted-in pass. It stays at the original edge; the inset
+boundary is not plotted. With multiple passes on the same polygon, enable its
+outline in only one pass to avoid duplicate border strokes.
+
+Generate the square, triangle, and concave panel example:
+
+```powershell
+uv run --locked viz-domain-bundle examples/domain-jobs/truchet-bordered-polygons.json --output-dir output/truchet-bordered-polygons
+```
+
+Its composition transforms demonstrate separated polygons and a five-unit artwork
+inset. These distances are SVG design units, not millimeters. Page placement,
+physical spacing, pen width allowances, and conversion to millimeters belong to
+the downstream imposition workflow. Omitting both options preserves existing output.
 
 ## Multicolor curve channels
 
 Both generators accept any ordered list of unique, nonblank curve-layer IDs.
-One layer keeps the monochrome behavior. Multiple layers assign each complete
+After excluding an optional outline layer, one curve layer keeps the monochrome
+behavior. Multiple curve layers assign each complete
 curve or loop to one channel using a stable hash of its component index and the
 existing domain seed. Declare, for example:
 
