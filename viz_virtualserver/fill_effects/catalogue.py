@@ -8,6 +8,7 @@ from numbers import Real
 
 from shapely.geometry.base import BaseGeometry
 
+from .crosshatch import crosshatches
 from .models import EffectParameter, FillEffectDescriptor, FillStroke
 from .parallel_hatch import parallel_hatches
 
@@ -18,7 +19,16 @@ _PARALLEL_HATCH = FillEffectDescriptor(
     parameters=(EffectParameter("spacing", 2.0, "input-units", 0.0),
                 EffectParameter("angle", 45.0, "degrees")),
 )
-_REGISTRY = {"parallel-hatch": (_PARALLEL_HATCH, parallel_hatches)}
+_CROSSHATCH = FillEffectDescriptor(
+    id="crosshatch",
+    name="Crosshatch",
+    description="Two perpendicular hatch families clipped to composed polygonal regions.",
+    parameters=_PARALLEL_HATCH.parameters,
+)
+_REGISTRY = {
+    "parallel-hatch": (_PARALLEL_HATCH, parallel_hatches),
+    "crosshatch": (_CROSSHATCH, crosshatches),
+}
 
 
 def list_fill_effects() -> tuple[FillEffectDescriptor, ...]:

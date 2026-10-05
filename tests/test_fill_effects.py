@@ -18,7 +18,7 @@ def test_catalogue_defaults_and_immutability():
 
     effects = list_fill_effects()
     assert isinstance(effects, tuple)
-    assert [e.id for e in effects] == ["parallel-hatch"]
+    assert effects[0].id == "parallel-hatch"
     controls = effects[0].parameters
     assert [(p.name, p.default, p.unit, p.exclusive_minimum) for p in controls] == [
         ("spacing", 2, "input-units", 0), ("angle", 45, "degrees", None),

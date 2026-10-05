@@ -36,6 +36,14 @@ The public API does not expose mutable registration state.
 | --- | --- | --- | --- |
 | `parallel-hatch` | `spacing` | 2 | Positive distance between scan rows in input units |
 | `parallel-hatch` | `angle` | 45 | Finite degrees, positive clockwise in SVG coordinates |
+| `crosshatch` | `spacing` | 2 | Positive row spacing within each of two perpendicular families |
+| `crosshatch` | `angle` | 45 | First family angle; the second is 90 degrees clockwise from it |
+
+Select `effect="crosshatch"` in the same Python call for two perpendicular families.
+Both use the same coordinate-zero phase, spacing and region clipping. Crossing
+strokes remain separate open paths; intersections do not become joins. The
+combined output is sorted deterministically. Orientation repeats every 90 degrees
+for crosshatch, because both families use the same spacing.
 
 Omitted parameters use defaults. Controls accept real numeric values, excluding
 booleans; strings, unknown controls, unknown effect IDs, and non-finite values
@@ -62,6 +70,10 @@ more than 100,000 scan rows, more than 2,000,000 sampled points, or spacing that
 cannot be reliably represented at the projected coordinates. Clipping failures
 raise `ValueError`.
 
+For crosshatch, both families share those budgets. The complete scan-row budget
+is checked before clipping either family; the point budget is enforced as
+fragments are produced. Switching to crosshatch does not double the limits.
+
 `FillStroke` contains immutable `points` and `closed` values. Coordinates must
 be finite 2D values, with at least two distinct vertices for open strokes and
 three for closed strokes. If a caller scales or translates the result, it must
@@ -77,8 +89,9 @@ compensation, device commands, and plotting order belong downstream.
 [Multiscale Truchet](../algorithms/truchet.md#plotter-hatching-of-multiscale-regions)
 uses this engine in its normalized frame. It retains painted/unpainted selection,
 world-coordinate spacing checks, post-transform canonicalization, insets, curve
-colors, borders, and neutral provenance. Its existing `hatch_*` job controls are
-unchanged. `generators.truchet.hatching.parallel_hatches` remains a compatibility
+colors, borders, and neutral provenance. Its existing `hatch_*` job controls
+retain their meaning, with `hatch_effect` selecting `parallel-hatch` (default) or
+`crosshatch`. `generators.truchet.hatching.parallel_hatches` remains a compatibility
 adapter returning `CurvePath` values, with the old limit names still importable.
 
 ## Future effects and Patternfills
@@ -92,7 +105,7 @@ its source or assets, retain the notices required by its
 | Motif | Proposed native geometry | Status |
 | --- | --- | --- |
 | Horizontal, vertical, diagonal stripes | Parallel hatch with angle/spacing | Available |
-| Crosshatch | Two clipped hatch families | Next effect |
+| Crosshatch | Two perpendicular clipped hatch families | Available |
 | Circles | Repeated rings sampled with a stated curve tolerance | Future |
 | Filled dots | A designed plotted mark, such as rings, spirals or short strokes | Future |
 | Houndstooth and filled motifs | Repeating polygon regions with outlines or another fill effect | Future |
