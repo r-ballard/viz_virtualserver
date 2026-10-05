@@ -10,9 +10,9 @@ from shapely.geometry.base import BaseGeometry
 from shapely.ops import linemerge, unary_union
 
 from viz_virtualserver.canvas.models import PolygonDomain
+from viz_virtualserver.fill_effects import render_fill_effect
 
 from .geometry import _canonical_path
-from .hatching import parallel_hatches
 from .models import CurvePath
 from .multiscale_models import MultiscaleArrangement
 from .multiscale_motifs import MAX_POINTS, build_motif, estimate_motif_points
@@ -182,8 +182,10 @@ def render_multiscale_hatched(
             painted.boundary.intersection(target), arrangement))
     selected = (target.intersection(painted) if hatch_region == "painted"
                 else target.difference(painted))
-    sampled = parallel_hatches(selected, spacing=hatch_spacing / arrangement.base_tile_size,
-                               angle=hatch_angle)
+    sampled = render_fill_effect(
+        selected, effect="parallel-hatch",
+        parameters={"spacing": hatch_spacing / arrangement.base_tile_size, "angle": hatch_angle},
+    )
     ox, oy = arrangement.origin
     size = arrangement.base_tile_size
     hatches = []

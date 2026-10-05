@@ -210,3 +210,35 @@ def test_dense_hatching_never_publishes_partial_bundle(tmp_path, capsys):
         main([str(source), "--output-dir", str(output)])
     assert error.value.code == 2
     assert "hatch" in capsys.readouterr().err.lower() and not output.exists()
+
+
+@pytest.mark.parametrize("angle", [0, 45, 135])
+def test_compatibility_adapter_matches_shared_geometry(angle):
+    from viz_virtualserver.fill_effects import render_fill_effect
+    from viz_virtualserver.generators.truchet.hatching import parallel_hatches
+    from viz_virtualserver.generators.truchet.models import CurvePath
+
+    holed = Polygon(SQUARE, holes=[((20, 20), (60, 20), (60, 60), (20, 60))])
+    for region in (holed, box(0, 0, 10, 10).union(box(20, 0, 30, 10))):
+        old = parallel_hatches(region, spacing=3, angle=angle)
+        shared = render_fill_effect(region, effect="parallel-hatch",
+                                    parameters={"spacing": 3, "angle": angle})
+        assert old and all(isinstance(p, CurvePath) for p in old)
+        assert [(p.points, p.closed) for p in old] == [(p.points, p.closed) for p in shared]
+
+
+def test_multiscale_uses_shared_catalogue(monkeypatch):
+    from viz_virtualserver.fill_effects import render_fill_effect
+    from viz_virtualserver.generators.truchet import multiscale_composition
+
+    calls = []
+
+    def observed(region, *, effect, parameters):
+        calls.append((effect, parameters))
+        return render_fill_effect(region, effect=effect, parameters=parameters)
+
+    monkeypatch.setattr(multiscale_composition, "render_fill_effect", observed)
+    result = generate(parameters={"hatch_layer_id": "hatch", "hatch_spacing": 3,
+                                  "hatch_angle": 0}, layers=("curves", "hatch"))
+    assert calls == [("parallel-hatch", {"spacing": 3 / 40, "angle": 0})]
+    assert any(p.layer_id == "hatch" and len(p.points) == 2 for p in result.paths)
