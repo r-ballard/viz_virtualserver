@@ -30,7 +30,8 @@ def truchet_color_projection(job: DomainArtworkJob) -> ProjectionSpec | None:
     layers: dict[str, LogicalLayer] = {}
     for design_pass in job.passes:
         curve_layer_ids(design_pass.logical_layers,
-                        outline_layer_id=design_pass.parameters.get("outline_layer_id"))
+                        outline_layer_id=design_pass.parameters.get("outline_layer_id"),
+                        hatch_layer_id=design_pass.parameters.get("hatch_layer_id"))
         for layer in design_pass.logical_layers:
             resolved = LogicalLayer(layer.id, layer.label or layer.id)
             previous = layers.setdefault(layer.id, resolved)

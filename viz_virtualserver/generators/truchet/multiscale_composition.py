@@ -12,6 +12,7 @@ from shapely.ops import linemerge, unary_union
 from viz_virtualserver.canvas.models import PolygonDomain
 
 from .geometry import _canonical_path
+from .hatching import parallel_hatches
 from .models import CurvePath
 from .multiscale_models import MultiscaleArrangement
 from .multiscale_motifs import MAX_POINTS, build_motif, estimate_motif_points
@@ -80,7 +81,7 @@ def _line_parts(geometry: BaseGeometry) -> list[BaseGeometry]:
     return lines
 
 
-def _boundary_and_target(
+def _regions_and_target(
     arrangement: MultiscaleArrangement, domain: PolygonDomain, *, curve_tolerance: float
 ) -> tuple[BaseGeometry, Polygon]:
     effective, _ = _precision(arrangement, curve_tolerance)
@@ -98,7 +99,14 @@ def _boundary_and_target(
     painted = compose_regions(arrangement, curve_tolerance=curve_tolerance)
     # Remove the Boolean precision model before clipping: clipping must retain
     # original polygon edges, not snap intersection points outside the target.
-    return set_precision(painted.boundary, 0), target
+    return set_precision(painted, 0), target
+
+
+def _boundary_and_target(
+    arrangement: MultiscaleArrangement, domain: PolygonDomain, *, curve_tolerance: float,
+) -> tuple[BaseGeometry, Polygon]:
+    painted, target = _regions_and_target(arrangement, domain, curve_tolerance=curve_tolerance)
+    return painted.boundary, target
 
 
 def _clipped_paths(
@@ -135,6 +143,12 @@ def render_multiscale_components(
 ) -> tuple[tuple[int, CurvePath], ...]:
     """Assign identities before clipping so separated fragments share a channel."""
     boundary, target = _boundary_and_target(arrangement, domain, curve_tolerance=curve_tolerance)
+    return _component_paths(boundary, target, arrangement)
+
+
+def _component_paths(
+    boundary: BaseGeometry, target: Polygon, arrangement: MultiscaleArrangement,
+) -> tuple[tuple[int, CurvePath], ...]:
     lines = _line_parts(boundary)
     if not lines:
         return ()
@@ -151,3 +165,31 @@ def render_multiscale_components(
         for path in _clipped_paths(LineString(points).intersection(target), arrangement):
             result.append((component_id, path))
     return tuple(sorted(result, key=lambda item: (item[1].points, item[1].closed, item[0])))
+
+
+def render_multiscale_hatched(
+    arrangement: MultiscaleArrangement, domain: PolygonDomain, *, curve_tolerance: float,
+    multicolor: bool, hatch_spacing: float, hatch_angle: float, hatch_region: str,
+) -> tuple[tuple[tuple[int, CurvePath], ...], tuple[CurvePath, ...]]:
+    """Compose once for boundaries and hatches in the same normalized frame."""
+    if any(math.ulp(c) * 4 > hatch_spacing for point in domain.vertices for c in point):
+        raise ValueError("hatch spacing cannot be represented reliably at domain coordinates")
+    painted, target = _regions_and_target(arrangement, domain, curve_tolerance=curve_tolerance)
+    if multicolor:
+        curves = _component_paths(painted.boundary, target, arrangement)
+    else:
+        curves = tuple((0, p) for p in _clipped_paths(
+            painted.boundary.intersection(target), arrangement))
+    selected = (target.intersection(painted) if hatch_region == "painted"
+                else target.difference(painted))
+    sampled = parallel_hatches(selected, spacing=hatch_spacing / arrangement.base_tile_size,
+                               angle=hatch_angle)
+    ox, oy = arrangement.origin
+    size = arrangement.base_tile_size
+    hatches = []
+    for stroke in sampled:
+        # Short fragments can collapse after translating to large coordinates.
+        path = _canonical_path(tuple((ox + x * size, oy + y * size) for x, y in stroke.points))
+        if path is not None:
+            hatches.append(path)
+    return curves, tuple(hatches)
