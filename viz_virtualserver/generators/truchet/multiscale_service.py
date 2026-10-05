@@ -60,6 +60,7 @@ class TruchetMultiscaleDomainAlgorithm:
                     arrangement, domain, curve_tolerance=parameters.curve_tolerance,
                     multicolor=len(layer_ids) > 1, hatch_spacing=parameters.hatch_spacing,
                     hatch_angle=parameters.hatch_angle, hatch_region=parameters.hatch_region,
+                    hatch_effect=parameters.hatch_effect,
                 )
                 for component_id, path in curves:
                     layer_id = component_layer(component_id, seed=context.domain_seeds[domain.id],

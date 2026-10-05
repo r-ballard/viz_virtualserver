@@ -206,13 +206,14 @@ Hatching uses the [shared fill-effects library](../reference/fill-effects.md),
 which other generators can call with their own composed polygon regions.
 Truchet retains responsibility for region selection, frames, and logical layers.
 
-`truchet-multiscale` can render a composed region as parallel open strokes.
+`truchet-multiscale` can render a composed region as parallel or crosshatched open strokes.
 Curves remain present and can have their existing single or multiple color channels.
 Hatching is opt-in through a separate declared hatch layer:
 
 | Parameter | Default | Meaning |
 | --- | --- | --- |
 | `hatch_layer_id` | null | Declared logical layer used only for hatching in this pass; null disables hatching |
+| `hatch_effect` | parallel-hatch | `parallel-hatch` uses one family; `crosshatch` adds a perpendicular family with the same spacing |
 | `hatch_spacing` | 2 | Positive finite perpendicular distance between hatch rows, in SVG design units |
 | `hatch_angle` | 45 | Finite angle in degrees; 0 is horizontal, 90 vertical, positive rotates clockwise in SVG coordinates |
 | `hatch_region` | painted | `painted` selects the final composed region; `unpainted` selects its complement inside the polygon |
@@ -220,7 +221,7 @@ Hatching is opt-in through a separate declared hatch layer:
 The hatch layer must differ from the outline layer, and at least one curve layer
 must remain. Like outlines, the hatch layer is excluded from seeded curve-color
 assignment. Enabling or changing hatching does not alter tile subdivision,
-orientation, boundary curves, or their color assignments. Spacing, angle, and
+orientation, boundary curves, or their color assignments. Effect, spacing, angle, and
 region controls are validated but do not affect output while `hatch_layer_id`
 is null. These controls are specific to `truchet-multiscale`; classic region
 reconstruction has not yet been implemented.
@@ -240,27 +241,33 @@ artwork inset clips hatches as well as curves without moving the lattice; the
 polygon border remains at its original edge. A large spacing can leave a small
 region with no hatch strokes, in which case its unused layer is omitted from the
 export catalog. Generation rejects more than 100,000 scan rows or 2,000,000 hatch
-points per domain, and spacing below reliable floating-point resolution in
+points per domain, combined across both families for crosshatch, and spacing below
+reliable floating-point resolution in
 either normalized or domain coordinates fails
 explicitly. Hatch points have their own limit in addition to the motif sampling
 limit. These guards fail without publishing a partial bundle.
 
 ```powershell
 uv run --locked viz-domain-bundle examples/domain-jobs/truchet-hatching.json --output-dir output/truchet-hatching
+uv run --locked viz-domain-bundle examples/domain-jobs/truchet-crosshatching.json --output-dir output/truchet-crosshatching
 ```
 
 The example hatches the painted region of a square and the unpainted region of
-a triangle, with separate boundaries, hatch strokes, and polygon borders. SVG
+a triangle, with separate boundaries, hatch strokes, and polygon borders. The
+crosshatching example uses perpendicular families at 4-unit spacing. Its
+`hatch_angle` specifies the first family; the second is 90 degrees clockwise.
+Both families share the hatch layer and existing `truchet-hatch` provenance;
+crossings remain separate strokes. SVG
 preview colors are not physical pen assignments. Spacing is measured between
 stroke centerlines; pen-width compensation and conversion to millimeters remain
-downstream concerns. Crosshatching, stippling, dithering, and stroke-order
+downstream concerns. Stippling, dithering, and stroke-order
 optimization remain future work.
 
 ## Later work
 
 - More multi-scale motif families and spatial subdivision controls.
 - Classic filled regions: reconstruct and union matching regions. Multiscale
-  parallel hatching is available; crosshatching, stippling, and dithering remain
+  parallel hatching and crosshatching are available; stippling and dithering remain
   future work. Python is the preferred reproducible
   route; consider Inkscape extensions or scripted finishing as another option.
 - Overlapping motifs and the paper's R7 third region field.

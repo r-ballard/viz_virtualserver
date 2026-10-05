@@ -171,12 +171,14 @@ def test_invalid_hatching_controls_reject(parameters, layers):
         generate(parameters=parameters, layers=layers)
 
 
-def test_cli_exports_hatches_curves_and_outline_as_neutral_channels(tmp_path):
+@pytest.mark.parametrize("effect", ["parallel-hatch", "crosshatch"])
+def test_cli_exports_hatches_curves_and_outline_as_neutral_channels(tmp_path, effect):
     job = {"schema_version": 1, "seed": 31,
            "domains": [{"id": "panel", "vertices": SQUARE}],
            "passes": [{"id": "tiles", "algorithm": "truchet-multiscale",
                        "target_domain_ids": ["panel"],
                        "parameters": {"hatch_layer_id": "hatch", "hatch_spacing": 3.0,
+                                      "hatch_effect": effect,
                                       "artwork_inset": 5.0, "outline_layer_id": "border"},
                        "logical_layers": [{"id": "curves"}, {"id": "hatch"},
                                           {"id": "border"}]}]}
@@ -242,3 +244,39 @@ def test_multiscale_uses_shared_catalogue(monkeypatch):
                                   "hatch_angle": 0}, layers=("curves", "hatch"))
     assert calls == [("parallel-hatch", {"spacing": 3 / 40, "angle": 0})]
     assert any(p.layer_id == "hatch" and len(p.points) == 2 for p in result.paths)
+
+
+@pytest.mark.parametrize("region", ["painted", "unpainted"])
+def test_crosshatch_preserves_curves_layers_and_inset(region):
+    parameters = {"hatch_layer_id": "hatch", "hatch_spacing": 3., "hatch_angle": 0.,
+                  "hatch_region": region, "artwork_inset": 5., "outline_layer_id": "border"}
+    layers = (*CHANNELS, "hatch", "border")
+    parallel = generate(parameters=parameters, layers=layers)
+    result = generate(parameters={**parameters, "hatch_effect": "crosshatch"}, layers=layers)
+    assert tuple(p for p in result.paths if p.layer_id != "hatch") == tuple(
+        p for p in parallel.paths if p.layer_id != "hatch")
+    hatches = [p for p in result.paths if p.layer_id == "hatch"]
+    assert len(hatches) > sum(p.layer_id == "hatch" for p in parallel.paths)
+    assert {(p.points[0][0] == p.points[1][0], p.points[0][1] == p.points[1][1])
+            for p in hatches} == {(True, False), (False, True)}
+    assert all(p.semantic_path.feature_role == "truchet-hatch"
+               and p.semantic_path.geometry.points == p.points for p in hatches)
+    arrangement = assemble_multiscale((0, 0, 80, 80), parameters=MultiscaleParameters(), seed=31)
+    painted = affinity.scale(set_precision(compose_regions(arrangement, curve_tolerance=.02), 0),
+                             xfact=40, yfact=40, origin=(0, 0))
+    inset = box(5, 5, 75, 75)
+    selected = painted.intersection(inset) if region == "painted" else inset.difference(painted)
+    grid = [LineString(((0, v), (80, v))) for v in range(0, 81, 3)]
+    grid.extend(LineString(((v, 0), (v, 80))) for v in range(0, 81, 3))
+    expected = unary_union([line.intersection(selected) for line in grid])
+    actual = lines(hatches)
+    assert actual.hausdorff_distance(expected) < 1e-7
+    assert actual.length == pytest.approx(expected.length, abs=1e-7)
+    assert result == generate(
+        parameters={**parameters, "hatch_effect": "crosshatch"}, layers=layers)
+
+
+def test_effect_selector_is_validated_but_disabled_hatches_preserve_output():
+    assert generate(parameters={"hatch_effect": "crosshatch"}) == generate()
+    with pytest.raises(ValueError):
+        generate(parameters={"hatch_effect": "missing"})

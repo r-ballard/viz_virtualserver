@@ -18,6 +18,7 @@ class MultiscaleParameters(PanelParameters):
     hatch_layer_id: str | None = None
     hatch_spacing: float = Field(default=2.0, gt=0)
     hatch_angle: float = 45.0
+    hatch_effect: Literal["parallel-hatch", "crosshatch"] = "parallel-hatch"
     hatch_region: Literal["painted", "unpainted"] = "painted"
 
     @field_validator("hatch_layer_id")

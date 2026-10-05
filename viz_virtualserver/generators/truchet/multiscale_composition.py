@@ -170,6 +170,7 @@ def _component_paths(
 def render_multiscale_hatched(
     arrangement: MultiscaleArrangement, domain: PolygonDomain, *, curve_tolerance: float,
     multicolor: bool, hatch_spacing: float, hatch_angle: float, hatch_region: str,
+    hatch_effect: str = "parallel-hatch",
 ) -> tuple[tuple[tuple[int, CurvePath], ...], tuple[CurvePath, ...]]:
     """Compose once for boundaries and hatches in the same normalized frame."""
     if any(math.ulp(c) * 4 > hatch_spacing for point in domain.vertices for c in point):
@@ -183,7 +184,7 @@ def render_multiscale_hatched(
     selected = (target.intersection(painted) if hatch_region == "painted"
                 else target.difference(painted))
     sampled = render_fill_effect(
-        selected, effect="parallel-hatch",
+        selected, effect=hatch_effect,
         parameters={"spacing": hatch_spacing / arrangement.base_tile_size, "angle": hatch_angle},
     )
     ox, oy = arrangement.origin
