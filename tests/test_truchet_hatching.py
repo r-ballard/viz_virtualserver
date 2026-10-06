@@ -349,3 +349,42 @@ def test_world_translation_cannot_hide_unrepresentable_ring_tolerance():
             "hatch_layer_id": "hatch", "hatch_effect": "circle-rings",
             "hatch_spacing": 8., "hatch_radius": 2., "hatch_curve_tolerance": 1e-7,
         })
+
+
+def test_ring_world_conversion_reserves_rounding_budget():
+    vertices = tuple((x + 1e13, y) for x, y in SQUARE)
+    result = generate(vertices=vertices, layers=("curves", "hatch"), parameters={
+        "hatch_layer_id": "hatch", "hatch_effect": "circle-rings", "hatch_angle": 0.,
+        "hatch_spacing": 8., "hatch_radius": 1., "hatch_curve_tolerance": .07613,
+        "curve_tolerance": .2, "max_depth": 0,
+    })
+    rings = [p for p in result.paths if p.layer_id == "hatch" and p.closed]
+    assert rings
+    for ring in rings:
+        centre = ((min(x for x, _ in ring.points) + max(x for x, _ in ring.points)) / 2,
+                  (min(y for _, y in ring.points) + max(y for _, y in ring.points)) / 2)
+        for a, b in zip(ring.points, ring.points[1:] + ring.points[:1], strict=True):
+            distance = math.hypot((a[0] + b[0]) / 2 - centre[0],
+                                  (a[1] + b[1]) / 2 - centre[1])
+            assert 1 - distance <= .07613 + 1e-9
+
+
+def test_ring_inset_keeps_one_contiguous_arc_across_closure_seam():
+    from viz_virtualserver.canvas.design import VectorPath
+    from viz_virtualserver.generators.truchet.panels import apply_panel_options
+
+    # A closed diamond's lexicographic seam lies on its left side. A right-side
+    # inset cut should leave one three-edge arc, not two paths meeting at the seam.
+    domain = PolygonDomain("panel", ((-3, -3), (1.5, -3), (1.5, 3), (-3, 3)))
+    source = VectorPath(((-1., 0.), (0., -1.), (1., 0.), (0., 1.)), True, "hatch", "panel")
+    result = apply_panel_options(
+        (source,), domain, artwork_inset=1., outline_layer_id=None,
+        pass_id="rings", merge_ring_layer_id="hatch")
+    assert len(result) == 1 and not result[0].closed
+    assert result[0].points == ((.5, -.5), (0., -1.), (-1., 0.), (0., 1.), (.5, .5))
+    curve = VectorPath(source.points, True, "curves", "panel")
+    combined = apply_panel_options(
+        (source, curve), domain, artwork_inset=1., outline_layer_id=None,
+        pass_id="rings", merge_ring_layer_id="hatch")
+    assert sum(p.layer_id == "hatch" for p in combined) == 1
+    assert sum(p.layer_id == "curves" for p in combined) == 2

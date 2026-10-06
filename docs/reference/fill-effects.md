@@ -93,6 +93,9 @@ candidates. This conservative budget includes candidates whose outlines later
 clip away. Clipped output also has a 2,000,000-vertex limit, since intersections
 can introduce new vertices. Unrepresentable spacing, radius or tolerance fails
 with `ValueError` before drawing; parameters are not silently enlarged or relaxed.
+Sampling reserves a coordinate-rounding allowance before choosing its vertex
+count. Truchet additionally reserves error for conversion to design coordinates.
+If rounding exhausts the requested tolerance, generation fails explicitly.
 
 `FillStroke` contains immutable `points` and `closed` values. Coordinates must
 be finite 2D values, with at least two distinct vertices for open strokes and

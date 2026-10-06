@@ -96,7 +96,14 @@ def circle_rings(
         raise ValueError("circle lattice exceeds 100,000 candidate rings")
     if candidates == 0:
         return ()
-    count = _segments(radius, curve_tolerance)
+    # Reserve arithmetic error at the emitted coordinates instead of spending
+    # the entire deviation budget on an ideal, untranslated polygon.
+    rounding = 8 * max(math.ulp(value) for value in
+                       (*along, *across, *padded, left, bottom, right, top, radius))
+    sampling_tolerance = curve_tolerance - rounding
+    if sampling_tolerance <= 0:
+        raise ValueError("ring tolerance cannot be represented reliably at these coordinates")
+    count = _segments(radius, sampling_tolerance)
     if candidates * count > MAX_RING_POINTS:
         raise ValueError("circle sampling exceeds 2,000,000 points")
     offsets = []

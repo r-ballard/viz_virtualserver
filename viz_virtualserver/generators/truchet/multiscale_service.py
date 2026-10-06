@@ -85,7 +85,9 @@ class TruchetMultiscaleDomainAlgorithm:
             panel_paths = apply_panel_options(tuple(domain_paths), domain,
                 artwork_inset=parameters.artwork_inset,
                 outline_layer_id=parameters.outline_layer_id,
-                pass_id=design_pass.id)
+                pass_id=design_pass.id,
+                merge_ring_layer_id=(parameters.hatch_layer_id
+                                     if parameters.hatch_effect == "circle-rings" else None))
             for index, path in enumerate(panel_paths):
                 if path.layer_id == parameters.hatch_layer_id:
                     path = replace(path, semantic_path=SemanticPath(

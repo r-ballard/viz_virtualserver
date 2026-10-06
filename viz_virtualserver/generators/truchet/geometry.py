@@ -3,8 +3,9 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 
-from shapely.geometry import LineString, Polygon
+from shapely.geometry import LineString, MultiLineString, Polygon
 from shapely.geometry.base import BaseGeometry
+from shapely.ops import linemerge
 
 from viz_virtualserver.canvas.models import Point, PolygonDomain
 
@@ -146,12 +147,27 @@ def clip_paths(paths: tuple[CurvePath, ...], domain: PolygonDomain) -> tuple[Cur
 
 def clip_paths_to_geometry(
     paths: tuple[CurvePath, ...], polygon: BaseGeometry,
+    *, merge_closed_fragments: bool = False,
 ) -> tuple[CurvePath, ...]:
     """Clip curves to a polygon or multipolygon without adding perimeter strokes."""
     clipped = []
     for path in paths:
         points = path.points + (path.points[:1] if path.closed else ())
         geometry = LineString(points).intersection(polygon)
+        if merge_closed_fragments and path.closed:
+            parts = []
+            pending = [geometry]
+            while pending:
+                component = pending.pop()
+                if component.is_empty:
+                    continue
+                if component.geom_type == "LineString":
+                    parts.append(component)
+                elif hasattr(component, "geoms"):
+                    pending.extend(component.geoms)
+            if not parts:
+                continue
+            geometry = linemerge(MultiLineString(parts)) if len(parts) > 1 else parts[0]
         pending = [geometry]
         while pending:
             component = pending.pop()

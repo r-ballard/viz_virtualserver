@@ -132,3 +132,10 @@ def test_unrepresentable_radius_or_tolerance_rejects():
         rings(box(1e10, 1e10, 1e10 + 10, 1e10 + 10), radius=1e-6)
     with pytest.raises(ValueError, match="points|represent"):
         rings(box(-2, -2, 2, 2), radius=1, curve_tolerance=1e-300)
+
+
+def test_translated_rounding_budget_cannot_consume_requested_tolerance():
+    centre = 1e14
+    with pytest.raises(ValueError, match="represent"):
+        rings(box(centre - 2, centre - 2, centre + 2, centre + 2),
+              spacing=centre, radius=1, curve_tolerance=.077)

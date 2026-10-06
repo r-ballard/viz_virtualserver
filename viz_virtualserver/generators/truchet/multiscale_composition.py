@@ -192,8 +192,12 @@ def render_multiscale_hatched(
                 else target.difference(painted))
     controls = {"spacing": hatch_spacing / arrangement.base_tile_size, "angle": hatch_angle}
     if hatch_effect == "circle-rings":
+        world_rounding = 8 * max(math.ulp(c) for p in domain.vertices for c in p)
+        sampling_tolerance = hatch_curve_tolerance - world_rounding
+        if sampling_tolerance <= 0:
+            raise ValueError("ring tolerance cannot be represented reliably at domain coordinates")
         controls.update(radius=hatch_radius / arrangement.base_tile_size,
-                        curve_tolerance=hatch_curve_tolerance / arrangement.base_tile_size)
+                        curve_tolerance=sampling_tolerance / arrangement.base_tile_size)
     sampled = render_fill_effect(selected, effect=hatch_effect, parameters=controls)
     ox, oy = arrangement.origin
     size = arrangement.base_tile_size
