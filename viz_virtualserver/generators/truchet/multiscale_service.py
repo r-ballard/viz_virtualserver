@@ -61,13 +61,15 @@ class TruchetMultiscaleDomainAlgorithm:
                     multicolor=len(layer_ids) > 1, hatch_spacing=parameters.hatch_spacing,
                     hatch_angle=parameters.hatch_angle, hatch_region=parameters.hatch_region,
                     hatch_effect=parameters.hatch_effect,
+                    hatch_radius=parameters.hatch_radius,
+                    hatch_curve_tolerance=parameters.hatch_curve_tolerance,
                 )
                 for component_id, path in curves:
                     layer_id = component_layer(component_id, seed=context.domain_seeds[domain.id],
                                                layer_ids=layer_ids)
                     domain_paths.append(VectorPath(path.points, path.closed, layer_id, domain.id))
                 domain_paths.extend(VectorPath(
-                    p.points, False, parameters.hatch_layer_id, domain.id) for p in hatches)
+                    p.points, p.closed, parameters.hatch_layer_id, domain.id) for p in hatches)
             elif len(layer_ids) == 1:
                 for path in render_multiscale(arrangement, domain,
                                              curve_tolerance=parameters.curve_tolerance):
@@ -83,7 +85,9 @@ class TruchetMultiscaleDomainAlgorithm:
             panel_paths = apply_panel_options(tuple(domain_paths), domain,
                 artwork_inset=parameters.artwork_inset,
                 outline_layer_id=parameters.outline_layer_id,
-                pass_id=design_pass.id)
+                pass_id=design_pass.id,
+                merge_ring_layer_id=(parameters.hatch_layer_id
+                                     if parameters.hatch_effect == "circle-rings" else None))
             for index, path in enumerate(panel_paths):
                 if path.layer_id == parameters.hatch_layer_id:
                     path = replace(path, semantic_path=SemanticPath(

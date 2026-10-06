@@ -27,7 +27,7 @@ def test_crosshatch_catalogue_defaults_render_and_angles_repeat():
     from viz_virtualserver.fill_effects import list_fill_effects
 
     effects = list_fill_effects()
-    assert [effect.id for effect in effects] == ["parallel-hatch", "crosshatch"]
+    assert [effect.id for effect in effects[:2]] == ["parallel-hatch", "crosshatch"]
     assert [(p.name, p.default, p.unit) for p in effects[1].parameters] == [
         ("spacing", 2, "input-units"), ("angle", 45, "degrees"),
     ]

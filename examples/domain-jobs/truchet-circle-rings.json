@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "seed": 31,
+  "domains": [
+    {
+      "id": "painted-square",
+      "vertices": [
+        [
+          0,
+          0
+        ],
+        [
+          120,
+          0
+        ],
+        [
+          120,
+          120
+        ],
+        [
+          0,
+          120
+        ]
+      ]
+    },
+    {
+      "id": "unpainted-triangle",
+      "vertices": [
+        [
+          60,
+          0
+        ],
+        [
+          120,
+          120
+        ],
+        [
+          0,
+          120
+        ]
+      ]
+    }
+  ],
+  "composition_transforms": [
+    {
+      "domain_id": "painted-square",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "domain_id": "unpainted-triangle",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        140,
+        0
+      ]
+    }
+  ],
+  "passes": [
+    {
+      "id": "painted-panel",
+      "algorithm": "truchet-multiscale",
+      "target_domain_ids": [
+        "painted-square"
+      ],
+      "parameters": {
+        "base_tile_size": 40.0,
+        "max_depth": 3,
+        "split_probability": 0.35,
+        "curve_tolerance": 0.02,
+        "artwork_inset": 5.0,
+        "outline_layer_id": "polygon-border",
+        "hatch_layer_id": "region-hatch",
+        "hatch_spacing": 8.0,
+        "hatch_angle": 0.0,
+        "hatch_region": "painted",
+        "hatch_effect": "circle-rings",
+        "hatch_radius": 2.0,
+        "hatch_curve_tolerance": 0.02
+      },
+      "logical_layers": [
+        {
+          "id": "truchet-curves",
+          "label": "Curve boundaries"
+        },
+        {
+          "id": "region-hatch",
+          "label": "Region hatching"
+        },
+        {
+          "id": "polygon-border",
+          "label": "Polygon borders"
+        }
+      ]
+    },
+    {
+      "id": "unpainted-panel",
+      "algorithm": "truchet-multiscale",
+      "target_domain_ids": [
+        "unpainted-triangle"
+      ],
+      "parameters": {
+        "base_tile_size": 40.0,
+        "max_depth": 3,
+        "split_probability": 0.35,
+        "curve_tolerance": 0.02,
+        "artwork_inset": 5.0,
+        "outline_layer_id": "polygon-border",
+        "hatch_layer_id": "region-hatch",
+        "hatch_spacing": 8.0,
+        "hatch_angle": 30.0,
+        "hatch_region": "unpainted",
+        "hatch_effect": "circle-rings",
+        "hatch_radius": 2.0,
+        "hatch_curve_tolerance": 0.02
+      },
+      "logical_layers": [
+        {
+          "id": "truchet-curves",
+          "label": "Curve boundaries"
+        },
+        {
+          "id": "region-hatch",
+          "label": "Region hatching"
+        },
+        {
+          "id": "polygon-border",
+          "label": "Polygon borders"
+        }
+      ]
+    }
+  ]
+}

@@ -206,22 +206,25 @@ Hatching uses the [shared fill-effects library](../reference/fill-effects.md),
 which other generators can call with their own composed polygon regions.
 Truchet retains responsibility for region selection, frames, and logical layers.
 
-`truchet-multiscale` can render a composed region as parallel or crosshatched open strokes.
+`truchet-multiscale` can render a composed region with parallel hatching,
+crosshatching, or repeated circle outlines.
 Curves remain present and can have their existing single or multiple color channels.
 Hatching is opt-in through a separate declared hatch layer:
 
 | Parameter | Default | Meaning |
 | --- | --- | --- |
 | `hatch_layer_id` | null | Declared logical layer used only for hatching in this pass; null disables hatching |
-| `hatch_effect` | parallel-hatch | `parallel-hatch` uses one family; `crosshatch` adds a perpendicular family with the same spacing |
-| `hatch_spacing` | 2 | Positive finite perpendicular distance between hatch rows, in SVG design units |
-| `hatch_angle` | 45 | Finite angle in degrees; 0 is horizontal, 90 vertical, positive rotates clockwise in SVG coordinates |
+| `hatch_effect` | parallel-hatch | `parallel-hatch`, `crosshatch`, or `circle-rings` |
+| `hatch_spacing` | 2 | Positive finite distance between hatch rows or ring centres, in SVG design units |
+| `hatch_angle` | 45 | Finite clockwise degrees; directs hatch rows or rotates the ring-centre lattice |
+| `hatch_radius` | 0.5 | Positive finite ring radius in design units; used by `circle-rings` |
+| `hatch_curve_tolerance` | 0.02 | Positive finite ring chord-deviation tolerance in design units; used by `circle-rings` |
 | `hatch_region` | painted | `painted` selects the final composed region; `unpainted` selects its complement inside the polygon |
 
 The hatch layer must differ from the outline layer, and at least one curve layer
 must remain. Like outlines, the hatch layer is excluded from seeded curve-color
 assignment. Enabling or changing hatching does not alter tile subdivision,
-orientation, boundary curves, or their color assignments. Effect, spacing, angle, and
+orientation, boundary curves, or their color assignments. Effect, spacing, angle, radius, tolerance, and
 region controls are validated but do not affect output while `hatch_layer_id`
 is null. These controls are specific to `truchet-multiscale`; classic region
 reconstruction has not yet been implemented.
@@ -231,7 +234,8 @@ same depth-parity painting as the boundary curves. It does not hatch each tile
 individually. Scan strokes cross tile joins without seams and split at region
 holes, disconnected pieces, and polygon gaps; those gaps never receive connecting
 strokes. Tangent point contacts and fragments that collapse after coordinate
-conversion are discarded. Each stroke is open, with no solid
+conversion are discarded. Hatch rows and clipped ring arcs are open; complete
+rings are closed. All paths use outlines with no solid
 SVG fill. Hatches expose the semantic role `truchet-hatch` in the existing neutral
 bundle, so their channel can be mapped or omitted independently downstream.
 
@@ -247,9 +251,20 @@ either normalized or domain coordinates fails
 explicitly. Hatch points have their own limit in addition to the motif sampling
 limit. These guards fail without publishing a partial bundle.
 
+Circle rings have their own limits: 100,000 candidate centres, 2,000,000 sampled
+vertices before clipping, and 2,000,000 clipped output vertices. Candidate centres
+include a radius-expanded bounding rectangle so circles outside a selected region
+can contribute arcs. Spacing, radius and ring tolerance must remain representable
+in both normalized and design coordinates. Whole rings remain closed through
+world conversion, artwork-inset clipping, semantic geometry and SVG export.
+Circle outlines use a sampled polygon with chord deviation no greater than
+`hatch_curve_tolerance`; this control is independent of the boundary curves'
+existing `curve_tolerance`.
+
 ```powershell
 uv run --locked viz-domain-bundle examples/domain-jobs/truchet-hatching.json --output-dir output/truchet-hatching
 uv run --locked viz-domain-bundle examples/domain-jobs/truchet-crosshatching.json --output-dir output/truchet-crosshatching
+uv run --locked viz-domain-bundle examples/domain-jobs/truchet-circle-rings.json --output-dir output/truchet-circle-rings
 ```
 
 The example hatches the painted region of a square and the unpainted region of
@@ -259,9 +274,14 @@ crosshatching example uses perpendicular families at 4-unit spacing. Its
 Both families share the hatch layer and existing `truchet-hatch` provenance;
 crossings remain separate strokes. SVG
 preview colors are not physical pen assignments. Spacing is measured between
-stroke centerlines; pen-width compensation and conversion to millimeters remain
+stroke centerlines or ring centres; pen-width compensation and conversion to millimeters remain
 downstream concerns. Stippling, dithering, and stroke-order
 optimization remain future work.
+
+The ring example uses 8-unit centre spacing and 2-unit radius, with a 0.02-unit
+tolerance. The square's centre lattice is unrotated; the triangle's is rotated
+30 degrees. Ring centres share the same independent polygon frame as the tiles,
+and both complete outlines and clipped arcs retain the `truchet-hatch` role.
 
 ## Later work
 

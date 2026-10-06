@@ -38,12 +38,25 @@ The public API does not expose mutable registration state.
 | `parallel-hatch` | `angle` | 45 | Finite degrees, positive clockwise in SVG coordinates |
 | `crosshatch` | `spacing` | 2 | Positive row spacing within each of two perpendicular families |
 | `crosshatch` | `angle` | 45 | First family angle; the second is 90 degrees clockwise from it |
+| `circle-rings` | `spacing` | 8 | Positive centre spacing of a square lattice |
+| `circle-rings` | `radius` | 2 | Positive circle radius, independent of centre spacing |
+| `circle-rings` | `angle` | 0 | Clockwise rotation of the centre lattice |
+| `circle-rings` | `curve_tolerance` | 0.02 | Positive maximum chord deviation in input units |
 
 Select `effect="crosshatch"` in the same Python call for two perpendicular families.
 Both use the same coordinate-zero phase, spacing and region clipping. Crossing
 strokes remain separate open paths; intersections do not become joins. The
 combined output is sorted deterministically. Orientation repeats every 90 degrees
 for crosshatch, because both families use the same spacing.
+
+Select `effect="circle-rings"` for repeated circle outlines. Circle centres use
+the same coordinate-zero origin; angle rotates their square lattice. Sampling
+uses at least eight vertices and a multiple of four, with chord deviation bounded
+by `curve_tolerance`. Complete rings are closed strokes without a repeated end
+vertex. Boundary and hole clipping yields open arcs, joining contiguous fragments
+across a ring's sampling seam. Separate rings and gaps are never joined. Centres
+outside the selected region are included when their outlines can enter it.
+Radius and spacing are independent, so overlapping rings are allowed.
 
 Omitted parameters use defaults. Controls accept real numeric values, excluding
 booleans; strings, unknown controls, unknown effect IDs, and non-finite values
@@ -57,7 +70,7 @@ polygons and non-polygonal inputs raise `ValueError`; the engine does not repair
 geometry or reconstruct regions from tile curves. Union adjacent regions first
 if their seams should disappear.
 
-Angles repeat every 180 degrees: 0 is horizontal and 90 is vertical. Rows lie on
+Hatch angles repeat every 180 degrees: 0 is horizontal and 90 is vertical. Rows lie on
 a lattice anchored at coordinate zero in the supplied frame. Translating a
 region changes its relationship to that lattice; the library never silently
 recenters it. Spacing has the same units as the coordinates, with no implied
@@ -65,7 +78,7 @@ millimetres or physical pen width.
 
 Clipping produces a separate stroke for each fragment. Strokes do not bridge
 holes or disconnected polygons, and point-only tangent contacts produce no
-stroke. Endpoints and strokes have deterministic ordering. Rendering rejects
+stroke. Endpoints and strokes have deterministic ordering. Hatch rendering rejects
 more than 100,000 scan rows, more than 2,000,000 sampled points, or spacing that
 cannot be reliably represented at the projected coordinates. Clipping failures
 raise `ValueError`.
@@ -73,6 +86,16 @@ raise `ValueError`.
 For crosshatch, both families share those budgets. The complete scan-row budget
 is checked before clipping either family; the point budget is enforced as
 fragments are produced. Switching to crosshatch does not double the limits.
+
+Circle rings have a preflight limit of 100,000 candidate centres in the rotated,
+radius-padded bounding rectangle and 2,000,000 sampled vertices across those
+candidates. This conservative budget includes candidates whose outlines later
+clip away. Clipped output also has a 2,000,000-vertex limit, since intersections
+can introduce new vertices. Unrepresentable spacing, radius or tolerance fails
+with `ValueError` before drawing; parameters are not silently enlarged or relaxed.
+Sampling reserves a coordinate-rounding allowance before choosing its vertex
+count. Truchet additionally reserves error for conversion to design coordinates.
+If rounding exhausts the requested tolerance, generation fails explicitly.
 
 `FillStroke` contains immutable `points` and `closed` values. Coordinates must
 be finite 2D values, with at least two distinct vertices for open strokes and
@@ -90,9 +113,13 @@ compensation, device commands, and plotting order belong downstream.
 uses this engine in its normalized frame. It retains painted/unpainted selection,
 world-coordinate spacing checks, post-transform canonicalization, insets, curve
 colors, borders, and neutral provenance. Its existing `hatch_*` job controls
-retain their meaning, with `hatch_effect` selecting `parallel-hatch` (default) or
-`crosshatch`. `generators.truchet.hatching.parallel_hatches` remains a compatibility
-adapter returning `CurvePath` values, with the old limit names still importable.
+retain their meaning, with `hatch_effect` selecting `parallel-hatch` (default),
+`crosshatch`, or `circle-rings`. Rings additionally use `hatch_radius` (default 0.5)
+and `hatch_curve_tolerance` (default 0.02), in design units. Truchet retains its
+existing spacing and angle defaults (2 and 45), so its ring defaults differ from
+the standalone catalogue defaults. `generators.truchet.hatching.parallel_hatches`
+remains a compatibility adapter returning `CurvePath` values, with the old limit
+names still importable.
 
 ## Future effects and Patternfills
 
@@ -106,7 +133,7 @@ its source or assets, retain the notices required by its
 | --- | --- | --- |
 | Horizontal, vertical, diagonal stripes | Parallel hatch with angle/spacing | Available |
 | Crosshatch | Two perpendicular clipped hatch families | Available |
-| Circles | Repeated rings sampled with a stated curve tolerance | Future |
+| Circles | Repeated rings sampled with a stated curve tolerance | Available |
 | Filled dots | A designed plotted mark, such as rings, spirals or short strokes | Future |
 | Houndstooth and filled motifs | Repeating polygon regions with outlines or another fill effect | Future |
 

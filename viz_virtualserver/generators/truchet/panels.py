@@ -18,6 +18,7 @@ from .models import CurvePath
 def apply_panel_options(
     paths: tuple[VectorPath, ...], domain: PolygonDomain, *,
     artwork_inset: float, outline_layer_id: str | None, pass_id: str,
+    merge_ring_layer_id: str | None = None,
 ) -> tuple[VectorPath, ...]:
     if artwork_inset > 0:
         if any(math.ulp(c) * 4 > artwork_inset for p in domain.vertices for c in p):
@@ -32,7 +33,9 @@ def apply_panel_options(
         clipped = []
         for path in paths:
             local = CurvePath(tuple((x - ox, y - oy) for x, y in path.points), path.closed)
-            for fragment in clip_paths_to_geometry((local,), target):
+            for fragment in clip_paths_to_geometry(
+                (local,), target, merge_closed_fragments=path.layer_id == merge_ring_layer_id,
+            ):
                 clipped.append(replace(path,
                     points=tuple((x + ox, y + oy) for x, y in fragment.points),
                     closed=fragment.closed))
