@@ -61,13 +61,15 @@ class TruchetMultiscaleDomainAlgorithm:
                     multicolor=len(layer_ids) > 1, hatch_spacing=parameters.hatch_spacing,
                     hatch_angle=parameters.hatch_angle, hatch_region=parameters.hatch_region,
                     hatch_effect=parameters.hatch_effect,
+                    hatch_radius=parameters.hatch_radius,
+                    hatch_curve_tolerance=parameters.hatch_curve_tolerance,
                 )
                 for component_id, path in curves:
                     layer_id = component_layer(component_id, seed=context.domain_seeds[domain.id],
                                                layer_ids=layer_ids)
                     domain_paths.append(VectorPath(path.points, path.closed, layer_id, domain.id))
                 domain_paths.extend(VectorPath(
-                    p.points, False, parameters.hatch_layer_id, domain.id) for p in hatches)
+                    p.points, p.closed, parameters.hatch_layer_id, domain.id) for p in hatches)
             elif len(layer_ids) == 1:
                 for path in render_multiscale(arrangement, domain,
                                              curve_tolerance=parameters.curve_tolerance):

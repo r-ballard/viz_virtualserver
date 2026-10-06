@@ -171,7 +171,7 @@ def test_invalid_hatching_controls_reject(parameters, layers):
         generate(parameters=parameters, layers=layers)
 
 
-@pytest.mark.parametrize("effect", ["parallel-hatch", "crosshatch"])
+@pytest.mark.parametrize("effect", ["parallel-hatch", "crosshatch", "circle-rings"])
 def test_cli_exports_hatches_curves_and_outline_as_neutral_channels(tmp_path, effect):
     job = {"schema_version": 1, "seed": 31,
            "domains": [{"id": "panel", "vertices": SQUARE}],
@@ -195,6 +195,8 @@ def test_cli_exports_hatches_curves_and_outline_as_neutral_channels(tmp_path, ef
             hatch_paths = groups[1].findall("{http://www.w3.org/2000/svg}path")
             assert hatch_paths and all(p.get("data-viz-feature-role") == "truchet-hatch"
                                        for p in hatch_paths)
+            if effect == "circle-rings":
+                assert any(p.get("d", "").rstrip().upper().endswith("Z") for p in hatch_paths)
     for relative in ("design.json", "design.svg", "surfaces/panel.svg"):
         assert (outputs[0] / relative).read_bytes() == (outputs[1] / relative).read_bytes()
 
@@ -280,3 +282,70 @@ def test_effect_selector_is_validated_but_disabled_hatches_preserve_output():
     assert generate(parameters={"hatch_effect": "crosshatch"}) == generate()
     with pytest.raises(ValueError):
         generate(parameters={"hatch_effect": "missing"})
+
+
+@pytest.mark.parametrize("region", ["painted", "unpainted"])
+def test_circle_rings_preserve_closed_paths_insets_and_provenance(region):
+    parameters = {"hatch_layer_id": "hatch", "hatch_effect": "circle-rings",
+                  "hatch_spacing": 8., "hatch_radius": 2., "hatch_curve_tolerance": .02,
+                  "hatch_angle": 0., "hatch_region": region,
+                  "artwork_inset": 5., "outline_layer_id": "border"}
+    layers = (*CHANNELS, "hatch", "border")
+    result = generate(parameters=parameters, layers=layers)
+    baseline = generate(parameters={"artwork_inset": 5., "outline_layer_id": "border"},
+                        layers=(*CHANNELS, "border"))
+    assert tuple(p for p in result.paths if p.layer_id != "hatch") == baseline.paths
+    hatches = [p for p in result.paths if p.layer_id == "hatch"]
+    assert hatches and any(p.closed for p in hatches) and any(not p.closed for p in hatches)
+    assert box(5, 5, 75, 75).buffer(1e-8).covers(lines(hatches))
+    assert all(p.semantic_path.geometry.closed == p.closed
+               and p.semantic_path.geometry.points == p.points
+               and p.semantic_path.feature_role == "truchet-hatch" for p in hatches)
+    arrangement = assemble_multiscale((0, 0, 80, 80), parameters=MultiscaleParameters(), seed=31)
+    painted = affinity.scale(set_precision(compose_regions(arrangement, curve_tolerance=.02), 0),
+                             xfact=40, yfact=40, origin=(0, 0))
+    selected = painted if region == "painted" else box(0, 0, 80, 80).difference(painted)
+    assert selected.buffer(1e-8).covers(lines(hatches))
+    assert result == generate(parameters=parameters, layers=layers)
+
+
+@pytest.mark.parametrize("tile_size", [20., 40.])
+def test_ring_radius_and_tolerance_use_design_units(tile_size):
+    result = generate(parameters={"hatch_layer_id": "hatch", "hatch_effect": "circle-rings",
+                                  "hatch_spacing": 8., "hatch_radius": 2.,
+                                  "hatch_curve_tolerance": .01, "base_tile_size": tile_size},
+                      layers=("curves", "hatch"))
+    rings = [p for p in result.paths if p.layer_id == "hatch" and p.closed]
+    assert rings
+    for ring in rings:
+        centre = ((min(x for x, _ in ring.points) + max(x for x, _ in ring.points)) / 2,
+                  (min(y for _, y in ring.points) + max(y for _, y in ring.points)) / 2)
+        assert all(math.hypot(x - centre[0], y - centre[1]) == pytest.approx(2., abs=1e-7)
+                   for x, y in ring.points)
+        for a, b in zip(ring.points, ring.points[1:] + ring.points[:1], strict=True):
+            distance = math.hypot((a[0] + b[0]) / 2 - centre[0],
+                                  (a[1] + b[1]) / 2 - centre[1])
+            assert 2 - distance <= .01 + 1e-7
+
+
+@pytest.mark.parametrize("parameters", [
+    {"hatch_radius": 0}, {"hatch_radius": math.inf},
+    {"hatch_curve_tolerance": 0}, {"hatch_curve_tolerance": math.nan},
+])
+def test_invalid_ring_controls_reject_even_when_disabled(parameters):
+    with pytest.raises(ValueError):
+        generate(parameters=parameters)
+
+
+def test_disabled_ring_controls_preserve_output():
+    assert generate(parameters={"hatch_effect": "circle-rings", "hatch_radius": 3.,
+                                "hatch_curve_tolerance": .01}) == generate()
+
+
+def test_world_translation_cannot_hide_unrepresentable_ring_tolerance():
+    vertices = tuple((x + 1e10, y) for x, y in SQUARE)
+    with pytest.raises(ValueError, match="represent"):
+        generate(vertices=vertices, layers=("curves", "hatch"), parameters={
+            "hatch_layer_id": "hatch", "hatch_effect": "circle-rings",
+            "hatch_spacing": 8., "hatch_radius": 2., "hatch_curve_tolerance": 1e-7,
+        })

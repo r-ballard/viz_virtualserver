@@ -8,6 +8,7 @@ from numbers import Real
 
 from shapely.geometry.base import BaseGeometry
 
+from .circle_rings import circle_rings
 from .crosshatch import crosshatches
 from .models import EffectParameter, FillEffectDescriptor, FillStroke
 from .parallel_hatch import parallel_hatches
@@ -28,6 +29,14 @@ _CROSSHATCH = FillEffectDescriptor(
 _REGISTRY = {
     "parallel-hatch": (_PARALLEL_HATCH, parallel_hatches),
     "crosshatch": (_CROSSHATCH, crosshatches),
+    "circle-rings": (FillEffectDescriptor(
+        id="circle-rings", name="Circle rings",
+        description="Circle outlines on a rotated square lattice, clipped to polygonal regions.",
+        parameters=(EffectParameter("spacing", 8.0, "input-units", 0.0),
+                    EffectParameter("radius", 2.0, "input-units", 0.0),
+                    EffectParameter("angle", 0.0, "degrees"),
+                    EffectParameter("curve_tolerance", .02, "input-units", 0.0)),
+    ), circle_rings),
 }
 
 

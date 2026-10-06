@@ -171,10 +171,17 @@ def render_multiscale_hatched(
     arrangement: MultiscaleArrangement, domain: PolygonDomain, *, curve_tolerance: float,
     multicolor: bool, hatch_spacing: float, hatch_angle: float, hatch_region: str,
     hatch_effect: str = "parallel-hatch",
+    hatch_radius: float = 0.5, hatch_curve_tolerance: float = 0.02,
 ) -> tuple[tuple[tuple[int, CurvePath], ...], tuple[CurvePath, ...]]:
     """Compose once for boundaries and hatches in the same normalized frame."""
     if any(math.ulp(c) * 4 > hatch_spacing for point in domain.vertices for c in point):
         raise ValueError("hatch spacing cannot be represented reliably at domain coordinates")
+    if hatch_effect == "circle-rings" and any(
+        math.ulp(c) * 4 > min(hatch_radius, hatch_curve_tolerance)
+        for point in domain.vertices for c in point
+    ):
+        raise ValueError(
+            "ring radius or tolerance cannot be represented reliably at domain coordinates")
     painted, target = _regions_and_target(arrangement, domain, curve_tolerance=curve_tolerance)
     if multicolor:
         curves = _component_paths(painted.boundary, target, arrangement)
@@ -183,16 +190,18 @@ def render_multiscale_hatched(
             painted.boundary.intersection(target), arrangement))
     selected = (target.intersection(painted) if hatch_region == "painted"
                 else target.difference(painted))
-    sampled = render_fill_effect(
-        selected, effect=hatch_effect,
-        parameters={"spacing": hatch_spacing / arrangement.base_tile_size, "angle": hatch_angle},
-    )
+    controls = {"spacing": hatch_spacing / arrangement.base_tile_size, "angle": hatch_angle}
+    if hatch_effect == "circle-rings":
+        controls.update(radius=hatch_radius / arrangement.base_tile_size,
+                        curve_tolerance=hatch_curve_tolerance / arrangement.base_tile_size)
+    sampled = render_fill_effect(selected, effect=hatch_effect, parameters=controls)
     ox, oy = arrangement.origin
     size = arrangement.base_tile_size
     hatches = []
     for stroke in sampled:
         # Short fragments can collapse after translating to large coordinates.
-        path = _canonical_path(tuple((ox + x * size, oy + y * size) for x, y in stroke.points))
+        source = stroke.points + (stroke.points[:1] if stroke.closed else ())
+        path = _canonical_path(tuple((ox + x * size, oy + y * size) for x, y in source))
         if path is not None:
             hatches.append(path)
     return curves, tuple(hatches)
