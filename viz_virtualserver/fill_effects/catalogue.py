@@ -12,6 +12,7 @@ from .circle_rings import circle_rings
 from .crosshatch import crosshatches
 from .models import EffectParameter, FillEffectDescriptor, FillStroke
 from .parallel_hatch import parallel_hatches
+from .stroke_dots import stroke_dots
 
 _PARALLEL_HATCH = FillEffectDescriptor(
     id="parallel-hatch",
@@ -37,6 +38,13 @@ _REGISTRY = {
                     EffectParameter("angle", 0.0, "degrees"),
                     EffectParameter("curve_tolerance", .02, "input-units", 0.0)),
     ), circle_rings),
+    "stroke-dots": (FillEffectDescriptor(
+        id="stroke-dots", name="Stroke dots",
+        description="Short open marks on a rotated square lattice, clipped to polygonal regions.",
+        parameters=(EffectParameter("spacing", 8.0, "input-units", 0.0),
+                    EffectParameter("mark_length", .5, "input-units", 0.0),
+                    EffectParameter("angle", 0.0, "degrees")),
+    ), stroke_dots),
 }
 
 

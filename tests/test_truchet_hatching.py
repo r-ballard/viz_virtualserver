@@ -171,7 +171,7 @@ def test_invalid_hatching_controls_reject(parameters, layers):
         generate(parameters=parameters, layers=layers)
 
 
-@pytest.mark.parametrize("effect", ["parallel-hatch", "crosshatch", "circle-rings"])
+@pytest.mark.parametrize("effect", ["parallel-hatch", "crosshatch", "circle-rings", "stroke-dots"])
 def test_cli_exports_hatches_curves_and_outline_as_neutral_channels(tmp_path, effect):
     job = {"schema_version": 1, "seed": 31,
            "domains": [{"id": "panel", "vertices": SQUARE}],
@@ -197,6 +197,8 @@ def test_cli_exports_hatches_curves_and_outline_as_neutral_channels(tmp_path, ef
                                        for p in hatch_paths)
             if effect == "circle-rings":
                 assert any(p.get("d", "").rstrip().upper().endswith("Z") for p in hatch_paths)
+            if effect == "stroke-dots":
+                assert all(not p.get("d", "").rstrip().upper().endswith("Z") for p in hatch_paths)
     for relative in ("design.json", "design.svg", "surfaces/panel.svg"):
         assert (outputs[0] / relative).read_bytes() == (outputs[1] / relative).read_bytes()
 
@@ -388,3 +390,58 @@ def test_ring_inset_keeps_one_contiguous_arc_across_closure_seam():
         pass_id="rings", merge_ring_layer_id="hatch")
     assert sum(p.layer_id == "hatch" for p in combined) == 1
     assert sum(p.layer_id == "curves" for p in combined) == 2
+
+
+@pytest.mark.parametrize("region", ["painted", "unpainted"])
+def test_stroke_dots_preserve_curves_layers_insets_and_provenance(region):
+    parameters = {"hatch_layer_id": "hatch", "hatch_effect": "stroke-dots",
+                  "hatch_spacing": 8., "hatch_mark_length": .5, "hatch_angle": 30.,
+                  "hatch_region": region, "artwork_inset": 5., "outline_layer_id": "border"}
+    layers = (*CHANNELS, "hatch", "border")
+    result = generate(parameters=parameters, layers=layers)
+    baseline = generate(parameters={"artwork_inset": 5., "outline_layer_id": "border"},
+                        layers=(*CHANNELS, "border"))
+    assert tuple(p for p in result.paths if p.layer_id != "hatch") == baseline.paths
+    marks = [p for p in result.paths if p.layer_id == "hatch"]
+    assert marks and all(not p.closed and len(p.points) == 2 for p in marks)
+    assert box(5, 5, 75, 75).buffer(1e-8).covers(lines(marks))
+    assert all(p.semantic_path.geometry.points == p.points
+               and not p.semantic_path.geometry.closed
+               and p.semantic_path.feature_role == "truchet-hatch" for p in marks)
+    arrangement = assemble_multiscale((0, 0, 80, 80), parameters=MultiscaleParameters(), seed=31)
+    painted = affinity.scale(set_precision(compose_regions(arrangement, curve_tolerance=.02), 0),
+                             xfact=40, yfact=40, origin=(0, 0))
+    selected = painted if region == "painted" else box(0, 0, 80, 80).difference(painted)
+    assert selected.buffer(1e-8).covers(lines(marks))
+    assert result == generate(parameters=parameters, layers=layers)
+
+
+@pytest.mark.parametrize("tile_size", [20., 40.])
+def test_dot_mark_length_uses_design_units(tile_size):
+    result = generate(parameters={"hatch_layer_id": "hatch", "hatch_effect": "stroke-dots",
+                                  "hatch_spacing": 8., "hatch_mark_length": .5,
+                                  "hatch_angle": 0., "base_tile_size": tile_size},
+                      layers=("curves", "hatch"))
+    lengths = [math.dist(*p.points) for p in result.paths if p.layer_id == "hatch"]
+    assert lengths and all(0 < length <= .5 + 1e-9 for length in lengths)
+    assert max(lengths) == pytest.approx(.5, abs=1e-9)
+
+
+@pytest.mark.parametrize("value", [0., -1., math.inf, math.nan])
+def test_invalid_dot_mark_length_rejects_even_when_disabled(value):
+    with pytest.raises(ValueError):
+        generate(parameters={"hatch_mark_length": value})
+
+
+def test_disabled_stroke_dots_preserve_output():
+    assert generate(
+        parameters={"hatch_effect": "stroke-dots", "hatch_mark_length": .25}) == generate()
+
+
+def test_world_conversion_cannot_hide_unrepresentable_dot_length():
+    vertices = tuple((x + 1e10, y) for x, y in SQUARE)
+    with pytest.raises(ValueError, match="represent"):
+        generate(vertices=vertices, layers=("curves", "hatch"), parameters={
+            "hatch_layer_id": "hatch", "hatch_effect": "stroke-dots",
+            "hatch_spacing": 8., "hatch_mark_length": 1e-6,
+        })

@@ -207,24 +207,26 @@ which other generators can call with their own composed polygon regions.
 Truchet retains responsibility for region selection, frames, and logical layers.
 
 `truchet-multiscale` can render a composed region with parallel hatching,
-crosshatching, or repeated circle outlines.
+crosshatching, repeated circle outlines, or short stroke-dot marks.
 Curves remain present and can have their existing single or multiple color channels.
 Hatching is opt-in through a separate declared hatch layer:
 
 | Parameter | Default | Meaning |
 | --- | --- | --- |
 | `hatch_layer_id` | null | Declared logical layer used only for hatching in this pass; null disables hatching |
-| `hatch_effect` | parallel-hatch | `parallel-hatch`, `crosshatch`, or `circle-rings` |
-| `hatch_spacing` | 2 | Positive finite distance between hatch rows or ring centres, in SVG design units |
-| `hatch_angle` | 45 | Finite clockwise degrees; directs hatch rows or rotates the ring-centre lattice |
+| `hatch_effect` | parallel-hatch | `parallel-hatch`, `crosshatch`, `circle-rings`, or `stroke-dots` |
+| `hatch_spacing` | 2 | Positive finite distance between hatch rows or ring/dot centres, in SVG design units |
+| `hatch_angle` | 45 | Finite clockwise degrees; directs hatch rows/marks and rotates ring/dot centre lattices |
 | `hatch_radius` | 0.5 | Positive finite ring radius in design units; used by `circle-rings` |
 | `hatch_curve_tolerance` | 0.02 | Positive finite ring chord-deviation tolerance in design units; used by `circle-rings` |
+| `hatch_mark_length` | 0.5 | Positive finite uncut dot stroke length in design units; used by `stroke-dots` |
 | `hatch_region` | painted | `painted` selects the final composed region; `unpainted` selects its complement inside the polygon |
 
 The hatch layer must differ from the outline layer, and at least one curve layer
 must remain. Like outlines, the hatch layer is excluded from seeded curve-color
 assignment. Enabling or changing hatching does not alter tile subdivision,
-orientation, boundary curves, or their color assignments. Effect, spacing, angle, radius, tolerance, and
+orientation, boundary curves, or their color assignments. Effect, spacing, angle,
+radius, tolerance, mark length, and
 region controls are validated but do not affect output while `hatch_layer_id`
 is null. These controls are specific to `truchet-multiscale`; classic region
 reconstruction has not yet been implemented.
@@ -251,6 +253,15 @@ either normalized or domain coordinates fails
 explicitly. Hatch points have their own limit in addition to the motif sampling
 limit. These guards fail without publishing a partial bundle.
 
+Stroke dots draw short open marks on the same independent, zero-anchored centre
+lattice. Angle rotates both the lattice and stroke direction. Marks can be
+shortened or split at polygon and region boundaries, and outside centres can
+contribute clipped fragments. Separate marks are not joined, even if mark length
+is deliberately larger than centre spacing. Their preflight limits are 100,000
+candidate marks and 2,000,000 source endpoints, with a separate 2,000,000 clipped
+endpoint limit. Unrepresentable spacing/length fails explicitly; point tangencies
+and fragments that collapse during world conversion are omitted.
+
 Circle rings have their own limits: 100,000 candidate centres, 2,000,000 sampled
 vertices before clipping, and 2,000,000 clipped output vertices. Candidate centres
 include a radius-expanded bounding rectangle so circles outside a selected region
@@ -265,6 +276,7 @@ existing `curve_tolerance`.
 uv run --locked viz-domain-bundle examples/domain-jobs/truchet-hatching.json --output-dir output/truchet-hatching
 uv run --locked viz-domain-bundle examples/domain-jobs/truchet-crosshatching.json --output-dir output/truchet-crosshatching
 uv run --locked viz-domain-bundle examples/domain-jobs/truchet-circle-rings.json --output-dir output/truchet-circle-rings
+uv run --locked viz-domain-bundle examples/domain-jobs/truchet-stroke-dots.json --output-dir output/truchet-stroke-dots
 ```
 
 The example hatches the painted region of a square and the unpainted region of
@@ -282,6 +294,12 @@ The ring example uses 8-unit centre spacing and 2-unit radius, with a 0.02-unit
 tolerance. The square's centre lattice is unrotated; the triangle's is rotated
 30 degrees. Ring centres share the same independent polygon frame as the tiles,
 and both complete outlines and clipped arcs retain the `truchet-hatch` role.
+
+The stroke-dot example uses 8-unit centre spacing and 0.5-unit marks, with angles
+0 and 45 degrees. Marks retain the existing hatch channel and `truchet-hatch`
+provenance. Their physical appearance depends on pen width: no filled disk, dwell
+or zero-length plotting command is implied. Larger spiral or hatched dot marks
+remain later effects.
 
 ## Later work
 

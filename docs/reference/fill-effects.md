@@ -42,6 +42,9 @@ The public API does not expose mutable registration state.
 | `circle-rings` | `radius` | 2 | Positive circle radius, independent of centre spacing |
 | `circle-rings` | `angle` | 0 | Clockwise rotation of the centre lattice |
 | `circle-rings` | `curve_tolerance` | 0.02 | Positive maximum chord deviation in input units |
+| `stroke-dots` | `spacing` | 8 | Positive centre spacing of a square lattice |
+| `stroke-dots` | `mark_length` | 0.5 | Positive length of each uncut short stroke |
+| `stroke-dots` | `angle` | 0 | Clockwise rotation of both the centre lattice and marks |
 
 Select `effect="crosshatch"` in the same Python call for two perpendicular families.
 Both use the same coordinate-zero phase, spacing and region clipping. Crossing
@@ -57,6 +60,18 @@ vertex. Boundary and hole clipping yields open arcs, joining contiguous fragment
 across a ring's sampling seam. Separate rings and gaps are never joined. Centres
 outside the selected region are included when their outlines can enter it.
 Radius and spacing are independent, so overlapping rings are allowed.
+
+Select `effect="stroke-dots"` for short, nonzero line segments centred on a square
+lattice anchored at coordinate zero. Angle rotates both the lattice and the mark
+direction; orientation repeats every 180 degrees. Clipping can shorten or split a
+mark, but never joins different marks or bridges holes. Centres outside the
+region are considered when their marks can enter it. Marks longer than centre
+spacing may overlap deliberately and still remain separate paths.
+
+The dot-like appearance depends on the selected physical pen. This effect returns
+open two-point paths, not filled disks, zero-length points, pen taps or dwell
+commands. Pen width and ink coverage remain downstream concerns. Larger solid
+dot effects using spirals or hatched disks remain future work.
 
 Omitted parameters use defaults. Controls accept real numeric values, excluding
 booleans; strings, unknown controls, unknown effect IDs, and non-finite values
@@ -97,6 +112,13 @@ Sampling reserves a coordinate-rounding allowance before choosing its vertex
 count. Truchet additionally reserves error for conversion to design coordinates.
 If rounding exhausts the requested tolerance, generation fails explicitly.
 
+Stroke dots have a preflight limit of 100,000 candidate marks and 2,000,000 source
+endpoints, plus a 2,000,000 clipped-endpoint limit. Candidates come from the
+rotated bounding rectangle padded by half the mark length along its direction.
+Both spacing and mark length must be reliably representable at the input and
+Truchet design coordinates. Point-only tangencies and fragments collapsed by
+coordinate conversion are discarded; no zero-length strokes are returned.
+
 `FillStroke` contains immutable `points` and `closed` values. Coordinates must
 be finite 2D values, with at least two distinct vertices for open strokes and
 three for closed strokes. If a caller scales or translates the result, it must
@@ -114,12 +136,17 @@ uses this engine in its normalized frame. It retains painted/unpainted selection
 world-coordinate spacing checks, post-transform canonicalization, insets, curve
 colors, borders, and neutral provenance. Its existing `hatch_*` job controls
 retain their meaning, with `hatch_effect` selecting `parallel-hatch` (default),
-`crosshatch`, or `circle-rings`. Rings additionally use `hatch_radius` (default 0.5)
+`crosshatch`, `circle-rings`, or `stroke-dots`. Rings additionally use `hatch_radius` (default 0.5)
 and `hatch_curve_tolerance` (default 0.02), in design units. Truchet retains its
 existing spacing and angle defaults (2 and 45), so its ring defaults differ from
 the standalone catalogue defaults. `generators.truchet.hatching.parallel_hatches`
 remains a compatibility adapter returning `CurvePath` values, with the old limit
 names still importable.
+
+Stroke dots use `hatch_mark_length` (default 0.5), measured in design units and
+normalized with centre spacing before shared rendering. Existing effects ignore
+this control after validation. Truchet's spacing/angle defaults remain 2 and 45
+for dots as well, while standalone dot catalogue defaults are 8 and 0.
 
 ## Future effects and Patternfills
 
@@ -134,7 +161,8 @@ its source or assets, retain the notices required by its
 | Horizontal, vertical, diagonal stripes | Parallel hatch with angle/spacing | Available |
 | Crosshatch | Two perpendicular clipped hatch families | Available |
 | Circles | Repeated rings sampled with a stated curve tolerance | Available |
-| Filled dots | A designed plotted mark, such as rings, spirals or short strokes | Future |
+| Stroke dots | Short, individually clipped lattice marks | Available |
+| Larger filled dots | Spirals or hatched disks, with explicit fill density | Future |
 | Houndstooth and filled motifs | Repeating polygon regions with outlines or another fill effect | Future |
 
 Only implemented effects appear in the catalogue. Classic Truchet region
