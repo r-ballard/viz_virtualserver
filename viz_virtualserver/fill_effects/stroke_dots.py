@@ -44,6 +44,8 @@ def stroke_dots(
     candidates = max(0, last_column - first_column + 1) * max(0, last_row - first_row + 1)
     if candidates > MAX_DOT_CANDIDATES:
         raise ValueError("dot lattice exceeds 100,000 candidate marks")
+    if candidates == 0:
+        return ()
     if candidates * 2 > MAX_DOT_POINTS:
         raise ValueError("dot sampling exceeds 2,000,000 points")
     paths = []

@@ -121,3 +121,16 @@ def test_dot_length_and_spacing_require_representable_coordinates():
     for controls in ({"mark_length": 1e-6}, {"spacing": 1e-6}):
         with pytest.raises(ValueError, match="represent"):
             dots(region, **controls)
+
+
+def test_empty_lattice_dimension_never_iterates_unbounded_other_dimension(monkeypatch):
+    from viz_virtualserver.fill_effects import stroke_dots
+
+    def forbidden_iteration(*args):
+        pytest.fail("an empty mark lattice must return before iterating rows or columns")
+
+    monkeypatch.setattr(stroke_dots, "range", forbidden_iteration, raising=False)
+    # No column centre can reach this thin region, but its height would otherwise
+    # trigger 125,000,001 empty outer-loop iterations despite zero candidates.
+    assert dots(box(3, 0, 4, 1e9)) == ()
+    assert dots(box(0, 3, 1e9, 4)) == ()

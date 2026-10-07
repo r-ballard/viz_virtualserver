@@ -118,6 +118,8 @@ rotated bounding rectangle padded by half the mark length along its direction.
 Both spacing and mark length must be reliably representable at the input and
 Truchet design coordinates. Point-only tangencies and fragments collapsed by
 coordinate conversion are discarded; no zero-length strokes are returned.
+An empty lattice dimension returns immediately rather than traversing the
+other dimension when no marks can be drawn.
 
 `FillStroke` contains immutable `points` and `closed` values. Coordinates must
 be finite 2D values, with at least two distinct vertices for open strokes and
