@@ -231,7 +231,7 @@ existing limits. Geometry is reconstructed only when fills are enabled.
 uv run --locked viz-domain-bundle examples/domain-jobs/truchet-classic-fills.json --output-dir output/truchet-classic-fills
 ```
 
-The example shows all four effects in columns: parallel hatch, crosshatch,
+The example shows four effects in columns: parallel hatch, crosshatch,
 circle rings, and stroke dots. The top row fills painted square regions; the
 bottom row fills unpainted triangular targets. Each polygon retains its own
 derived seed. Both rows include boundary curves and separate polygon borders,
@@ -247,26 +247,27 @@ which other generators can call with their own composed polygon regions.
 Truchet retains responsibility for region selection, frames, and logical layers.
 
 Both `truchet` and `truchet-multiscale` can render a composed region with parallel hatching,
-crosshatching, repeated circle outlines, or short stroke-dot marks.
+crosshatching, repeated circle outlines, short stroke dots, or vortex field marks.
 Curves remain present and can have their existing single or multiple color channels.
 Hatching is opt-in through a separate declared hatch layer:
 
 | Parameter | Default | Meaning |
 | --- | --- | --- |
 | `hatch_layer_id` | null | Declared logical layer used only for hatching in this pass; null disables hatching |
-| `hatch_effect` | parallel-hatch | `parallel-hatch`, `crosshatch`, `circle-rings`, or `stroke-dots` |
+| `hatch_effect` | parallel-hatch | `parallel-hatch`, `crosshatch`, `circle-rings`, `stroke-dots`, or `vortex-marks` |
 | `hatch_spacing` | 2 | Positive finite distance between hatch rows or ring/dot centres, in SVG design units |
 | `hatch_angle` | 45 | Finite clockwise degrees; directs hatch rows/marks and rotates ring/dot centre lattices |
 | `hatch_radius` | 0.5 | Positive finite ring radius in design units; used by `circle-rings` |
 | `hatch_curve_tolerance` | 0.02 | Positive finite ring chord-deviation tolerance in design units; used by `circle-rings` |
-| `hatch_mark_length` | 0.5 | Positive finite uncut dot stroke length in design units; used by `stroke-dots` |
+| `hatch_mark_length` | 0.5 | Positive finite uncut stroke length in design units; used by `stroke-dots` and `vortex-marks` |
+| `hatch_field_center_x`, `hatch_field_center_y` | 0 | Finite vortex centre in design units relative to the polygon's minimum x/y |
 | `hatch_region` | painted | `painted` selects the final composed region; `unpainted` selects its complement inside the polygon |
 
 The hatch layer must differ from the outline layer, and at least one curve layer
 must remain. Like outlines, the hatch layer is excluded from seeded curve-color
 assignment. Enabling or changing hatching does not alter tile subdivision,
 orientation, boundary curves, or their color assignments. Effect, spacing, angle,
-radius, tolerance, mark length, and
+radius, tolerance, mark length, field centre, and
 region controls are validated but do not affect output while `hatch_layer_id`
 is null. Classic and multiscale share the same validated controls and defaults.
 
@@ -301,6 +302,15 @@ candidate marks and 2,000,000 source endpoints, with a separate 2,000,000 clippe
 endpoint limit. Unrepresentable spacing/length fails explicitly; point tangencies
 and fragments that collapse during world conversion are omitted.
 
+`vortex-marks` samples a pure tangential vector field at each placement centre.
+Its uncut mark length is fixed; magnitude does not control size. `hatch_angle`
+rotates the lattice, while the local field determines each mark's direction.
+The configured field centre stays independent of painted/unpainted region masks.
+The zero vector at the centre omits a mark, and no arrowheads or dwell commands
+are generated. Candidate bounds are padded on both axes for varying directions;
+the same candidate/endpoint caps run before field evaluation. Both classic and
+multiscale use design-unit centre controls, converting tile scale where needed.
+
 Circle rings have their own limits: 100,000 candidate centres, 2,000,000 sampled
 vertices before clipping, and 2,000,000 clipped output vertices. Candidate centres
 include a radius-expanded bounding rectangle so circles outside a selected region
@@ -316,6 +326,7 @@ uv run --locked viz-domain-bundle examples/domain-jobs/truchet-hatching.json --o
 uv run --locked viz-domain-bundle examples/domain-jobs/truchet-crosshatching.json --output-dir output/truchet-crosshatching
 uv run --locked viz-domain-bundle examples/domain-jobs/truchet-circle-rings.json --output-dir output/truchet-circle-rings
 uv run --locked viz-domain-bundle examples/domain-jobs/truchet-stroke-dots.json --output-dir output/truchet-stroke-dots
+uv run --locked viz-domain-bundle examples/domain-jobs/truchet-vortex-marks.json --output-dir output/truchet-vortex-marks
 ```
 
 The example hatches the painted region of a square and the unpainted region of
@@ -339,6 +350,12 @@ The stroke-dot example uses 8-unit centre spacing and 0.5-unit marks, with angle
 provenance. Their physical appearance depends on pen width: no filled disk, dwell
 or zero-length plotting command is implied. Larger spiral or hatched dot marks
 remain later effects.
+
+The vortex example shows classic targets above multiscale targets. Each row has
+a painted square and an unpainted triangle, with a field centre at (40, 40),
+6-unit spacing and 0.8-unit marks. Local tangents create the circulating texture
+without changing region boundaries. Radial, wave, noise and blended fields, and
+longer integrated flow lines, can build on the separate evaluator/renderer API.
 
 ## Later work
 

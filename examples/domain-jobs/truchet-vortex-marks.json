@@ -1,0 +1,266 @@
+{
+  "schema_version": 1,
+  "seed": 31,
+  "domains": [
+    {
+      "id": "truchet-painted",
+      "vertices": [
+        [
+          0,
+          0
+        ],
+        [
+          80,
+          0
+        ],
+        [
+          80,
+          80
+        ],
+        [
+          0,
+          80
+        ]
+      ]
+    },
+    {
+      "id": "truchet-unpainted",
+      "vertices": [
+        [
+          40,
+          0
+        ],
+        [
+          80,
+          80
+        ],
+        [
+          0,
+          80
+        ]
+      ]
+    },
+    {
+      "id": "truchet-multiscale-painted",
+      "vertices": [
+        [
+          0,
+          0
+        ],
+        [
+          80,
+          0
+        ],
+        [
+          80,
+          80
+        ],
+        [
+          0,
+          80
+        ]
+      ]
+    },
+    {
+      "id": "truchet-multiscale-unpainted",
+      "vertices": [
+        [
+          40,
+          0
+        ],
+        [
+          80,
+          80
+        ],
+        [
+          0,
+          80
+        ]
+      ]
+    }
+  ],
+  "composition_transforms": [
+    {
+      "domain_id": "truchet-painted",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "domain_id": "truchet-unpainted",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        100,
+        0
+      ]
+    },
+    {
+      "domain_id": "truchet-multiscale-painted",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        100
+      ]
+    },
+    {
+      "domain_id": "truchet-multiscale-unpainted",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        100,
+        100
+      ]
+    }
+  ],
+  "passes": [
+    {
+      "id": "truchet-painted",
+      "algorithm": "truchet",
+      "target_domain_ids": [
+        "truchet-painted"
+      ],
+      "parameters": {
+        "artwork_inset": 3.0,
+        "outline_layer_id": "polygon-border",
+        "hatch_layer_id": "region-hatch",
+        "hatch_effect": "vortex-marks",
+        "hatch_region": "painted",
+        "hatch_spacing": 6.0,
+        "hatch_mark_length": 0.8,
+        "hatch_angle": 0.0,
+        "hatch_field_center_x": 40.0,
+        "hatch_field_center_y": 40.0,
+        "tile_size": 20.0
+      },
+      "logical_layers": [
+        {
+          "id": "truchet-curves",
+          "label": "Curve boundaries"
+        },
+        {
+          "id": "region-hatch",
+          "label": "Vortex field marks"
+        },
+        {
+          "id": "polygon-border",
+          "label": "Polygon borders"
+        }
+      ]
+    },
+    {
+      "id": "truchet-unpainted",
+      "algorithm": "truchet",
+      "target_domain_ids": [
+        "truchet-unpainted"
+      ],
+      "parameters": {
+        "artwork_inset": 3.0,
+        "outline_layer_id": "polygon-border",
+        "hatch_layer_id": "region-hatch",
+        "hatch_effect": "vortex-marks",
+        "hatch_region": "unpainted",
+        "hatch_spacing": 6.0,
+        "hatch_mark_length": 0.8,
+        "hatch_angle": 0.0,
+        "hatch_field_center_x": 40.0,
+        "hatch_field_center_y": 40.0,
+        "tile_size": 20.0
+      },
+      "logical_layers": [
+        {
+          "id": "truchet-curves",
+          "label": "Curve boundaries"
+        },
+        {
+          "id": "region-hatch",
+          "label": "Vortex field marks"
+        },
+        {
+          "id": "polygon-border",
+          "label": "Polygon borders"
+        }
+      ]
+    },
+    {
+      "id": "truchet-multiscale-painted",
+      "algorithm": "truchet-multiscale",
+      "target_domain_ids": [
+        "truchet-multiscale-painted"
+      ],
+      "parameters": {
+        "artwork_inset": 3.0,
+        "outline_layer_id": "polygon-border",
+        "hatch_layer_id": "region-hatch",
+        "hatch_effect": "vortex-marks",
+        "hatch_region": "painted",
+        "hatch_spacing": 6.0,
+        "hatch_mark_length": 0.8,
+        "hatch_angle": 0.0,
+        "hatch_field_center_x": 40.0,
+        "hatch_field_center_y": 40.0,
+        "base_tile_size": 40.0
+      },
+      "logical_layers": [
+        {
+          "id": "truchet-curves",
+          "label": "Curve boundaries"
+        },
+        {
+          "id": "region-hatch",
+          "label": "Vortex field marks"
+        },
+        {
+          "id": "polygon-border",
+          "label": "Polygon borders"
+        }
+      ]
+    },
+    {
+      "id": "truchet-multiscale-unpainted",
+      "algorithm": "truchet-multiscale",
+      "target_domain_ids": [
+        "truchet-multiscale-unpainted"
+      ],
+      "parameters": {
+        "artwork_inset": 3.0,
+        "outline_layer_id": "polygon-border",
+        "hatch_layer_id": "region-hatch",
+        "hatch_effect": "vortex-marks",
+        "hatch_region": "unpainted",
+        "hatch_spacing": 6.0,
+        "hatch_mark_length": 0.8,
+        "hatch_angle": 0.0,
+        "hatch_field_center_x": 40.0,
+        "hatch_field_center_y": 40.0,
+        "base_tile_size": 40.0
+      },
+      "logical_layers": [
+        {
+          "id": "truchet-curves",
+          "label": "Curve boundaries"
+        },
+        {
+          "id": "region-hatch",
+          "label": "Vortex field marks"
+        },
+        {
+          "id": "polygon-border",
+          "label": "Polygon borders"
+        }
+      ]
+    }
+  ]
+}

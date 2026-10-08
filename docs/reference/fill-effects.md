@@ -45,6 +45,10 @@ The public API does not expose mutable registration state.
 | `stroke-dots` | `spacing` | 8 | Positive centre spacing of a square lattice |
 | `stroke-dots` | `mark_length` | 0.5 | Positive length of each uncut short stroke |
 | `stroke-dots` | `angle` | 0 | Clockwise rotation of both the centre lattice and marks |
+| `vortex-marks` | `spacing` | 8 | Positive centre spacing of a square lattice |
+| `vortex-marks` | `mark_length` | 0.5 | Positive fixed length of each uncut mark |
+| `vortex-marks` | `angle` | 0 | Clockwise rotation of the placement lattice only |
+| `vortex-marks` | `center_x`, `center_y` | 0 | Vortex centre in the input coordinate frame |
 
 Select `effect="crosshatch"` in the same Python call for two perpendicular families.
 Both use the same coordinate-zero phase, spacing and region clipping. Crossing
@@ -72,6 +76,44 @@ The dot-like appearance depends on the selected physical pen. This effect return
 open two-point paths, not filled disks, zero-length points, pen taps or dwell
 commands. Pen width and ink coverage remain downstream concerns. Larger solid
 dot effects using spirals or hatched disks remain future work.
+
+Select `effect="vortex-marks"` to turn those short marks according to a local
+field. Each mark is tangent to a circle around the configured centre. Direction
+varies with position while uncut mark length stays fixed. The centre is explicit,
+not inferred from the selected region's bounding box, so changing a painted or
+unpainted mask does not recenter the flow. A zero vector at the vortex centre
+omits its mark. Open segments have no arrowheads; their geometry displays the
+tangent orientation rather than the sign of circulation.
+
+### Field and renderer abstraction
+
+`vector_fields.VectorField` specifies `sample(x, y) -> VectorSample`. A frozen
+sample retains raw `dx` and `dy`, with separate `direction` and `magnitude`
+properties. Direction normalization is stable for large and subnormal components;
+an unrepresentable magnitude raises `ValueError` when requested. Field evaluators
+are expected to be pure and have no knowledge of masks, layers, pens or placement.
+Raw components allow future blending or convolution before normalization.
+
+`field_marks.render_field_marks` owns placement, precision/budget checks, and
+individual clipping. It uses sample direction only, skipping zero vectors. Its
+fixed-length marks do not vary with magnitude. The `vortex-marks` catalogue entry
+combines this renderer with `VortexField`; future radial, wave, noise or blended
+fields can consume the same boundary without changing clipping code.
+
+```python
+from shapely.geometry import box
+from viz_virtualserver.fill_effects.field_marks import render_field_marks
+from viz_virtualserver.fill_effects.vector_fields import VortexField
+
+strokes = render_field_marks(
+    box(0, 0, 80, 80), spacing=8, mark_length=0.5, angle=0,
+    field=VortexField(center_x=40, center_y=40),
+)
+```
+
+This evaluates clockwise raw vectors `(-(y-center_y), x-center_x)` in SVG
+coordinates. Longer integrated streamlines and magnitude-based mark sizing
+remain separate extensions.
 
 Omitted parameters use defaults. Controls accept real numeric values, excluding
 booleans; strings, unknown controls, unknown effect IDs, and non-finite values
@@ -121,6 +163,12 @@ coordinate conversion are discarded; no zero-length strokes are returned.
 An empty lattice dimension returns immediately rather than traversing the
 other dimension when no marks can be drawn.
 
+Field marks use the same 100,000-candidate and 2,000,000 source/clipped-endpoint
+limits. Their candidate rectangle is padded by half the mark length on both
+lattice axes, because a local field can point in any direction. Guards run before
+field evaluation; empty lattice dimensions return immediately. Each mark clips
+independently, with no bridges at holes or joins across separate marks.
+
 `FillStroke` contains immutable `points` and `closed` values. Coordinates must
 be finite 2D values, with at least two distinct vertices for open strokes and
 three for closed strokes. If a caller scales or translates the result, it must
@@ -138,7 +186,7 @@ uses this engine in its normalized frame. It retains painted/unpainted selection
 world-coordinate spacing checks, post-transform canonicalization, insets, curve
 colors, borders, and neutral provenance. Its existing `hatch_*` job controls
 retain their meaning, with `hatch_effect` selecting `parallel-hatch` (default),
-`crosshatch`, `circle-rings`, or `stroke-dots`. Rings additionally use `hatch_radius` (default 0.5)
+`crosshatch`, `circle-rings`, `stroke-dots`, or `vortex-marks`. Rings additionally use `hatch_radius` (default 0.5)
 and `hatch_curve_tolerance` (default 0.02), in design units. Truchet retains its
 existing spacing and angle defaults (2 and 45), so its ring defaults differ from
 the standalone catalogue defaults. `generators.truchet.hatching.parallel_hatches`
@@ -150,8 +198,15 @@ normalized with centre spacing before shared rendering. Existing effects ignore
 this control after validation. Truchet's spacing/angle defaults remain 2 and 45
 for dots as well, while standalone dot catalogue defaults are 8 and 0.
 
+Vortex marks use `hatch_field_center_x` and `hatch_field_center_y` (both default
+0), measured in design units relative to each polygon's minimum x/y. Classic
+passes these coordinates into its near-origin frame; multiscale divides them by
+its tile scale alongside spacing and mark length. Nonzero centres lost during
+normalization fail explicitly. Centre controls are validated but ignored by
+other effects. Truchet retains its spacing/angle defaults of 2 and 45.
+
 [Classic Truchet](../algorithms/truchet.md#plotter-fills-of-classic-regions) supports
-the same four effects and validated `hatch_*` controls. It reconstructs grammar
+the same effects and validated `hatch_*` controls. It reconstructs grammar
 fields from the same sampled arcs used for its boundary curves, unions matching
 regions across tiles, and draws in design units near the domain origin before
 translating output back. `painted` selects region 1; `unpainted` selects the
@@ -172,6 +227,7 @@ its source or assets, retain the notices required by its
 | Crosshatch | Two perpendicular clipped hatch families | Available |
 | Circles | Repeated rings sampled with a stated curve tolerance | Available |
 | Stroke dots | Short, individually clipped lattice marks | Available |
+| Vortex marks | Fixed marks driven by an independent vector field | Available |
 | Larger filled dots | Spirals or hatched disks, with explicit fill density | Future |
 | Houndstooth and filled motifs | Repeating polygon regions with outlines or another fill effect | Future |
 

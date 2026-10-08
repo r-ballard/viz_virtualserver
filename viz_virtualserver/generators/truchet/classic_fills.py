@@ -25,7 +25,8 @@ def validate_fill_precision(vertices: tuple[Point, ...], parameters: TruchetPara
     ):
         raise ValueError(
             "ring radius or tolerance cannot be represented reliably at domain coordinates")
-    if parameters.hatch_effect == "stroke-dots" and resolution > parameters.hatch_mark_length:
+    if (parameters.hatch_effect in {"stroke-dots", "vortex-marks"}
+            and resolution > parameters.hatch_mark_length):
         raise ValueError("dot mark length cannot be represented reliably at domain coordinates")
 
 
@@ -52,8 +53,11 @@ def render_classic_fill(
         if tolerance <= 0:
             raise ValueError("ring tolerance cannot be represented reliably at domain coordinates")
         controls.update(radius=parameters.hatch_radius, curve_tolerance=tolerance)
-    elif parameters.hatch_effect == "stroke-dots":
+    elif parameters.hatch_effect in {"stroke-dots", "vortex-marks"}:
         controls["mark_length"] = parameters.hatch_mark_length
+        if parameters.hatch_effect == "vortex-marks":
+            controls.update(center_x=parameters.hatch_field_center_x,
+                            center_y=parameters.hatch_field_center_y)
     strokes = render_fill_effect(selected, effect=parameters.hatch_effect, parameters=controls)
     ox, oy = origin
     result = []
