@@ -200,13 +200,53 @@ workflow. Layer labels do not imply ink colors. No new palette, seed, projection
 or color-count job parameter is needed: the declared layers are the channels.
 Colored solid SVG fills remain separate future work.
 
+## Plotter fills of classic regions
+
+Classic `truchet` now supports the same optional fill effects and `hatch_*`
+controls listed below. By default `hatch_layer_id` is null, so only existing
+boundary curves are drawn. Declare a separate fill layer and choose one field
+with `hatch_region`: `painted` is grammar region 1, while `unpainted` is its
+complement inside the target polygon. A pass selects one field and one effect.
+
+Region reconstruction uses the exact sampled arcs used for classic curve
+tracing. Each tile's two corner regions and central region are assigned from
+its compiled edge labels; tile complements swap region 0 and 1. Same-field
+pieces are unioned before drawing, removing internal tile seams. Curvature,
+rotations and asymmetric arc controls keep their existing meaning. Choosing a
+different fill field or effect does not change the arrangement, sampled boundary
+curves, component colors, or polygon borders.
+
+Fills use an independent frame anchored to the polygon's minimum x/y, in design
+units. The reconstruction and clipping operate near that origin; shared effects
+are translated back afterward. Whole rings remain closed, fragments that
+collapse on translation are discarded, and insets clip all artwork. Area-free
+corner contacts do not become fill regions. Invalid topology or unrepresentable
+geometry/spacing fails explicitly instead of repairing or shifting the pattern.
+
+Classic keeps its 100,000-tile and 2,000,000 sampled-arc-point limits, including
+an actual sampled-point check before tracing. Fill effects have their own
+existing limits. Geometry is reconstructed only when fills are enabled.
+
+```powershell
+uv run --locked viz-domain-bundle examples/domain-jobs/truchet-classic-fills.json --output-dir output/truchet-classic-fills
+```
+
+The example shows all four effects in columns: parallel hatch, crosshatch,
+circle rings, and stroke dots. The top row fills painted square regions; the
+bottom row fills unpainted triangular targets. Each polygon retains its own
+derived seed. Both rows include boundary curves and separate polygon borders,
+with neutral `truchet-hatch` provenance for the fill channel.
+
+Independent settings for both fields in one pass, component-specific selection,
+and a fill-specific selection seed remain later work.
+
 ## Plotter hatching of multiscale regions
 
 Hatching uses the [shared fill-effects library](../reference/fill-effects.md),
 which other generators can call with their own composed polygon regions.
 Truchet retains responsibility for region selection, frames, and logical layers.
 
-`truchet-multiscale` can render a composed region with parallel hatching,
+Both `truchet` and `truchet-multiscale` can render a composed region with parallel hatching,
 crosshatching, repeated circle outlines, or short stroke-dot marks.
 Curves remain present and can have their existing single or multiple color channels.
 Hatching is opt-in through a separate declared hatch layer:
@@ -228,8 +268,7 @@ assignment. Enabling or changing hatching does not alter tile subdivision,
 orientation, boundary curves, or their color assignments. Effect, spacing, angle,
 radius, tolerance, mark length, and
 region controls are validated but do not affect output while `hatch_layer_id`
-is null. These controls are specific to `truchet-multiscale`; classic region
-reconstruction has not yet been implemented.
+is null. Classic and multiscale share the same validated controls and defaults.
 
 The generator composes and unions all tile regions before hatching, using the
 same depth-parity painting as the boundary curves. It does not hatch each tile
@@ -304,8 +343,8 @@ remain later effects.
 ## Later work
 
 - More multi-scale motif families and spatial subdivision controls.
-- Classic filled regions: reconstruct and union matching regions. Multiscale
-  parallel hatching and crosshatching are available; stippling and dithering remain
+- Independent per-field effects and stable per-component fill selection.
+- Classic and multiscale region effects are available; stippling and dithering remain
   future work. Python is the preferred reproducible
   route; consider Inkscape extensions or scripted finishing as another option.
 - Overlapping motifs and the paper's R7 third region field.
