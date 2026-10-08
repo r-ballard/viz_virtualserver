@@ -150,6 +150,14 @@ normalized with centre spacing before shared rendering. Existing effects ignore
 this control after validation. Truchet's spacing/angle defaults remain 2 and 45
 for dots as well, while standalone dot catalogue defaults are 8 and 0.
 
+[Classic Truchet](../algorithms/truchet.md#plotter-fills-of-classic-regions) supports
+the same four effects and validated `hatch_*` controls. It reconstructs grammar
+fields from the same sampled arcs used for its boundary curves, unions matching
+regions across tiles, and draws in design units near the domain origin before
+translating output back. `painted` selects region 1; `unpainted` selects the
+complement inside the polygon. A null hatch layer leaves both fields unfilled.
+Its sampling, color assignment, borders and insets retain their existing behavior.
+
 ## Future effects and Patternfills
 
 [Patternfills](https://github.com/iros/patternfills) is a reference collection
@@ -167,6 +175,6 @@ its source or assets, retain the notices required by its
 | Larger filled dots | Spirals or hatched disks, with explicit fill density | Future |
 | Houndstooth and filled motifs | Repeating polygon regions with outlines or another fill effect | Future |
 
-Only implemented effects appear in the catalogue. Classic Truchet region
-reconstruction, dithering, arbitrary SVG/image import, a generic fill CLI, and
+Only implemented effects appear in the catalogue. Independent per-field and
+per-component fill selection, dithering, arbitrary SVG/image import, a generic fill CLI, and
 plugin discovery remain separate work.

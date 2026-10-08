@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from collections import defaultdict
+from dataclasses import dataclass
 
 from shapely.geometry import LineString, MultiLineString, Polygon
 from shapely.geometry.base import BaseGeometry
@@ -9,7 +10,7 @@ from shapely.ops import linemerge
 
 from viz_virtualserver.canvas.models import Point, PolygonDomain
 
-from .models import CurvePath, TileArrangement, TruchetParameters
+from .models import CurvePath, TileArrangement, TilePlacement, TruchetParameters
 
 _MAX_POINTS = 2_000_000
 
@@ -58,9 +59,18 @@ def sample_connection(
     return tuple(points)
 
 
-def render_arrangement(
+@dataclass(frozen=True)
+class SampledConnection:
+    tile: TilePlacement
+    index: int
+    start: tuple[int, int]
+    end: tuple[int, int]
+    points: tuple[Point, ...]
+
+
+def sample_arrangement(
     arrangement: TileArrangement, parameters: TruchetParameters
-) -> tuple[CurvePath, ...]:
+) -> tuple[SampledConnection, ...]:
     length = arrangement.tile_size / math.sqrt(2)
     ratios = (parameters.arc_a, parameters.arc_b)
     counts = tuple(_segments(length, r, parameters.curve_tolerance) + 1 for r in ratios)
@@ -68,7 +78,7 @@ def render_arrangement(
         raise ValueError("Truchet sampling exceeds 2,000,000 points")
     offsets = ((1, 0), (2, 1), (1, 2), (0, 1))
     curves = []
-    adjacency = defaultdict(list)
+    point_count = 0
     for tile in arrangement.tiles:
         keys = tuple((2 * tile.column + x, 2 * tile.row + y) for x, y in offsets)
         for index, (a, b) in enumerate(tile.state.connections):
@@ -93,10 +103,19 @@ def render_arrangement(
                 sagitta_ratio=ratios[index],
                 tolerance=parameters.curve_tolerance,
             )
-            curve_id = len(curves)
-            curves.append((start, end, points))
-            adjacency[start].append(curve_id)
-            adjacency[end].append(curve_id)
+            point_count += len(points)
+            if point_count > _MAX_POINTS:
+                raise ValueError("Truchet sampling exceeds 2,000,000 points")
+            curves.append(SampledConnection(tile, index, start, end, points))
+    return tuple(curves)
+
+
+def trace_connections(sampled: tuple[SampledConnection, ...]) -> tuple[CurvePath, ...]:
+    curves = tuple((curve.start, curve.end, curve.points) for curve in sampled)
+    adjacency = defaultdict(list)
+    for curve_id, (start, end, _) in enumerate(curves):
+        adjacency[start].append(curve_id)
+        adjacency[end].append(curve_id)
     unused = set(range(len(curves)))
     paths = []
     starts = sorted(adjacency, key=lambda key: (len(adjacency[key]) != 1, key))
@@ -119,6 +138,12 @@ def render_arrangement(
         closed = current == start
         paths.append(CurvePath(tuple(points[:-1] if closed else points), closed))
     return tuple(paths)
+
+
+def render_arrangement(
+    arrangement: TileArrangement, parameters: TruchetParameters,
+) -> tuple[CurvePath, ...]:
+    return trace_connections(sample_arrangement(arrangement, parameters))
 
 
 def _canonical_path(points: tuple[Point, ...]) -> CurvePath | None:

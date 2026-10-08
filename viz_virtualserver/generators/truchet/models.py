@@ -7,10 +7,10 @@ from pydantic import Field
 
 from viz_virtualserver.canvas.models import Point
 
-from .panel_models import PanelParameters
+from .hatch_parameters import HatchParameters
 
 
-class TruchetParameters(PanelParameters):
+class TruchetParameters(HatchParameters):
     tile_size: float = Field(default=10.0, gt=0)
     arc_a: float = Field(default=math.sqrt(2) / 2 - 0.5, ge=0.5 - math.sqrt(2) / 2, le=0.45)
     arc_b: float = Field(default=math.sqrt(2) / 2 - 0.5, ge=0.5 - math.sqrt(2) / 2, le=0.45)

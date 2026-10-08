@@ -1,0 +1,512 @@
+{
+  "schema_version": 1,
+  "seed": 31,
+  "domains": [
+    {
+      "id": "painted-parallel-hatch",
+      "vertices": [
+        [
+          0,
+          0
+        ],
+        [
+          80,
+          0
+        ],
+        [
+          80,
+          80
+        ],
+        [
+          0,
+          80
+        ]
+      ]
+    },
+    {
+      "id": "painted-crosshatch",
+      "vertices": [
+        [
+          0,
+          0
+        ],
+        [
+          80,
+          0
+        ],
+        [
+          80,
+          80
+        ],
+        [
+          0,
+          80
+        ]
+      ]
+    },
+    {
+      "id": "painted-circle-rings",
+      "vertices": [
+        [
+          0,
+          0
+        ],
+        [
+          80,
+          0
+        ],
+        [
+          80,
+          80
+        ],
+        [
+          0,
+          80
+        ]
+      ]
+    },
+    {
+      "id": "painted-stroke-dots",
+      "vertices": [
+        [
+          0,
+          0
+        ],
+        [
+          80,
+          0
+        ],
+        [
+          80,
+          80
+        ],
+        [
+          0,
+          80
+        ]
+      ]
+    },
+    {
+      "id": "unpainted-parallel-hatch",
+      "vertices": [
+        [
+          40,
+          0
+        ],
+        [
+          80,
+          80
+        ],
+        [
+          0,
+          80
+        ]
+      ]
+    },
+    {
+      "id": "unpainted-crosshatch",
+      "vertices": [
+        [
+          40,
+          0
+        ],
+        [
+          80,
+          80
+        ],
+        [
+          0,
+          80
+        ]
+      ]
+    },
+    {
+      "id": "unpainted-circle-rings",
+      "vertices": [
+        [
+          40,
+          0
+        ],
+        [
+          80,
+          80
+        ],
+        [
+          0,
+          80
+        ]
+      ]
+    },
+    {
+      "id": "unpainted-stroke-dots",
+      "vertices": [
+        [
+          40,
+          0
+        ],
+        [
+          80,
+          80
+        ],
+        [
+          0,
+          80
+        ]
+      ]
+    }
+  ],
+  "composition_transforms": [
+    {
+      "domain_id": "painted-parallel-hatch",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "domain_id": "painted-crosshatch",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        100,
+        0
+      ]
+    },
+    {
+      "domain_id": "painted-circle-rings",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        200,
+        0
+      ]
+    },
+    {
+      "domain_id": "painted-stroke-dots",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        300,
+        0
+      ]
+    },
+    {
+      "domain_id": "unpainted-parallel-hatch",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        100
+      ]
+    },
+    {
+      "domain_id": "unpainted-crosshatch",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        100,
+        100
+      ]
+    },
+    {
+      "domain_id": "unpainted-circle-rings",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        200,
+        100
+      ]
+    },
+    {
+      "domain_id": "unpainted-stroke-dots",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        300,
+        100
+      ]
+    }
+  ],
+  "passes": [
+    {
+      "id": "painted-parallel-hatch",
+      "algorithm": "truchet",
+      "target_domain_ids": [
+        "painted-parallel-hatch"
+      ],
+      "parameters": {
+        "tile_size": 20.0,
+        "curve_tolerance": 0.02,
+        "artwork_inset": 3.0,
+        "outline_layer_id": "polygon-border",
+        "hatch_layer_id": "region-hatch",
+        "hatch_effect": "parallel-hatch",
+        "hatch_region": "painted",
+        "hatch_angle": 45.0,
+        "hatch_spacing": 3.0
+      },
+      "logical_layers": [
+        {
+          "id": "truchet-curves",
+          "label": "Curve boundaries"
+        },
+        {
+          "id": "region-hatch",
+          "label": "Region fill"
+        },
+        {
+          "id": "polygon-border",
+          "label": "Polygon borders"
+        }
+      ]
+    },
+    {
+      "id": "painted-crosshatch",
+      "algorithm": "truchet",
+      "target_domain_ids": [
+        "painted-crosshatch"
+      ],
+      "parameters": {
+        "tile_size": 20.0,
+        "curve_tolerance": 0.02,
+        "artwork_inset": 3.0,
+        "outline_layer_id": "polygon-border",
+        "hatch_layer_id": "region-hatch",
+        "hatch_effect": "crosshatch",
+        "hatch_region": "painted",
+        "hatch_angle": 45.0,
+        "hatch_spacing": 3.0
+      },
+      "logical_layers": [
+        {
+          "id": "truchet-curves",
+          "label": "Curve boundaries"
+        },
+        {
+          "id": "region-hatch",
+          "label": "Region fill"
+        },
+        {
+          "id": "polygon-border",
+          "label": "Polygon borders"
+        }
+      ]
+    },
+    {
+      "id": "painted-circle-rings",
+      "algorithm": "truchet",
+      "target_domain_ids": [
+        "painted-circle-rings"
+      ],
+      "parameters": {
+        "tile_size": 20.0,
+        "curve_tolerance": 0.02,
+        "artwork_inset": 3.0,
+        "outline_layer_id": "polygon-border",
+        "hatch_layer_id": "region-hatch",
+        "hatch_effect": "circle-rings",
+        "hatch_region": "painted",
+        "hatch_angle": 45.0,
+        "hatch_spacing": 6.0,
+        "hatch_radius": 1.5,
+        "hatch_curve_tolerance": 0.02
+      },
+      "logical_layers": [
+        {
+          "id": "truchet-curves",
+          "label": "Curve boundaries"
+        },
+        {
+          "id": "region-hatch",
+          "label": "Region fill"
+        },
+        {
+          "id": "polygon-border",
+          "label": "Polygon borders"
+        }
+      ]
+    },
+    {
+      "id": "painted-stroke-dots",
+      "algorithm": "truchet",
+      "target_domain_ids": [
+        "painted-stroke-dots"
+      ],
+      "parameters": {
+        "tile_size": 20.0,
+        "curve_tolerance": 0.02,
+        "artwork_inset": 3.0,
+        "outline_layer_id": "polygon-border",
+        "hatch_layer_id": "region-hatch",
+        "hatch_effect": "stroke-dots",
+        "hatch_region": "painted",
+        "hatch_angle": 45.0,
+        "hatch_spacing": 6.0,
+        "hatch_mark_length": 0.5
+      },
+      "logical_layers": [
+        {
+          "id": "truchet-curves",
+          "label": "Curve boundaries"
+        },
+        {
+          "id": "region-hatch",
+          "label": "Region fill"
+        },
+        {
+          "id": "polygon-border",
+          "label": "Polygon borders"
+        }
+      ]
+    },
+    {
+      "id": "unpainted-parallel-hatch",
+      "algorithm": "truchet",
+      "target_domain_ids": [
+        "unpainted-parallel-hatch"
+      ],
+      "parameters": {
+        "tile_size": 20.0,
+        "curve_tolerance": 0.02,
+        "artwork_inset": 3.0,
+        "outline_layer_id": "polygon-border",
+        "hatch_layer_id": "region-hatch",
+        "hatch_effect": "parallel-hatch",
+        "hatch_region": "unpainted",
+        "hatch_angle": 45.0,
+        "hatch_spacing": 3.0
+      },
+      "logical_layers": [
+        {
+          "id": "truchet-curves",
+          "label": "Curve boundaries"
+        },
+        {
+          "id": "region-hatch",
+          "label": "Region fill"
+        },
+        {
+          "id": "polygon-border",
+          "label": "Polygon borders"
+        }
+      ]
+    },
+    {
+      "id": "unpainted-crosshatch",
+      "algorithm": "truchet",
+      "target_domain_ids": [
+        "unpainted-crosshatch"
+      ],
+      "parameters": {
+        "tile_size": 20.0,
+        "curve_tolerance": 0.02,
+        "artwork_inset": 3.0,
+        "outline_layer_id": "polygon-border",
+        "hatch_layer_id": "region-hatch",
+        "hatch_effect": "crosshatch",
+        "hatch_region": "unpainted",
+        "hatch_angle": 45.0,
+        "hatch_spacing": 3.0
+      },
+      "logical_layers": [
+        {
+          "id": "truchet-curves",
+          "label": "Curve boundaries"
+        },
+        {
+          "id": "region-hatch",
+          "label": "Region fill"
+        },
+        {
+          "id": "polygon-border",
+          "label": "Polygon borders"
+        }
+      ]
+    },
+    {
+      "id": "unpainted-circle-rings",
+      "algorithm": "truchet",
+      "target_domain_ids": [
+        "unpainted-circle-rings"
+      ],
+      "parameters": {
+        "tile_size": 20.0,
+        "curve_tolerance": 0.02,
+        "artwork_inset": 3.0,
+        "outline_layer_id": "polygon-border",
+        "hatch_layer_id": "region-hatch",
+        "hatch_effect": "circle-rings",
+        "hatch_region": "unpainted",
+        "hatch_angle": 45.0,
+        "hatch_spacing": 6.0,
+        "hatch_radius": 1.5,
+        "hatch_curve_tolerance": 0.02
+      },
+      "logical_layers": [
+        {
+          "id": "truchet-curves",
+          "label": "Curve boundaries"
+        },
+        {
+          "id": "region-hatch",
+          "label": "Region fill"
+        },
+        {
+          "id": "polygon-border",
+          "label": "Polygon borders"
+        }
+      ]
+    },
+    {
+      "id": "unpainted-stroke-dots",
+      "algorithm": "truchet",
+      "target_domain_ids": [
+        "unpainted-stroke-dots"
+      ],
+      "parameters": {
+        "tile_size": 20.0,
+        "curve_tolerance": 0.02,
+        "artwork_inset": 3.0,
+        "outline_layer_id": "polygon-border",
+        "hatch_layer_id": "region-hatch",
+        "hatch_effect": "stroke-dots",
+        "hatch_region": "unpainted",
+        "hatch_angle": 45.0,
+        "hatch_spacing": 6.0,
+        "hatch_mark_length": 0.5
+      },
+      "logical_layers": [
+        {
+          "id": "truchet-curves",
+          "label": "Curve boundaries"
+        },
+        {
+          "id": "region-hatch",
+          "label": "Region fill"
+        },
+        {
+          "id": "polygon-border",
+          "label": "Polygon borders"
+        }
+      ]
+    }
+  ]
+}
