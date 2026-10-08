@@ -35,6 +35,16 @@ def test_vector_direction_is_stable_for_large_and_subnormal_components():
         _ = sample.magnitude
 
 
+def test_vortex_singularity_survives_decimal_coordinate_arithmetic():
+    from viz_virtualserver.fill_effects.vector_fields import VortexField
+
+    field = VortexField(12 / 10, 12 / 10)
+    sample = field.sample(3 * (4 / 10), 3 * (4 / 10))
+    assert sample.magnitude == 0 and sample.direction == (0., 0.)
+    nearby = field.sample(1.21, 1.2)
+    assert nearby.magnitude == pytest.approx(.01) and nearby.direction == (0., 1.)
+
+
 @pytest.mark.parametrize("bad", [True, "1", math.inf, math.nan])
 def test_vector_values_and_field_centres_are_strict_finite_numbers(bad):
     from viz_virtualserver.fill_effects.vector_fields import VectorSample, VortexField

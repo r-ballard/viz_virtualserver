@@ -120,3 +120,19 @@ def test_multiscale_rejects_field_centre_lost_during_normalization():
             "hatch_layer_id": "fill", "hatch_effect": "vortex-marks",
             "hatch_field_center_x": 5e-324,
         })
+
+
+@pytest.mark.parametrize("algorithm", ALGORITHMS)
+def test_vortex_omits_design_unit_centre_on_decimal_normalized_lattice(algorithm):
+    size_control = "tile_size" if algorithm.name == "truchet" else "base_tile_size"
+    result = generate(algorithm, layers=("curves", "fill"), parameters={
+        size_control: 10., "hatch_layer_id": "fill", "hatch_effect": "vortex-marks",
+        "hatch_region": "unpainted", "hatch_spacing": 4., "hatch_mark_length": .5,
+        "hatch_angle": 0., "hatch_field_center_x": 12., "hatch_field_center_y": 12.,
+    })
+    marks = [p for p in result.paths if p.layer_id == "fill"]
+    assert marks
+    for mark in marks:
+        a, b = mark.points
+        centre = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+        assert math.dist(centre, (12., 12.)) > 1e-8

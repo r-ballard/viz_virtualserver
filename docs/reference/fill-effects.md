@@ -81,7 +81,8 @@ Select `effect="vortex-marks"` to turn those short marks according to a local
 field. Each mark is tangent to a circle around the configured centre. Direction
 varies with position while uncut mark length stays fixed. The centre is explicit,
 not inferred from the selected region's bounding box, so changing a painted or
-unpainted mask does not recenter the flow. A zero vector at the vortex centre
+unpainted mask does not recenter the flow. A zero vector at the vortex centre,
+including positions indistinguishable within coordinate-rounding resolution,
 omits its mark. Open segments have no arrowheads; their geometry displays the
 tangent orientation rather than the sign of circulation.
 
@@ -112,7 +113,10 @@ strokes = render_field_marks(
 ```
 
 This evaluates clockwise raw vectors `(-(y-center_y), x-center_x)` in SVG
-coordinates. Longer integrated streamlines and magnitude-based mark sizing
+coordinates, resolving the centre within a small combined-ULP rounding envelope.
+That singularity policy belongs to the vortex evaluator; the renderer does not
+apply an arbitrary magnitude threshold to other fields. Longer integrated
+streamlines and magnitude-based mark sizing
 remain separate extensions.
 
 Omitted parameters use defaults. Controls accept real numeric values, excluding

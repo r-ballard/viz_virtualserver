@@ -306,7 +306,8 @@ and fragments that collapse during world conversion are omitted.
 Its uncut mark length is fixed; magnitude does not control size. `hatch_angle`
 rotates the lattice, while the local field determines each mark's direction.
 The configured field centre stays independent of painted/unpainted region masks.
-The zero vector at the centre omits a mark, and no arrowheads or dwell commands
+The zero vector at the centre omits a mark, including coordinate-rounding residue
+at an intended centre after tile-scale conversion. No arrowheads or dwell commands
 are generated. Candidate bounds are padded on both axes for varying directions;
 the same candidate/endpoint caps run before field evaluation. Both classic and
 multiscale use design-unit centre controls, converting tile scale where needed.

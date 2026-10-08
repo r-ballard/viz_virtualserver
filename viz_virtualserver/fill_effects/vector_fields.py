@@ -63,4 +63,14 @@ class VortexField:
         object.__setattr__(self, "center_y", _finite_number(self.center_y, "field centre"))
 
     def sample(self, x: float, y: float) -> VectorSample:
-        return VectorSample(-(y - self.center_y), x - self.center_x)
+        x = _finite_number(x, "field position")
+        y = _finite_number(y, "field position")
+        delta_x, delta_y = x - self.center_x, y - self.center_y
+        # Independently normalized centres and lattice arithmetic can differ by
+        # a few ulps at the same intended location. Resolve this field's singular
+        # point here, not by imposing a magnitude cutoff on every field renderer.
+        error_x = 4 * (math.ulp(x) + math.ulp(self.center_x))
+        error_y = 4 * (math.ulp(y) + math.ulp(self.center_y))
+        if abs(delta_x) <= error_x and abs(delta_y) <= error_y:
+            return VectorSample(0.0, 0.0)
+        return VectorSample(-delta_y, delta_x)
