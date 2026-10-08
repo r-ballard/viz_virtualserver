@@ -12,11 +12,13 @@ class HatchParameters(PanelParameters):
     hatch_spacing: float = Field(default=2.0, gt=0)
     hatch_angle: float = 45.0
     hatch_effect: Literal[
-        "parallel-hatch", "crosshatch", "circle-rings", "stroke-dots"
+        "parallel-hatch", "crosshatch", "circle-rings", "stroke-dots", "vortex-marks"
     ] = "parallel-hatch"
     hatch_radius: float = Field(default=0.5, gt=0)
     hatch_curve_tolerance: float = Field(default=0.02, gt=0)
     hatch_mark_length: float = Field(default=0.5, gt=0)
+    hatch_field_center_x: float = 0.0
+    hatch_field_center_y: float = 0.0
     hatch_region: Literal["painted", "unpainted"] = "painted"
 
     @field_validator("hatch_layer_id")

@@ -12,7 +12,9 @@ from .circle_rings import circle_rings
 from .crosshatch import crosshatches
 from .models import EffectParameter, FillEffectDescriptor, FillStroke
 from .parallel_hatch import parallel_hatches
+from .region_validation import validate_region as _validate_region
 from .stroke_dots import stroke_dots
+from .vortex_marks import vortex_marks
 
 _PARALLEL_HATCH = FillEffectDescriptor(
     id="parallel-hatch",
@@ -45,24 +47,21 @@ _REGISTRY = {
                     EffectParameter("mark_length", .5, "input-units", 0.0),
                     EffectParameter("angle", 0.0, "degrees")),
     ), stroke_dots),
+    "vortex-marks": (FillEffectDescriptor(
+        id="vortex-marks", name="Vortex marks",
+        description="Fixed-length marks tangent to a vortex field on a rotated square lattice.",
+        parameters=(EffectParameter("spacing", 8.0, "input-units", 0.0),
+                    EffectParameter("mark_length", .5, "input-units", 0.0),
+                    EffectParameter("angle", 0.0, "degrees"),
+                    EffectParameter("center_x", 0.0, "input-units"),
+                    EffectParameter("center_y", 0.0, "input-units")),
+    ), vortex_marks),
 }
 
 
 def list_fill_effects() -> tuple[FillEffectDescriptor, ...]:
     """Return implemented effects in stable registration order."""
     return tuple(descriptor for descriptor, _ in _REGISTRY.values())
-
-
-def _validate_region(region: BaseGeometry) -> None:
-    if not isinstance(region, BaseGeometry) or not region.is_valid:
-        raise ValueError("fill region must be valid polygonal geometry")
-    if region.geom_type in ("Polygon", "MultiPolygon"):
-        return
-    if region.geom_type == "GeometryCollection":
-        for part in region.geoms:
-            _validate_region(part)
-        return
-    raise ValueError("fill region must be polygonal geometry")
 
 
 def render_fill_effect(

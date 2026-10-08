@@ -173,11 +173,12 @@ def render_multiscale_hatched(
     hatch_effect: str = "parallel-hatch",
     hatch_radius: float = 0.5, hatch_curve_tolerance: float = 0.02,
     hatch_mark_length: float = 0.5,
+    hatch_field_center_x: float = 0.0, hatch_field_center_y: float = 0.0,
 ) -> tuple[tuple[tuple[int, CurvePath], ...], tuple[CurvePath, ...]]:
     """Compose once for boundaries and hatches in the same normalized frame."""
     if any(math.ulp(c) * 4 > hatch_spacing for point in domain.vertices for c in point):
         raise ValueError("hatch spacing cannot be represented reliably at domain coordinates")
-    if hatch_effect == "stroke-dots" and any(
+    if hatch_effect in {"stroke-dots", "vortex-marks"} and any(
         math.ulp(c) * 8 > min(hatch_spacing, hatch_mark_length)
         for point in domain.vertices for c in point
     ):
@@ -205,8 +206,16 @@ def render_multiscale_hatched(
             raise ValueError("ring tolerance cannot be represented reliably at domain coordinates")
         controls.update(radius=hatch_radius / arrangement.base_tile_size,
                         curve_tolerance=sampling_tolerance / arrangement.base_tile_size)
-    elif hatch_effect == "stroke-dots":
+    elif hatch_effect in {"stroke-dots", "vortex-marks"}:
         controls["mark_length"] = hatch_mark_length / arrangement.base_tile_size
+        if hatch_effect == "vortex-marks":
+            centres = (hatch_field_center_x / arrangement.base_tile_size,
+                       hatch_field_center_y / arrangement.base_tile_size)
+            if any(original != 0 and normalized == 0 for original, normalized in zip(
+                (hatch_field_center_x, hatch_field_center_y), centres, strict=True,
+            )):
+                raise ValueError("field centre cannot be represented reliably at this tile scale")
+            controls.update(center_x=centres[0], center_y=centres[1])
     sampled = render_fill_effect(selected, effect=hatch_effect, parameters=controls)
     ox, oy = arrangement.origin
     size = arrangement.base_tile_size
