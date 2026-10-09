@@ -25,6 +25,7 @@ from viz_virtualserver.generators.concentric.service import (
     generate_orbital_design,
 )
 from viz_virtualserver.generators.radial_tiles.service import RadialTilesDomainAlgorithm
+from viz_virtualserver.generators.topographic.service import TopographicDomainAlgorithm
 from viz_virtualserver.generators.truchet.color_bundle import (
     project_truchet_color_paths,
     truchet_color_projection,
@@ -34,6 +35,7 @@ from viz_virtualserver.generators.truchet.service import TruchetDomainAlgorithm
 from viz_virtualserver.generators.voronoi_cells.service import VoronoiCellsDomainAlgorithm
 
 ALGORITHMS = {
+    "topographic": TopographicDomainAlgorithm(),
     "concentric-points": ConcentricDomainAlgorithm(),
     "orbital-concentric": OrbitalConcentricDomainAlgorithm(),
     "radial-tiles": RadialTilesDomainAlgorithm(),
