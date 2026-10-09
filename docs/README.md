@@ -1,5 +1,6 @@
 # Documentation map
 
+- [Topographic artwork](algorithms/topographic.md): seeded natural terrain, smoothing, and polygon-clipped elevation contours.
 - [Generate polygon artwork](how-to/generate-polygon-artwork.md): operator walkthrough from JSON job to neutral SVG bundle.
 - [Voronoi cells](how-to/voronoi-cells.md): seeded recursive cells with inset gaps and rounded contours.
 - [Truchet tiles](algorithms/truchet.md): compiled square grammar and multi-scale, polygon-clipped curves.

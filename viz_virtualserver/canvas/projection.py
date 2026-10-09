@@ -62,7 +62,8 @@ def project_surfaces(
 
 
 def project_surface_bundle(
-    job: DomainArtworkJob, state: DesignState | ProjectedDesign
+    job: DomainArtworkJob, state: DesignState | ProjectedDesign, *,
+    retain_unused_layers: bool = False,
 ) -> SurfaceProjectionBundle:
     """Project all surfaces, then assign ordinals to their ordered catalog union."""
 
@@ -129,7 +130,8 @@ def project_surface_bundle(
         )
 
     used = {path.layer_id for surface in projections for path in surface.paths}
-    entries = [entry for entry in declared_catalog.entries if entry.id in used]
+    entries = [entry for entry in declared_catalog.entries
+               if retain_unused_layers or entry.id in used]
     seen = {entry.id for entry in entries}
     for surface in projections:
         for layer in surface.layers:
