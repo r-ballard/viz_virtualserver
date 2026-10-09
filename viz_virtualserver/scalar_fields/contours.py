@@ -65,9 +65,9 @@ def extract_contours(field: SampledField, levels: tuple[float, ...], *,
             crossed = [k for k, (a, b) in enumerate(edge_corners)
                        if above[a[1], a[0]] != above[b[1], b[0]]]
             if len(crossed) == 4:
-                shifted = [float(values[y, x])-level for x, y in corners]
-                scale = max(map(abs, shifted))
-                a, b, c, d = (v/scale for v in shifted)
+                heights = [float(values[y, x]) for x, y in corners]
+                scale = max(abs(level), *map(abs, heights), 1)
+                a, b, c, d = (v/scale-level/scale for v in heights)
                 determinant = a*c-b*d
                 # At determinant zero, choose top-right / bottom-left consistently.
                 pairs = ((0, 1), (2, 3)) if determinant >= 0 else ((0, 3), (1, 2))

@@ -63,3 +63,12 @@ def test_contour_budget_aborts_and_levels_are_validated():
     for levels in ((1, 0), (0, 0), (float('nan'),)):
         with pytest.raises(ValueError):
             extract_contours(grid([[0, 1], [0, 1]]), levels)
+
+
+def test_saddle_connectivity_is_invariant_under_finite_extreme_scaling():
+    scaled = extract_contours(grid([[1.7, -1.7], [-1.7, 1.7]]), (-1.,))
+    huge = extract_contours(grid([[1.7e308, -1.7e308], [-1.7e308, 1.7e308]]), (-1e308,))
+    assert len(scaled) == len(huge)
+    for a, b in zip(scaled, huge, strict=True):
+        for pa, pb in zip(a.points, b.points, strict=True):
+            assert pa == pytest.approx(pb)

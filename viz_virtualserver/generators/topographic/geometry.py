@@ -4,6 +4,7 @@ import math
 
 from shapely import STRtree
 from shapely.geometry import LineString, Polygon
+from shapely.ops import linemerge, unary_union
 
 from viz_virtualserver.canvas.models import PolygonDomain
 from viz_virtualserver.scalar_fields.contours import canonical_contour
@@ -75,7 +76,11 @@ def clip_contours(contours: tuple[Contour, ...], polygon: PolygonDomain) -> tupl
             if canonical is not None:
                 result.append(canonical)
             continue
-        for part in _linear_parts(line.intersection(boundary)):
+        parts = tuple(_linear_parts(line.intersection(boundary)))
+        if len(parts) > 1:
+            # Rejoin the seam of a closed source loop, but never bridge gaps.
+            parts = tuple(_linear_parts(linemerge(parts)))
+        for part in parts:
             if part.length == 0:
                 continue
             coords = tuple(part.coords)
@@ -89,13 +94,20 @@ def prepare_contours(contours: tuple[Contour, ...], polygon: PolygonDomain, *,
                      tolerance: float) -> tuple[Contour, ...]:
     simplified = simplify_contours(contours, tolerance=tolerance)
     original_clipped = clip_contours(contours, polygon)
-    clipped = clip_contours(simplified, polygon)
+    retained = []
+    for original, candidate in zip(contours, simplified, strict=True):
+        before = clip_contours((original,), polygon)
+        after = clip_contours((candidate,), polygon)
+        # Simplification must not erase a visible component or cut an inside loop.
+        if sorted(c.closed for c in before) != sorted(c.closed for c in after):
+            after = before
+        retained.extend(after)
+    clipped = tuple(sorted(retained, key=lambda c: (c.level, c.points, c.closed)))
     # Intersection after clipping must be contained in the original clipped set.
     lines = [_line(c) for c in clipped]
     if not lines:
         return ()
     tree = STRtree(lines)
-    from shapely.ops import unary_union
     original_by_level = {}
     for c in original_clipped:
         original_by_level.setdefault(c.level, []).append(_line(c))
