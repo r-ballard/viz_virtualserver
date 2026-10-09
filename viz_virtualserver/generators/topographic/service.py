@@ -1,5 +1,7 @@
 from viz_virtualserver.canvas.design import (
-    AlgorithmCapabilities, DesignResult, VectorPath,
+    AlgorithmCapabilities,
+    DesignResult,
+    VectorPath,
 )
 from viz_virtualserver.scalar_fields.contours import extract_contours
 from viz_virtualserver.scalar_fields.models import MAX_SEGMENTS, MAX_VERTICES
@@ -47,7 +49,8 @@ class TopographicDomainAlgorithm:
                 for contour in contours:
                     vertex_count += len(contour.points)
                     if vertex_count > MAX_VERTICES:
-                        raise ValueError('vertex cost limit exceeded; increase spacing or reduce levels')
+                        raise ValueError(
+                            'vertex cost limit exceeded; increase spacing or reduce levels')
                     points = tuple((x+x0, y+y0) for x, y in contour.points)
                     paths.append(VectorPath(points, contour.closed,
                                             layers[1 if contour.level in index_levels else 0],

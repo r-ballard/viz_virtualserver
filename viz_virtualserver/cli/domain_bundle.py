@@ -25,6 +25,10 @@ from viz_virtualserver.generators.concentric.service import (
     generate_orbital_design,
 )
 from viz_virtualserver.generators.radial_tiles.service import RadialTilesDomainAlgorithm
+from viz_virtualserver.generators.topographic.bundle import (
+    project_topographic_paths,
+    topographic_projection,
+)
 from viz_virtualserver.generators.topographic.service import TopographicDomainAlgorithm
 from viz_virtualserver.generators.truchet.color_bundle import (
     project_truchet_color_paths,
@@ -71,14 +75,17 @@ def main(argv: list[str] | None = None) -> int:
     try:
         job, projection = _read_cli_job(args.job)
         if projection is None:
-            curve_projection = truchet_color_projection(job)
+            topo_projection = topographic_projection(job)
+            curve_projection = topo_projection or truchet_color_projection(job)
             state = run_domain_artwork_job(job, ALGORITHMS)
             if curve_projection is None:
                 bundle = write_design_bundle(job, state, output_dir, overwrite=args.overwrite)
             else:
-                design = project_truchet_color_paths(state, curve_projection)
+                design = (project_topographic_paths(state, curve_projection) if topo_projection
+                          else project_truchet_color_paths(state, curve_projection))
                 bundle = write_neutral_bundle(
-                    job, design, output_dir, projection=curve_projection, overwrite=args.overwrite
+                    job, design, output_dir, projection=curve_projection, overwrite=args.overwrite,
+                    retain_unused_layers=topo_projection is not None,
                 )
         else:
             design = generate_orbital_design(job, projection=projection)

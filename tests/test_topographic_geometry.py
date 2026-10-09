@@ -2,7 +2,9 @@ from shapely.geometry import LineString, Polygon
 
 from viz_virtualserver.canvas.models import PolygonDomain
 from viz_virtualserver.generators.topographic.geometry import (
-    clip_contours, prepare_contours, simplify_contours,
+    clip_contours,
+    prepare_contours,
+    simplify_contours,
 )
 from viz_virtualserver.scalar_fields.models import Contour
 

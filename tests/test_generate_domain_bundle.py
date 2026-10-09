@@ -21,6 +21,59 @@ from viz_virtualserver.canvas.models import PolygonDomain
 from viz_virtualserver.generators.lsystem.models import LSystemRequest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_topographic_cli_reproducible_empty_channels_and_atomic_error(tmp_path):
+    payload = {
+        'schema_version': 1, 'seed': 31,
+        'domains': [
+            {'id': 'panel', 'vertices': [[0, 0], [20, 0], [20, 20], [0, 20]]},
+            {'id': 'other', 'vertices': [[0, 0], [20, 0], [10, 20]]},
+        ],
+        'passes': [{'id': 'map', 'algorithm': 'topographic',
+                    'target_domain_ids': ['panel', 'other'],
+                    'parameters': {'terrain_scale': 8, 'sample_spacing': 1,
+                                   'contour_count': 8, 'index_every': 9},
+                    'logical_layers': [{'id': 'contours'}, {'id': 'index'}]}],
+    }
+    source = tmp_path/'job.json'
+    source.write_text(json.dumps(payload), encoding='utf-8')
+    first, second = tmp_path/'first', tmp_path/'second'
+    for dest in (first, second):
+        assert cli_module.main([str(source), '--output-dir', str(dest)]) == 0
+    for relative in ('design.json', 'design.svg', 'surfaces/panel.svg', 'surfaces/other.svg'):
+        assert (first/relative).read_bytes() == (second/relative).read_bytes()
+    root = ET.parse(first/'surfaces/panel.svg').getroot()
+    groups = root.findall('{http://www.w3.org/2000/svg}g[@data-viz-layer-id]')
+    # Empty channels remain declared in the manifest; SVG groups contain actual paths only.
+    assert [g.attrib['data-viz-layer-id'] for g in groups] == ['contours']
+    manifest = json.loads((first/'design.json').read_text(encoding='utf-8'))
+    assert [layer['id'] for layer in manifest['logical_layers']] == ['contours', 'index']
+    before = {p.relative_to(first): p.read_bytes() for p in first.rglob('*') if p.is_file()}
+    payload['passes'][0]['parameters']['sample_spacing'] = 1e-300
+    source.write_text(json.dumps(payload), encoding='utf-8')
+    with pytest.raises(SystemExit) as error:
+        cli_module.main([str(source), '--output-dir', str(first), '--overwrite'])
+    assert error.value.code == 2
+    assert before == {p.relative_to(first): p.read_bytes() for p in first.rglob('*') if p.is_file()}
+
+
+def test_topographic_cli_pass_vertex_budget_is_atomic(tmp_path, monkeypatch):
+    from viz_virtualserver.generators.topographic import service
+    monkeypatch.setattr(service, 'MAX_VERTICES', 1)
+    source = tmp_path/'job.json'
+    source.write_text(json.dumps({
+        'schema_version': 1, 'seed': 31,
+        'domains': [{'id': 'p', 'vertices': [[0, 0], [20, 0], [20, 20], [0, 20]]}],
+        'passes': [{'id': 'map', 'algorithm': 'topographic', 'target_domain_ids': ['p'],
+                    'parameters': {'terrain_scale': 8, 'sample_spacing': 1},
+                    'logical_layers': [{'id': 'contours'}, {'id': 'index'}]}],
+    }), encoding='utf-8')
+    dest = tmp_path/'bundle'
+    with pytest.raises(SystemExit):
+        cli_module.main([str(source), '--output-dir', str(dest)])
+    assert not dest.exists()
+
 EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "cootie-catcher.json"
 RADIAL_TILES_EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "radial-tiles-three-polygons.json"
 ORBITAL_EXAMPLE = REPO_ROOT / "examples" / "domain-jobs" / "orbital-concentric-three-polygons.json"

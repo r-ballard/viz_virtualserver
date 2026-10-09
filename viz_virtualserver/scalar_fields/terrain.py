@@ -4,8 +4,6 @@ import hashlib
 import math
 import random
 
-from viz_virtualserver.generators.topographic.models import TopographicParameters
-
 _GRADIENTS = ((1, 0), (-1, 0), (0, 1), (0, -1),
               (.7071067811865476, .7071067811865476),
               (-.7071067811865476, .7071067811865476),
@@ -40,10 +38,13 @@ class TerrainField:
                  roughness: float = .45, warp_strength: float = .35):
         if type(seed) is not int:
             raise ValueError('terrain seed must be an integer')
-        p = TopographicParameters(terrain_scale=scale, octaves=octaves,
-                                  roughness=roughness, warp_strength=warp_strength)
-        self.scale, self.octaves = p.terrain_scale, p.octaves
-        self.roughness, self.warp_strength = p.roughness, p.warp_strength
+        if (any(type(v) not in (int, float) or not math.isfinite(v)
+                for v in (scale, roughness, warp_strength))
+                or scale <= 0 or not 0 <= roughness <= 1 or not 0 <= warp_strength <= 1
+                or type(octaves) is not int or not 1 <= octaves <= 8):
+            raise ValueError('invalid terrain scale, octaves, roughness, or warp strength')
+        self.scale, self.octaves = scale, octaves
+        self.roughness, self.warp_strength = roughness, warp_strength
         def tagged(tag):
             return int.from_bytes(hashlib.sha256(f'{seed}:{tag}'.encode()).digest()[:8], 'big')
         self.base = _Noise(tagged('terrain'))

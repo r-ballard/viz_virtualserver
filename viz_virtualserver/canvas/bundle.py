@@ -111,6 +111,7 @@ def write_neutral_bundle(
     *,
     projection: ProjectionSpec,
     overwrite: bool = True,
+    retain_unused_layers: bool = False,
 ) -> DesignBundle:
     """Publish opt-in v1 logical layers with semantic provenance and a shared catalog."""
 
@@ -132,7 +133,8 @@ def write_neutral_bundle(
             raise ValueError(f"duplicate path ID: {semantic.path_id}")
         path_ids.add(path_identity)
     _validate_projection_assignments(design.paths, projection)
-    surface_bundle = project_surface_bundle(job, design)
+    surface_bundle = (project_surface_bundle(job, design, retain_unused_layers=True)
+                      if retain_unused_layers else project_surface_bundle(job, design))
     surfaces = surface_bundle.surfaces
     _validate_projection_assignments(
         tuple(path for surface in surfaces for path in surface.paths), projection

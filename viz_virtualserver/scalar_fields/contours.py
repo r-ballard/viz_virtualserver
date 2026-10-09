@@ -59,7 +59,6 @@ def extract_contours(field: SampledField, levels: tuple[float, ...], *,
             return key
 
         for j, i in zip(rows.tolist(), cols.tolist(), strict=True):
-            code = int(codes[j, i])
             corners = ((i, j), (i+1, j), (i+1, j+1), (i, j+1))
             edge_corners = ((corners[0], corners[1]), (corners[1], corners[2]),
                             (corners[3], corners[2]), (corners[0], corners[3]))

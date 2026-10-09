@@ -1,0 +1,279 @@
+{
+  "schema_version": 1,
+  "seed": 31,
+  "domains": [
+    {
+      "id": "unsmoothed",
+      "vertices": [
+        [
+          0,
+          0
+        ],
+        [
+          100,
+          0
+        ],
+        [
+          100,
+          100
+        ],
+        [
+          0,
+          100
+        ]
+      ]
+    },
+    {
+      "id": "natural",
+      "vertices": [
+        [
+          0,
+          0
+        ],
+        [
+          100,
+          0
+        ],
+        [
+          100,
+          100
+        ],
+        [
+          0,
+          100
+        ]
+      ]
+    },
+    {
+      "id": "smooth",
+      "vertices": [
+        [
+          0,
+          0
+        ],
+        [
+          100,
+          0
+        ],
+        [
+          100,
+          100
+        ],
+        [
+          0,
+          100
+        ]
+      ]
+    },
+    {
+      "id": "second-terrain",
+      "vertices": [
+        [
+          0,
+          0
+        ],
+        [
+          100,
+          0
+        ],
+        [
+          100,
+          100
+        ],
+        [
+          0,
+          100
+        ]
+      ]
+    },
+    {
+      "id": "concave",
+      "vertices": [
+        [
+          0,
+          0
+        ],
+        [
+          100,
+          0
+        ],
+        [
+          100,
+          100
+        ],
+        [
+          50,
+          45
+        ],
+        [
+          0,
+          100
+        ]
+      ]
+    }
+  ],
+  "passes": [
+    {
+      "id": "map-unsmoothed",
+      "algorithm": "topographic",
+      "target_domain_ids": [
+        "unsmoothed"
+      ],
+      "parameters": {
+        "terrain_scale": 30.0,
+        "terrain_smoothing": 0.0
+      },
+      "logical_layers": [
+        {
+          "id": "topographic-contours",
+          "label": "Intermediate contours"
+        },
+        {
+          "id": "topographic-index",
+          "label": "Index contours"
+        }
+      ]
+    },
+    {
+      "id": "map-natural",
+      "algorithm": "topographic",
+      "target_domain_ids": [
+        "natural"
+      ],
+      "parameters": {
+        "terrain_scale": 30.0,
+        "terrain_smoothing": 1.0
+      },
+      "logical_layers": [
+        {
+          "id": "topographic-contours",
+          "label": "Intermediate contours"
+        },
+        {
+          "id": "topographic-index",
+          "label": "Index contours"
+        }
+      ]
+    },
+    {
+      "id": "map-smooth",
+      "algorithm": "topographic",
+      "target_domain_ids": [
+        "smooth"
+      ],
+      "parameters": {
+        "terrain_scale": 30.0,
+        "terrain_smoothing": 3.0
+      },
+      "logical_layers": [
+        {
+          "id": "topographic-contours",
+          "label": "Intermediate contours"
+        },
+        {
+          "id": "topographic-index",
+          "label": "Index contours"
+        }
+      ]
+    },
+    {
+      "id": "map-second-terrain",
+      "algorithm": "topographic",
+      "target_domain_ids": [
+        "second-terrain"
+      ],
+      "parameters": {
+        "terrain_scale": 30.0,
+        "terrain_smoothing": 1.0
+      },
+      "logical_layers": [
+        {
+          "id": "topographic-contours",
+          "label": "Intermediate contours"
+        },
+        {
+          "id": "topographic-index",
+          "label": "Index contours"
+        }
+      ]
+    },
+    {
+      "id": "map-concave",
+      "algorithm": "topographic",
+      "target_domain_ids": [
+        "concave"
+      ],
+      "parameters": {
+        "terrain_scale": 30.0,
+        "terrain_smoothing": 1.0
+      },
+      "logical_layers": [
+        {
+          "id": "topographic-contours",
+          "label": "Intermediate contours"
+        },
+        {
+          "id": "topographic-index",
+          "label": "Index contours"
+        }
+      ]
+    }
+  ],
+  "composition_transforms": [
+    {
+      "domain_id": "unsmoothed",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "domain_id": "natural",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        115,
+        0
+      ]
+    },
+    {
+      "domain_id": "smooth",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        230,
+        0
+      ]
+    },
+    {
+      "domain_id": "second-terrain",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        115
+      ]
+    },
+    {
+      "domain_id": "concave",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        115,
+        115
+      ]
+    }
+  ]
+}
