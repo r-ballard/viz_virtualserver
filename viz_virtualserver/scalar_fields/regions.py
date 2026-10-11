@@ -79,8 +79,9 @@ def _superlevel(field, level, budget):
             graph = unary_union([boundary,*[LineString((a.point,b.point)) for a,b in cuts]])
             high = [Point(p) for p,(i,j) in zip(points,corners,strict=True) if above[j,i]]
             for face in polygonize(graph):
+                budget.check(face)
                 if face.area > 0 and any(face.covers(p) for p in high):
-                    pieces.append(budget.check(face))
+                    pieces.append(face)
     return budget.check(unary_union(pieces) if pieces else Polygon())
 
 
