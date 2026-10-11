@@ -64,14 +64,14 @@ def list_fill_effects() -> tuple[FillEffectDescriptor, ...]:
     return tuple(descriptor for descriptor, _ in _REGISTRY.values())
 
 
-def render_fill_effect(
-    region: BaseGeometry, *, effect: str,
+def validate_fill_parameters(
+    *, effect: str,
     parameters: Mapping[str, object] | None = None,
-) -> tuple[FillStroke, ...]:
-    """Render strokes without changing frame, assigning layers, or repairing regions."""
+) -> dict[str, float]:
+    """Validate effect controls without generating or requiring geometry."""
     if not isinstance(effect, str) or effect not in _REGISTRY:
         raise ValueError(f"unknown fill effect: {effect!r}")
-    descriptor, renderer = _REGISTRY[effect]
+    descriptor, _ = _REGISTRY[effect]
     if parameters is not None and not isinstance(parameters, Mapping):
         raise ValueError("fill parameters must be a mapping")
     supplied = dict(parameters) if parameters is not None else {}
@@ -91,5 +91,12 @@ def render_fill_effect(
                          and number <= parameter.exclusive_minimum):
             raise ValueError(f"invalid fill parameter {parameter.name}: {value!r}")
         controls[parameter.name] = number
+    return controls
+
+
+def render_fill_effect(region: BaseGeometry, *, effect: str,
+                       parameters: Mapping[str, object] | None = None) -> tuple[FillStroke, ...]:
+    """Render strokes without changing frame, assigning layers, or repairing regions."""
+    controls = validate_fill_parameters(effect=effect, parameters=parameters)
     _validate_region(region)
-    return renderer(region, **controls)
+    return _REGISTRY[effect][1](region, **controls)

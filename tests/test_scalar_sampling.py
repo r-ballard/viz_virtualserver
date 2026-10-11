@@ -19,7 +19,7 @@ def test_parameter_defaults_and_strict_rejections():
     assert TopographicParameters().model_dump() == dict(
         terrain_scale=30.0, octaves=5, roughness=.45, warp_strength=.35,
         terrain_smoothing=1.0, sample_spacing=.5, contour_count=30,
-        index_every=5, simplify_tolerance=.02)
+        index_every=5, simplify_tolerance=.02, band_fills=())
     for params in ({'unknown': 1}, {'octaves': True}, {'octaves': 1.2},
                    {'sample_spacing': '1'}, {'sample_spacing': False},
                    {'sample_spacing': 0}, {'roughness': 2},
