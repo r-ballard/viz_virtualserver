@@ -2,7 +2,8 @@
 
 ## Status and intent
 
-Concept approved October 9, 2026; this written spec awaits review.
+Concept approved October 9, 2026; written spec approved for planning October 11,
+2026. Physical pen-force testing is deferred independently of this software work.
 Extend the merged `topographic` algorithm with deterministic elevation-band
 regions that can be left empty or filled using the existing vector fill catalogue.
 The user approved explicit band selection, per-rule effects and logical channels,
