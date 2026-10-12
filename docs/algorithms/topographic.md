@@ -32,7 +32,7 @@ All lengths are **intrinsic domain units**. Defaults suit an approximately
 or smaller artwork. Unknown parameters, numeric strings, booleans as numbers,
 and nonfinite values are rejected.
 
-Declare exactly two distinct logical layers in order: intermediate contours,
+For contour-only artwork, declare exactly two distinct logical layers in order: intermediate contours,
 then index contours. Example IDs are `topographic-contours` and `topographic-index`.
 Index numbering starts at one. With `index_every=1`, every contour uses the second
 channel; with `index_every>contour_count`, it is unused. Both channels remain
@@ -83,4 +83,29 @@ minimum pen clearance. Judge spacing after physical scaling and pen assignment i
 plotter-workflow. Text labels remain a downstream Inkscape operation.
 
 Future extensions include actual elevation rasters, rounded-hill field sources,
-elevation-band fill effects, gradient-driven marks, and shared-coordinate terrain.
+gradient-driven marks and shared-coordinate terrain.
+
+## Elevation-band fills
+
+Run `python -m viz_virtualserver.cli.domain_bundle examples/domain-jobs/topographic-band-fills.json --output-dir output/topographic-band-fills` for alternating stroke dots, mixed dots/hatching, a concave target, and circle rings. Each panel has independent terrain.
+
+Add optional `band_fills` rules to the pass parameters:
+
+```json
+"band_fills": [
+  {"bands": [0, 2, 4, 6, 8], "effect": "stroke-dots",
+   "parameters": {"spacing": 3, "mark_length": 0.5}, "layer_id": "terrain-dots"}
+]
+```
+
+For N contours there are N+1 bands numbered 0 through N, from low to high. Band 0 lies below the first level; band N lies above the last. Empty bands keep their indices. Unselected bands remain unfilled. Each rule unions its selected bands before rendering, so adjacent selected bands have no artificial internal clipping seam. Different rules cannot select the same band; they may share a fill layer.
+
+The first two logical layers remain intermediate and index contours. Additional layer IDs must exactly match those referenced by fill rules and cannot alias either contour layer. Empty channels remain declared in the audit catalog and have no SVG group. Fill paths carry the `topographic-fill` feature role; physical pens and colors are assigned downstream.
+
+All five [catalogue effects](../reference/fill-effects.md) are available, with the same controls and defaults. Rules and controls are validated before terrain sampling, including selections that eventually contain no area. Omit `band_fills` or use an empty array to retain contour-only output.
+
+Regions use the same normalized sampled terrain and levels as the contours, before contour simplification. Changing `simplify_tolerance` does not change fills. Holes and disconnected islands are retained; clipped strokes never bridge excluded regions. Equality at a level belongs to the lower band. Constant or numerically negligible normalized terrain produces neither contours nor fills.
+
+Fill lattices use the polygon's bounds-local coordinate frame. Translating the same domain translates its artwork without changing lattice phase. Composition placement does not create shared terrain between polygons.
+
+Region extraction additionally limits cell-level work to 12,000,000 and cumulative intermediate polygon coordinates to 1,000,000 per domain. Contours and fills share the final 1,000,000-vertex pass limit, alongside each effect's own limits. Excessive cost or inadequate coordinate precision fails before publishing a bundle; increase spacing or reduce contour count rather than relying on silent coarsening.

@@ -23,6 +23,63 @@ from viz_virtualserver.generators.lsystem.models import LSystemRequest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_topographic_band_fill_cli_roles_empty_channels_and_atomic_failure(tmp_path, monkeypatch):
+    payload = {
+        "schema_version": 1,
+        "seed": 31,
+        "domains": [{"id": "panel", "vertices": [[0, 0], [20, 0], [20, 20], [0, 20]]}],
+        "passes": [
+            {
+                "id": "map",
+                "algorithm": "topographic",
+                "target_domain_ids": ["panel"],
+                "parameters": {
+                    "terrain_scale": 8,
+                    "sample_spacing": 1,
+                    "contour_count": 8,
+                    "band_fills": [
+                        {
+                            "bands": [0, 2, 4, 6, 8],
+                            "effect": "stroke-dots",
+                            "parameters": {"spacing": 3, "mark_length": 0.5},
+                            "layer_id": "dots",
+                        }
+                    ],
+                },
+                "logical_layers": [{"id": "contours"}, {"id": "index"}, {"id": "dots"}],
+            }
+        ],
+    }
+    source = tmp_path / "job.json"
+    source.write_text(json.dumps(payload))
+    first, second = tmp_path / "first", tmp_path / "second"
+    for dest in (first, second):
+        assert cli_module.main([str(source), "--output-dir", str(dest)]) == 0
+    for name in ("design.json", "design.svg", "surfaces/panel.svg"):
+        assert (first / name).read_bytes() == (second / name).read_bytes()
+    root = ET.parse(first / "surfaces/panel.svg").getroot()
+    paths = root.findall(
+        "{http://www.w3.org/2000/svg}g[@data-viz-layer-id='dots']/{http://www.w3.org/2000/svg}path"
+    )
+    assert paths and all(p.get("data-viz-feature-role") == "topographic-fill" for p in paths)
+    from viz_virtualserver.generators.topographic import service
+
+    with monkeypatch.context() as patch:
+        patch.setattr(service, "render_band_fills", lambda *args: ())
+        empty = tmp_path / "empty"
+        assert cli_module.main([str(source), "--output-dir", str(empty)]) == 0
+    manifest = json.loads((empty / "design.json").read_text())
+    assert [layer["id"] for layer in manifest["logical_layers"]] == ["contours", "index", "dots"]
+    empty_root = ET.parse(empty / "surfaces/panel.svg").getroot()
+    assert not empty_root.findall("{http://www.w3.org/2000/svg}g[@data-viz-layer-id='dots']")
+    before = {p.relative_to(first): p.read_bytes() for p in first.rglob("*") if p.is_file()}
+    payload["passes"][0]["parameters"]["band_fills"][0]["parameters"]["spacing"] = 0
+    source.write_text(json.dumps(payload))
+    with pytest.raises(SystemExit):
+        cli_module.main([str(source), "--output-dir", str(first), "--overwrite"])
+    assert before == {p.relative_to(first): p.read_bytes() for p in first.rglob("*") if p.is_file()}
+
+
 def test_topographic_cli_reproducible_empty_channels_and_atomic_error(tmp_path):
     payload = {
         'schema_version': 1, 'seed': 31,

@@ -60,60 +60,67 @@ For each component, write tests, watch meaningful red failures, implement, verif
 
 **Files:** cells.py, contours.py, test_scalar_cells.py, existing contour tests.
 
-- [ ] Write fixtures for one-corner, adjacent-corner, diagonal/saddle, exact-level and constant cells. Assert the shared crossing key/point pairs equal existing contour segments, including both determinant signs and zero tie. Neighboring cells must share the same edge identity and coordinate. Include extreme finite heights from the current contour regression.
-- [ ] Run cell tests to red, then extract existing contour crossing/pair logic into the exact helper interface. Do not change arithmetic order or segment visitation order; omit identical-coordinate/zero-length cuts as the current extractor does.
-- [ ] Refactor contour extraction to use returned crossings, retaining graph keys, duplicate-edge elimination, budgets, and canonical paths. Run cell/contour tests and compare baseline topographic bundle bytes to green.
-- [ ] Commit `refactor: share scalar cell topology with region extraction`.
+- [x] Write fixtures for one-corner, adjacent-corner, diagonal/saddle, exact-level and constant cells. Assert the shared crossing key/point pairs equal existing contour segments, including both determinant signs and zero tie. Neighboring cells must share the same edge identity and coordinate. Include extreme finite heights from the current contour regression.
+- [x] Run cell tests to red, then extract existing contour crossing/pair logic into the exact helper interface. Do not change arithmetic order or segment visitation order; omit identical-coordinate/zero-length cuts as the current extractor does.
+- [x] Refactor contour extraction to use returned crossings, retaining graph keys, duplicate-edge elimination, budgets, and canonical paths. Run cell/contour tests and compare baseline topographic bundle bytes to green.
+- [x] Commit `refactor: share scalar cell topology with region extraction`.
 
 ### Task 2: Indexed polygonal band regions
 
 **Files:** regions.py and test_scalar_regions.py.
 
-- [ ] Write analytic tests for a plane (exact strip areas), radial hill and depression (nested holes), two hills/saddle, both saddle decisions/tie, exact-level plateaus, constant supplied fields, and levels outside range. Assert N+1 stable records, valid polygonal geometry, full target coverage, disjoint interiors, and boundary agreement with unsimplified contour cuts.
-- [ ] Add convex/concave, reversed-winding, negative-origin and tiny-island/hole fixtures. Test a target outside the sampled rectangle is rejected rather than partially filled. Add workload and coordinate-budget failures before allocation/composition with monkeypatched small limits.
-- [ ] Run tests to red.
-- [ ] Build each superlevel region from scalar cells using Task 1's cuts. Fully high cells are aggregated into contiguous row-run rectangles to avoid allocating one polygon per cell/level. Empty cells contribute nothing. For cut cells, node the shared cuts with the cell boundary, polygonize faces, and retain faces incident to a strictly-above corner. Equality-only corners do not label a high face. Preserve every positive-area polygon; don't use representative-point terrain classification or a fixed triangulation that changes saddle decisions.
-- [ ] Batch/compose contributions into threshold regions, then clip to the target polygon. Count polygon coordinates incrementally while creating contributions and after composition/difference/clip outputs, aborting at 1,000,000. Precheck total `(nx-1)*(ny-1)*len(levels)` against 12,000,000. Catch Shapely topology errors as clear ValueErrors with spacing/count guidance.
-- [ ] Validate nesting. Difference each consecutive superlevel region to form bands; band0 is target minus first threshold, bandN is the last. Empty polygons remain indexed empty polygonal geometry. Bounds are None for unbounded outer elevations. Validate union/overlap area with `64 * float_epsilon * max(1, target.area, target_bounds_area)` tolerance; tolerance permits numerical checks only, not geometry deletion or repair. Non-nested/invalid geometry fails clearly. Fully constant generic fields partition at the supplied levels; service normalization's existing None behavior remains unchanged.
-- [ ] Run analytic/geometry/budget tests to green; commit `feat: extract indexed elevation band regions`.
+- [x] Write analytic tests for a plane (exact strip areas), radial hill and depression (nested holes), two hills/saddle, both saddle decisions/tie, exact-level plateaus, constant supplied fields, and levels outside range. Assert N+1 stable records, valid polygonal geometry, full target coverage, disjoint interiors, and boundary agreement with unsimplified contour cuts.
+- [x] Add convex/concave, reversed-winding, negative-origin and tiny-island/hole fixtures. Test a target outside the sampled rectangle is rejected rather than partially filled. Add workload and coordinate-budget failures before allocation/composition with monkeypatched small limits.
+- [x] Run tests to red.
+- [x] Build each superlevel region from scalar cells using Task 1's cuts. Fully high cells are aggregated into contiguous row-run rectangles to avoid allocating one polygon per cell/level. Empty cells contribute nothing. For cut cells, node the shared cuts with the cell boundary, polygonize faces, and retain faces incident to a strictly-above corner. Equality-only corners do not label a high face. Preserve every positive-area polygon; don't use representative-point terrain classification or a fixed triangulation that changes saddle decisions.
+- [x] Batch/compose contributions into threshold regions, then clip to the target polygon. Count polygon coordinates incrementally while creating contributions and after composition/difference/clip outputs, aborting at 1,000,000. Precheck total `(nx-1)*(ny-1)*len(levels)` against 12,000,000. Catch Shapely topology errors as clear ValueErrors with spacing/count guidance.
+- [x] Validate nesting. Difference each consecutive superlevel region to form bands; band0 is target minus first threshold, bandN is the last. Empty polygons remain indexed empty polygonal geometry. Bounds are None for unbounded outer elevations. Validate union/overlap area with `64 * float_epsilon * max(1, target.area, target_bounds_area)` tolerance; tolerance permits numerical checks only, not geometry deletion or repair. Non-nested/invalid geometry fails clearly. Fully constant generic fields partition at the supplied levels; service normalization's existing None behavior remains unchanged.
+- [x] Run analytic/geometry/budget tests to green; commit `feat: extract indexed elevation band regions`.
 
 ### Task 3: Strict fill rules and shared parameter validation
 
 **Files:** catalogue.py, fill_effects/__init__.py, topographic/models.py, parameter/catalogue tests.
 
-- [ ] Write tests for sorted bands/rules, immutable parameters, defaults, all five catalogue effects, strict band indices, duplicate/overlapping/out-of-range selection, unknown/null fields, effect-specific invalid parameters, and no fills by default. An invalid rule must fail even when its selected band is empty.
-- [ ] Run to red. Factor catalogue validation without changing descriptors, defaults, numeric acceptance, or render dispatch output. Store the canonical validated controls in frozen rule parameter mappings; reject explicit null parameters before calling the catalogue validator.
-- [ ] Validate band range and cross-rule disjointness in TopographicParameters; canonicalize rule ordering by bands and bands ascending. Support duplicate layer IDs across non-overlapping rules, not duplicate band assignments. Reject numeric strings/booleans/nulls and unknown fields. Keep the new default from altering ordinary job audit serialization, which records supplied parameters.
-- [ ] Run existing catalogue tests and new parameter tests to green; commit `feat: validate deterministic topographic band fill rules`.
+- [x] Write tests for sorted bands/rules, immutable parameters, defaults, all five catalogue effects, strict band indices, duplicate/overlapping/out-of-range selection, unknown/null fields, effect-specific invalid parameters, and no fills by default. An invalid rule must fail even when its selected band is empty.
+- [x] Run to red. Factor catalogue validation without changing descriptors, defaults, numeric acceptance, or render dispatch output. Store the canonical validated controls in frozen rule parameter mappings; reject explicit null parameters before calling the catalogue validator.
+- [x] Validate band range and cross-rule disjointness in TopographicParameters; canonicalize rule ordering by bands and bands ascending. Support duplicate layer IDs across non-overlapping rules, not duplicate band assignments. Reject numeric strings/booleans/nulls and unknown fields. Keep the new default from altering ordinary job audit serialization, which records supplied parameters.
+- [x] Run existing catalogue tests and new parameter tests to green; commit `feat: validate deterministic topographic band fill rules`.
 
 ### Task 4: Service rendering and neutral channels
 
 **Files:** fills.py, topographic/service.py, band-fill tests; bundle.py only if evidence requires it.
 
-- [ ] Write service tests for alternating filled/unfilled bands, different effects/channels, per-rule adjacent-band union, disconnected islands and holes. Assert every complete fill stroke is covered by its selected union. Exercise all five effects through the catalogue and validate no fill-layer aliases with contour channels.
-- [ ] Test source translation, reversed winding, domain independence/order, rule/index order invariance, empty regions/channels, zero-rule fast path, normalization returning None, and pass-wide contour-plus-fill vertex overflow. Assert invalid rules/channels are rejected before terrain evaluation.
-- [ ] Run to red. Resolve the same sampled field once per domain. Extract unsimplified regions before plotting simplification; render each rule union in the bounds-local frame, restoring origin once for VectorPaths. Canonicalize stroke orientation/order with closedness intact; do not bridge independent fragments.
-- [ ] Keep first two contour channels and exact additional referenced fill-channel set. Append fills after contours and attach topographic-fill semantic provenance using the existing path geometry/role mechanism, with stable per-pass/domain path IDs. Count all vertices together against the existing pass cap. Wrap errors with domain/rule identity; invalid geometry stays an error, not an automatic repair.
-- [ ] Run new service tests, existing topographic tests, and no-fill bundle digest comparison to green; commit `feat: render topographic band fills through catalogue effects`.
+- [x] Write service tests for alternating filled/unfilled bands, different effects/channels, per-rule adjacent-band union, disconnected islands and holes. Assert every complete fill stroke is covered by its selected union. Exercise all five effects through the catalogue and validate no fill-layer aliases with contour channels.
+- [x] Test source translation, reversed winding, domain independence/order, rule/index order invariance, empty regions/channels, zero-rule fast path, normalization returning None, and pass-wide contour-plus-fill vertex overflow. Assert invalid rules/channels are rejected before terrain evaluation.
+- [x] Run to red. Resolve the same sampled field once per domain. Extract unsimplified regions before plotting simplification; render each rule union in the bounds-local frame, restoring origin once for VectorPaths. Canonicalize stroke orientation/order with closedness intact; do not bridge independent fragments.
+- [x] Keep first two contour channels and exact additional referenced fill-channel set. Append fills after contours and attach topographic-fill semantic provenance using the existing path geometry/role mechanism, with stable per-pass/domain path IDs. Count all vertices together against the existing pass cap. Wrap errors with domain/rule identity; invalid geometry stays an error, not an automatic repair.
+- [x] Run new service tests, existing topographic tests, and no-fill bundle digest comparison to green; commit `feat: render topographic band fills through catalogue effects`.
 
 ### Task 5: CLI bundles and examples
 
 **Files:** test_generate_domain_bundle.py, band-fill tests, example job, algorithm/reference/index docs.
 
-- [ ] Add CLI tests for reproducible audit/SVG bytes, fill roles/layer catalog order, declared empty fill channels, concave surfaces, multiple rules, and failure preserving existing destination under overwrite. Verify downstream neutral-contract acceptance using plotter-workflow's current main validator read-only.
-- [ ] Add `test_simplification_does_not_change_region_fills`: generate the same effective seed/geometry/rules at two contour simplification tolerances and compare fill paths exactly. Regions and lattice phase must be unchanged even when contour vertex counts differ.
-- [ ] Run integration tests to red where behavior is absent, fix concrete integration defects, then verify green. Reuse the current neutral adapter/unused-layer retention; don't change producer or physical pen schemas.
-- [ ] Add a small tuning job with an alternating stroke-dot square, mixed-effect/channel square, and concave target. Use N=8 and explicit selected bands; pick reviewed seeds exposing holes/islands. Include a controlled same-seed comparison if example pass/domain seed derivation would otherwise obscure the differences.
-- [ ] Document band indexing, explicit union semantics, unfilled bands, effects/parameters, local coordinate phase, channel rules, budgets, constant-field behavior, and unsimplified fills versus simplified curves. Link the example and guide. No physical plotting or hardware assertions.
-- [ ] Commit `docs: demonstrate topographic elevation band fills`.
+- [x] Add CLI tests for reproducible audit/SVG bytes, fill roles/layer catalog order, declared empty fill channels, concave surfaces, multiple rules, and failure preserving existing destination under overwrite. Verify downstream neutral-contract acceptance using plotter-workflow's current main validator read-only.
+- [x] Add `test_simplification_does_not_change_region_fills`: generate the same effective seed/geometry/rules at two contour simplification tolerances and compare fill paths exactly. Regions and lattice phase must be unchanged even when contour vertex counts differ.
+- [x] Run integration tests to red where behavior is absent, fix concrete integration defects, then verify green. Reuse the current neutral adapter/unused-layer retention; don't change producer or physical pen schemas.
+- [x] Add a small tuning job with an alternating stroke-dot square, mixed-effect/channel square, and concave target. Use N=8 and explicit selected bands; pick reviewed seeds exposing holes/islands. Include a controlled same-seed comparison if example pass/domain seed derivation would otherwise obscure the differences.
+- [x] Document band indexing, explicit union semantics, unfilled bands, effects/parameters, local coordinate phase, channel rules, budgets, constant-field behavior, and unsimplified fills versus simplified curves. Link the example and guide. No physical plotting or hardware assertions.
+- [x] Commit `docs: demonstrate topographic elevation band fills`.
 
 ### Task 6: Visual verification, regressions and PR
 
-- [ ] Generate a fresh output/topographic-band-fills bundle; make a colored review SVG separately from neutral exports. Render with installed Inkscape and inspect alternating bands, unfilled holes, disconnected islands, boundaries and concave clipping. Inspect both whole design and surface SVGs. Record observations; tune example settings without dropping required geometry.
-- [ ] Run full suite and Ruff; verify baseline contour-only outputs unchanged and downstream neutral validation accepted. Repeat/broaden checks only for new changes or unresolved concerns.
-- [ ] Request one fresh whole-branch read-only review. Resolve substantive findings in one verified fix pass, with regressions watched red then green, and rerun relevant/full checks.
+- [x] Generate a fresh output/topographic-band-fills bundle; make a colored review SVG separately from neutral exports. Render with installed Inkscape and inspect alternating bands, unfilled holes, disconnected islands, boundaries and concave clipping. Inspect both whole design and surface SVGs. Record observations; tune example settings without dropping required geometry.
+- [x] Run full suite and Ruff; verify baseline contour-only outputs unchanged and downstream neutral validation accepted. Repeat/broaden checks only for new changes or unresolved concerns.
+- [x] Request one fresh whole-branch read-only review. Resolve substantive findings in one verified fix pass, with regressions watched red then green, and rerun relevant/full checks.
 - [ ] Commit verified fixes, push and create PR against main. Preserve worktree/output previews; do not merge. Physical pen-force testing remains deferred independently.
 
 ## Plan review and handoff
 
 Self-review maps every spec requirement to these tasks, especially scalar saddle/equality behavior, polygon partition integrity, early empty-band validation, output budgets, and contour-only invariance. Native execution remains selected. Review this written plan before implementation.
+
+## Execution evidence
+
+The native implementation passed the original 913-test baseline and the initial 963-test expanded suite. Final verification follows the review precision fix and additional ordering/empty-channel tests. All seven original contour-only bundle files remain byte-identical. All four band-fill surfaces pass the current plotter-workflow neutral validator. The composed review preview and concave neutral surface were visually inspected.
+
+One fresh independent review found endpoint rounding could incorrectly label an entire cell high. Two regression cases were observed failing before adding region-only precision rejection; an ordinary-level regression also passes. Contour-only extraction keeps its existing policy. Minor review notes retained for later: enforce combined fill budgets during accumulation and strengthen independent analytic boundary-agreement tests.
+Final verification: 968 tests passed, two existing dependency warnings; Ruff and whitespace checks passed.

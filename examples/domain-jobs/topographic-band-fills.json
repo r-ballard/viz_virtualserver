@@ -1,0 +1,335 @@
+{
+  "schema_version": 1,
+  "seed": 31,
+  "domains": [
+    {
+      "id": "alternating",
+      "vertices": [
+        [
+          0,
+          0
+        ],
+        [
+          80,
+          0
+        ],
+        [
+          80,
+          80
+        ],
+        [
+          0,
+          80
+        ]
+      ]
+    },
+    {
+      "id": "mixed",
+      "vertices": [
+        [
+          0,
+          0
+        ],
+        [
+          80,
+          0
+        ],
+        [
+          80,
+          80
+        ],
+        [
+          0,
+          80
+        ]
+      ]
+    },
+    {
+      "id": "concave",
+      "vertices": [
+        [
+          0,
+          0
+        ],
+        [
+          80,
+          0
+        ],
+        [
+          80,
+          80
+        ],
+        [
+          40,
+          35
+        ],
+        [
+          0,
+          80
+        ]
+      ]
+    },
+    {
+      "id": "rings",
+      "vertices": [
+        [
+          0,
+          0
+        ],
+        [
+          80,
+          0
+        ],
+        [
+          80,
+          80
+        ],
+        [
+          0,
+          80
+        ]
+      ]
+    }
+  ],
+  "passes": [
+    {
+      "id": "map-alternating",
+      "algorithm": "topographic",
+      "target_domain_ids": [
+        "alternating"
+      ],
+      "parameters": {
+        "contour_count": 8,
+        "terrain_scale": 30,
+        "sample_spacing": 1,
+        "terrain_smoothing": 1,
+        "simplify_tolerance": 0,
+        "band_fills": [
+          {
+            "bands": [
+              0,
+              2,
+              4,
+              6,
+              8
+            ],
+            "effect": "stroke-dots",
+            "parameters": {
+              "spacing": 3,
+              "mark_length": 0.5
+            },
+            "layer_id": "terrain-dots"
+          }
+        ]
+      },
+      "logical_layers": [
+        {
+          "id": "topographic-contours",
+          "label": "Intermediate contours"
+        },
+        {
+          "id": "topographic-index",
+          "label": "Index contours"
+        },
+        {
+          "id": "terrain-dots",
+          "label": "terrain-dots"
+        }
+      ]
+    },
+    {
+      "id": "map-mixed",
+      "algorithm": "topographic",
+      "target_domain_ids": [
+        "mixed"
+      ],
+      "parameters": {
+        "contour_count": 8,
+        "terrain_scale": 30,
+        "sample_spacing": 1,
+        "terrain_smoothing": 1,
+        "simplify_tolerance": 0,
+        "band_fills": [
+          {
+            "bands": [
+              1,
+              3
+            ],
+            "effect": "stroke-dots",
+            "parameters": {
+              "spacing": 3,
+              "mark_length": 0.5
+            },
+            "layer_id": "terrain-dots"
+          },
+          {
+            "bands": [
+              5,
+              7
+            ],
+            "effect": "parallel-hatch",
+            "parameters": {
+              "spacing": 2,
+              "angle": 45
+            },
+            "layer_id": "terrain-hatch"
+          }
+        ]
+      },
+      "logical_layers": [
+        {
+          "id": "topographic-contours",
+          "label": "Intermediate contours"
+        },
+        {
+          "id": "topographic-index",
+          "label": "Index contours"
+        },
+        {
+          "id": "terrain-dots",
+          "label": "terrain-dots"
+        },
+        {
+          "id": "terrain-hatch",
+          "label": "terrain-hatch"
+        }
+      ]
+    },
+    {
+      "id": "map-concave",
+      "algorithm": "topographic",
+      "target_domain_ids": [
+        "concave"
+      ],
+      "parameters": {
+        "contour_count": 8,
+        "terrain_scale": 30,
+        "sample_spacing": 1,
+        "terrain_smoothing": 1,
+        "simplify_tolerance": 0,
+        "band_fills": [
+          {
+            "bands": [
+              0,
+              2,
+              4,
+              6,
+              8
+            ],
+            "effect": "stroke-dots",
+            "parameters": {
+              "spacing": 3,
+              "mark_length": 0.5
+            },
+            "layer_id": "terrain-dots"
+          }
+        ]
+      },
+      "logical_layers": [
+        {
+          "id": "topographic-contours",
+          "label": "Intermediate contours"
+        },
+        {
+          "id": "topographic-index",
+          "label": "Index contours"
+        },
+        {
+          "id": "terrain-dots",
+          "label": "terrain-dots"
+        }
+      ]
+    },
+    {
+      "id": "map-rings",
+      "algorithm": "topographic",
+      "target_domain_ids": [
+        "rings"
+      ],
+      "parameters": {
+        "contour_count": 8,
+        "terrain_scale": 30,
+        "sample_spacing": 1,
+        "terrain_smoothing": 1,
+        "simplify_tolerance": 0,
+        "band_fills": [
+          {
+            "bands": [
+              1,
+              3,
+              5,
+              7
+            ],
+            "effect": "circle-rings",
+            "parameters": {
+              "spacing": 5,
+              "radius": 1,
+              "curve_tolerance": 0.1
+            },
+            "layer_id": "terrain-rings"
+          }
+        ]
+      },
+      "logical_layers": [
+        {
+          "id": "topographic-contours",
+          "label": "Intermediate contours"
+        },
+        {
+          "id": "topographic-index",
+          "label": "Index contours"
+        },
+        {
+          "id": "terrain-rings",
+          "label": "terrain-rings"
+        }
+      ]
+    }
+  ],
+  "composition_transforms": [
+    {
+      "domain_id": "alternating",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "domain_id": "mixed",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        95,
+        0
+      ]
+    },
+    {
+      "domain_id": "concave",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        95
+      ]
+    },
+    {
+      "domain_id": "rings",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        95,
+        95
+      ]
+    }
+  ]
+}

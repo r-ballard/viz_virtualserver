@@ -238,3 +238,7 @@ its source or assets, retain the notices required by its
 Only implemented effects appear in the catalogue. Independent per-field and
 per-component fill selection, dithering, arbitrary SVG/image import, a generic fill CLI, and
 plugin discovery remain separate work.
+
+## Topographic regions
+
+Topographic passes can apply these effects to explicit unions of elevation bands. See [band-fill rules](../algorithms/topographic.md#elevation-band-fills) for selection, channels, phase, and budgets. The public `validate_fill_parameters(effect=..., parameters=...)` function validates controls and returns a fresh dictionary containing defaults, without rendering geometry.
