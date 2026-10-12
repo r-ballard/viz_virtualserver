@@ -4,6 +4,7 @@ import math
 
 import numpy as np
 
+from .cells import cell_segments
 from .models import MAX_SEGMENTS, Contour, SampledField
 
 
@@ -41,41 +42,11 @@ def extract_contours(field: SampledField, levels: tuple[float, ...], *,
         rows, cols = np.nonzero((codes != 0) & (codes != 15))
         points, links, edges = {}, {}, set()
 
-        def crossing(a, b):
-            # Vertex identities unify crossings exactly at a level vertex.
-            va, vb = float(values[a[1], a[0]]), float(values[b[1], b[0]])
-            if va == level:
-                key, t = ('v', *a), 0.0
-            elif vb == level:
-                key, t = ('v', *b), 1.0
-            else:
-                key = ('e', *a, *b)
-                # Rescaling avoids overflow of vb-va for finite extreme heights.
-                scale = max(abs(va), abs(vb), abs(level), 1)
-                t = (level/scale-va/scale)/(vb/scale-va/scale)
-            if key not in points:
-                points[key] = (field.origin[0]+(a[0]+t*(b[0]-a[0]))*field.dx,
-                               field.origin[1]+(a[1]+t*(b[1]-a[1]))*field.dy)
-            return key
-
         for j, i in zip(rows.tolist(), cols.tolist(), strict=True):
-            corners = ((i, j), (i+1, j), (i+1, j+1), (i, j+1))
-            edge_corners = ((corners[0], corners[1]), (corners[1], corners[2]),
-                            (corners[3], corners[2]), (corners[0], corners[3]))
-            crossed = [k for k, (a, b) in enumerate(edge_corners)
-                       if above[a[1], a[0]] != above[b[1], b[0]]]
-            if len(crossed) == 4:
-                heights = [float(values[y, x]) for x, y in corners]
-                scale = max(abs(level), *map(abs, heights), 1)
-                a, b, c, d = (v/scale-level/scale for v in heights)
-                determinant = a*c-b*d
-                # At determinant zero, choose top-right / bottom-left consistently.
-                pairs = ((0, 1), (2, 3)) if determinant >= 0 else ((0, 3), (1, 2))
-            else:
-                pairs = (tuple(crossed),)
-            for first, second in pairs:
-                a = crossing(*edge_corners[first])
-                b = crossing(*edge_corners[second])
+            for first, second in cell_segments(field, i, j, level):
+                a, b = first.key, second.key
+                points.setdefault(a, first.point)
+                points.setdefault(b, second.point)
                 if a == b or points[a] == points[b]:
                     continue
                 edge = tuple(sorted((a, b)))
