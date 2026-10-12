@@ -50,6 +50,7 @@ class FillEffectDescriptor:
     name: str
     description: str
     parameters: tuple[EffectParameter, ...]
+    requires_field: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "parameters", tuple(self.parameters))
