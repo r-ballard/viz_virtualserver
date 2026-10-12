@@ -28,7 +28,9 @@ class BandFillRule(BaseModel):
     def validated(self):
         if self.effect == "field-marks":
             if self.field_direction is None:
-                raise ValueError("field-marks requires an explicit slope or contour field_direction")
+                raise ValueError(
+                    "field-marks requires an explicit slope or contour field_direction"
+                )
         elif "field_direction" in self.model_fields_set:
             raise ValueError("field_direction is only supported for field-marks")
         if not self.bands or len(set(self.bands)) != len(self.bands):

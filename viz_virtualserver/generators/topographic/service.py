@@ -83,11 +83,23 @@ class TopographicDomainAlgorithm:
                 local = PolygonDomain(
                     domain.id, tuple((x - x0, y - y0) for x, y in domain.vertices)
                 )
-                fills = ()
+                regions = ()
                 if p.band_fills:
                     regions = extract_band_regions(sampled, levels, local)
-                    fills = render_band_fills(regions, p.band_fills)
                 contours = prepare_contours(contours, local, tolerance=p.simplify_tolerance)
+                contour_vertices = sum(len(c.points) for c in contours)
+                if vertex_count + contour_vertices > MAX_VERTICES:
+                    raise ValueError(
+                        "vertex cost limit exceeded; increase spacing or reduce levels"
+                    )
+                fills = ()
+                if p.band_fills:
+                    fills = render_band_fills(
+                        regions,
+                        p.band_fills,
+                        sampled_field=sampled,
+                        max_vertices=MAX_VERTICES - vertex_count - contour_vertices,
+                    )
                 for contour in contours:
                     vertex_count += len(contour.points)
                     if vertex_count > MAX_VERTICES:
