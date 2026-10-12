@@ -1,0 +1,256 @@
+{
+  "schema_version": 1,
+  "seed": 31,
+  "domains": [
+    {
+      "id": "slope",
+      "vertices": [
+        [
+          0,
+          0
+        ],
+        [
+          80,
+          0
+        ],
+        [
+          80,
+          80
+        ],
+        [
+          0,
+          80
+        ]
+      ]
+    },
+    {
+      "id": "contour",
+      "vertices": [
+        [
+          0,
+          0
+        ],
+        [
+          80,
+          0
+        ],
+        [
+          80,
+          80
+        ],
+        [
+          0,
+          80
+        ]
+      ]
+    },
+    {
+      "id": "concave",
+      "vertices": [
+        [
+          0,
+          0
+        ],
+        [
+          80,
+          0
+        ],
+        [
+          80,
+          80
+        ],
+        [
+          40,
+          35
+        ],
+        [
+          0,
+          80
+        ]
+      ]
+    }
+  ],
+  "passes": [
+    {
+      "id": "map-slope",
+      "algorithm": "topographic",
+      "target_domain_ids": [
+        "slope"
+      ],
+      "parameters": {
+        "terrain_scale": 30,
+        "terrain_smoothing": 1,
+        "sample_spacing": 1,
+        "contour_count": 8,
+        "simplify_tolerance": 0,
+        "band_fills": [
+          {
+            "bands": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8
+            ],
+            "effect": "field-marks",
+            "field_direction": "slope",
+            "parameters": {
+              "spacing": 3,
+              "mark_length": 1.5
+            },
+            "layer_id": "terrain-slope"
+          }
+        ]
+      },
+      "logical_layers": [
+        {
+          "id": "topographic-contours",
+          "label": "Intermediate contours"
+        },
+        {
+          "id": "topographic-index",
+          "label": "Index contours"
+        },
+        {
+          "id": "terrain-slope",
+          "label": "Slope marks"
+        }
+      ]
+    },
+    {
+      "id": "map-contour",
+      "algorithm": "topographic",
+      "target_domain_ids": [
+        "contour"
+      ],
+      "parameters": {
+        "terrain_scale": 30,
+        "terrain_smoothing": 1,
+        "sample_spacing": 1,
+        "contour_count": 8,
+        "simplify_tolerance": 0,
+        "band_fills": [
+          {
+            "bands": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8
+            ],
+            "effect": "field-marks",
+            "field_direction": "contour",
+            "parameters": {
+              "spacing": 3,
+              "mark_length": 1.5
+            },
+            "layer_id": "terrain-contour"
+          }
+        ]
+      },
+      "logical_layers": [
+        {
+          "id": "topographic-contours",
+          "label": "Intermediate contours"
+        },
+        {
+          "id": "topographic-index",
+          "label": "Index contours"
+        },
+        {
+          "id": "terrain-contour",
+          "label": "Contour marks"
+        }
+      ]
+    },
+    {
+      "id": "map-concave",
+      "algorithm": "topographic",
+      "target_domain_ids": [
+        "concave"
+      ],
+      "parameters": {
+        "terrain_scale": 30,
+        "terrain_smoothing": 1,
+        "sample_spacing": 1,
+        "contour_count": 8,
+        "simplify_tolerance": 0,
+        "band_fills": [
+          {
+            "bands": [
+              0,
+              2,
+              4,
+              6,
+              8
+            ],
+            "effect": "field-marks",
+            "field_direction": "contour",
+            "parameters": {
+              "spacing": 3,
+              "mark_length": 1.5
+            },
+            "layer_id": "terrain-contour"
+          }
+        ]
+      },
+      "logical_layers": [
+        {
+          "id": "topographic-contours",
+          "label": "Intermediate contours"
+        },
+        {
+          "id": "topographic-index",
+          "label": "Index contours"
+        },
+        {
+          "id": "terrain-contour",
+          "label": "Contour marks"
+        }
+      ]
+    }
+  ],
+  "composition_transforms": [
+    {
+      "domain_id": "slope",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "domain_id": "contour",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        95,
+        0
+      ]
+    },
+    {
+      "domain_id": "concave",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        190,
+        0
+      ]
+    }
+  ]
+}

@@ -162,5 +162,5 @@ verification; do not merge automatically. Preserve prior worktrees and previews.
 
 ## Design status
 
-Concept approved in conversation. Written spec awaits user review before the
-implementation plan is prepared. No product code has been changed.
+Concept, written spec and implementation plan approved in conversation. Native
+execution selected; physical plotting remains deferred.

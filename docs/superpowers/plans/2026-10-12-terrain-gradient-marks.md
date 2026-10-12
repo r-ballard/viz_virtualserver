@@ -1,6 +1,6 @@
 # Terrain-Gradient Marks Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Native execution is selected. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Native execution is selected. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Render deterministic slope- or contour-oriented fixed marks inside explicitly selected topographic bands.
 
@@ -49,11 +49,11 @@ Each task observes meaningful red failures, implements, verifies green, checks w
 
 **Interface:** `SampledGradient(field: SampledField)` constructs immutable raw gradient arrays; `vector_field(direction: Literal["slope", "contour"]) -> VectorField` creates a lightweight view sharing them. Each view implements `sample(x: float, y: float) -> VectorSample`.
 
-- [ ] Write `test_plane_raw_vectors`: heights `2*x + 3*y` return `(2,3)` at nodes and interior points, contour returns `(-3,2)`, including unequal dx/dy and nonzero origin. Add a non-planar fixture with independently calculated bilinear component interpolation; assert normalization happens afterward in VectorSample.direction.
-- [ ] Add tests for constant/near-flat fields, exactly-at-threshold behavior, coordinate scaling, 2-by-2 fields, exact last row/column, all four outside edges/corners, nonfinite queries, invalid directions, immutable arrays, sample cap and arithmetic overflow. Outside finite queries return `(0,0)`; invalid values raise.
-- [ ] Run new tests to red (missing adapter).
-- [ ] Implement central interior and first-order one-sided outer differences using actual dx/dy. Validate cap/bounds/finite arithmetic before publication; store byte-backed immutable arrays. Bilinearly interpolate without extrapolation, using the last cell for exact upper boundaries. Apply the specified numerical floor after interpolation; rotated views share arrays.
-- [ ] Run scalar-gradient and existing scalar tests to green; commit `feat: evaluate immutable sampled terrain gradients`.
+- [x] Write `test_plane_raw_vectors`: heights `2*x + 3*y` return `(2,3)` at nodes and interior points, contour returns `(-3,2)`, including unequal dx/dy and nonzero origin. Add a non-planar fixture with independently calculated bilinear component interpolation; assert normalization happens afterward in VectorSample.direction.
+- [x] Add tests for constant/near-flat fields, exactly-at-threshold behavior, coordinate scaling, 2-by-2 fields, exact last row/column, all four outside edges/corners, nonfinite queries, invalid directions, immutable arrays, sample cap and arithmetic overflow. Outside finite queries return `(0,0)`; invalid values raise.
+- [x] Run new tests to red (missing adapter).
+- [x] Implement central interior and first-order one-sided outer differences using actual dx/dy. Validate cap/bounds/finite arithmetic before publication; store byte-backed immutable arrays. Bilinearly interpolate without extrapolation, using the last cell for exact upper boundaries. Apply the specified numerical floor after interpolation; rotated views share arrays.
+- [x] Run scalar-gradient and existing scalar tests to green; commit `feat: evaluate immutable sampled terrain gradients`.
 
 ### Task2: Context-dependent field-mark catalogue effect
 
@@ -61,11 +61,11 @@ Each task observes meaningful red failures, implements, verifies green, checks w
 
 **Interfaces:** `FillEffectDescriptor.requires_field: bool = False`; `render_fill_effect(region, *, effect, parameters=None, field: VectorField | None = None) -> tuple[FillStroke, ...]`. Numeric validation remains independent of field context.
 
-- [ ] Write descriptor/dispatch tests: existing ordered five IDs followed by `field-marks`; only the last requires_field. Controls/defaults spacing8, mark_length0.5, angle0. A constant `(2,3)` field produces the same clipped strokes as direct `render_field_marks`.
-- [ ] Test missing/noncallable field on empty and nonempty regions, supplied context for ordinary effects, bad VectorSample results, controls rejected before rendering, and early Truchet rejection without invoking costly geometry helpers. Existing effect bytes/strokes must remain unchanged.
-- [ ] Run to meaningful red.
-- [ ] Register the effect and delegate to the common renderer; do not duplicate lattice/clipping. Validate context explicitly. Existing generators without a source reject requires_field effects during parameter validation; preserve their current accepted effects/defaults.
-- [ ] Run catalogue, field-mark and affected Truchet suites to green; commit `feat: add contextual field marks to fill catalogue`.
+- [x] Write descriptor/dispatch tests: existing ordered five IDs followed by `field-marks`; only the last requires_field. Controls/defaults spacing8, mark_length0.5, angle0. A constant `(2,3)` field produces the same clipped strokes as direct `render_field_marks`.
+- [x] Test missing/noncallable field on empty and nonempty regions, supplied context for ordinary effects, bad VectorSample results, controls rejected before rendering, and early Truchet rejection without invoking costly geometry helpers. Existing effect bytes/strokes must remain unchanged.
+- [x] Run to meaningful red.
+- [x] Register the effect and delegate to the common renderer; do not duplicate lattice/clipping. Validate context explicitly. Existing generators without a source reject requires_field effects during parameter validation; preserve their current accepted effects/defaults.
+- [x] Run catalogue, field-mark and affected Truchet suites to green; commit `feat: add contextual field marks to fill catalogue`.
 
 ### Task3: Strict topographic orientation rules
 
@@ -73,10 +73,10 @@ Each task observes meaningful red failures, implements, verifies green, checks w
 
 **Interface:** `BandFillRule.field_direction: Literal["slope", "contour"] | None = None`.
 
-- [ ] Write tests accepting explicit slope/contour only for field-marks. Assert missing direction on field-marks, explicit null, unknown direction, wrong types, and direction supplied on old effects fail. Existing rule immutability, canonical order, overlap/range/channel checks remain valid.
-- [ ] Run to red; implement before/after validation distinguishing omitted from explicitly supplied null. Keep catalogue numeric controls validated before sampling.
-- [ ] Test invalid selections and directions with sampling monkeypatched to fail if reached, including an empty selected band.
-- [ ] Run parameter/service validation tests to green; commit `feat: validate terrain mark orientation rules`.
+- [x] Write tests accepting explicit slope/contour only for field-marks. Assert missing direction on field-marks, explicit null, unknown direction, wrong types, and direction supplied on old effects fail. Existing rule immutability, canonical order, overlap/range/channel checks remain valid.
+- [x] Run to red; implement before/after validation distinguishing omitted from explicitly supplied null. Keep catalogue numeric controls validated before sampling.
+- [x] Test invalid selections and directions with sampling monkeypatched to fail if reached, including an empty selected band.
+- [x] Run parameter/service validation tests to green; commit `feat: validate terrain mark orientation rules`.
 
 ### Task4: Same-field rendering and incremental pass budget
 
@@ -84,26 +84,35 @@ Each task observes meaningful red failures, implements, verifies green, checks w
 
 **Interfaces:** `render_band_fills(regions, rules, *, sampled_field: SampledField | None = None, max_vertices: int = MAX_VERTICES) -> tuple[tuple[str, FillStroke], ...]`. Existing positional calls continue working for ordinary rules. Missing terrain for a field rule is a contextual error.
 
-- [ ] Write service tests proving exactly one gradient-array construction per domain when both orientations are used, none for old rules, and no second terrain sampling. Analytic slope/contour marks must follow known plane axes and be covered by selected unions, preserving holes/concave clipping.
-- [ ] Add translation, winding, domain/rule order, simplification invariance, normalizationNone and empty-channel tests. Compare fills at simplify0 and0.5 exactly. Direction changes affect vectors, lattice angle changes centres independently.
-- [ ] Add budget regressions: combined contour/fill overflow; a second rule renderer spy must not run after the first exceeds the remaining budget. No partial bundle publication. Invalid numeric gradient data raises with domain/rule context.
-- [ ] Run to red. Supply the same normalized field, construct one shared gradient adapter only if needed, and pass the selected view to contextual catalogue calls. Canonicalize as before.
-- [ ] Prepare contours and count their vertices before rendering fills, while extracting regions from unsimplified terrain as before. Pass remaining vertex allowance and enforce it while consuming each rule's canonical strokes; retain the final service guard. Individual catalogue calls still have their existing caps.
-- [ ] Run service/scalar/catalogue tests; regenerate both baseline jobs and compare all saved digests. Commit `feat: render terrain gradient marks within selected bands`.
+- [x] Write service tests proving exactly one gradient-array construction per domain when both orientations are used, none for old rules, and no second terrain sampling. Analytic slope/contour marks must follow known plane axes and be covered by selected unions, preserving holes/concave clipping.
+- [x] Add translation, winding, domain/rule order, simplification invariance, normalizationNone and empty-channel tests. Compare fills at simplify0 and0.5 exactly. Direction changes affect vectors, lattice angle changes centres independently.
+- [x] Add budget regressions: combined contour/fill overflow; a second rule renderer spy must not run after the first exceeds the remaining budget. No partial bundle publication. Invalid numeric gradient data raises with domain/rule context.
+- [x] Run to red. Supply the same normalized field, construct one shared gradient adapter only if needed, and pass the selected view to contextual catalogue calls. Canonicalize as before.
+- [x] Prepare contours and count their vertices before rendering fills, while extracting regions from unsimplified terrain as before. Pass remaining vertex allowance and enforce it while consuming each rule's canonical strokes; retain the final service guard. Individual catalogue calls still have their existing caps.
+- [x] Run service/scalar/catalogue tests; regenerate both baseline jobs and compare all saved digests. Commit `feat: render terrain gradient marks within selected bands`.
 
 ### Task5: CLI example, documentation and final verification
 
 **Files:** Create `examples/domain-jobs/topographic-gradient-marks.json`; modify `docs/algorithms/topographic.md`, `docs/reference/fill-effects.md`, `README.md`, `docs/README.md`; extend `tests/test_generate_domain_bundle.py`.
 
-- [ ] Add CLI tests for repeatable manifest/surface bytes, fill roles/channel order, mixed old/contextual effects, unused fill channels, invalid orientation and failure preserving existing destination under overwrite.
-- [ ] Run integration tests to red where behavior is absent, fix evidenced defects, and verify green.
-- [ ] Add a small N8 example with slope square, contour square and selected-band concave panel, spacing3/mark_length1.5 initially. State distinct panels use independent terrain. Generate a separate controlled same-seed Python comparison for visual slope/contour inspection.
-- [ ] Document catalogue context requirements, topographic orientation syntax, undirected slope axis, lattice-angle distinction, gradient approximation/flat threshold, halo/outside policy and budgets. Link guide/example; no hardware claims.
-- [ ] Generate fresh neutral bundles and separate colored review previews, render in Inkscape, inspect both surfaces and composed artwork for orientation, retained holes/islands and clipping. Validate every surface using current plotter-workflow neutral validator read-only.
-- [ ] Run full suite/Ruff/whitespace, compare saved ordinary contour/fill digests, and commit `docs: demonstrate topographic terrain gradient marks`.
-- [ ] Request one fresh whole-branch read-only review. Reproduce and fix substantive findings with red/green regressions, rerun appropriate/full checks, then commit fixes.
+- [x] Add CLI tests for repeatable manifest/surface bytes, fill roles/channel order, mixed old/contextual effects, unused fill channels, invalid orientation and failure preserving existing destination under overwrite.
+- [x] Run integration tests to red where behavior is absent, fix evidenced defects, and verify green.
+- [x] Add a small N8 example with slope square, contour square and selected-band concave panel, spacing3/mark_length1.5 initially. State distinct panels use independent terrain. Generate a separate controlled same-seed Python comparison for visual slope/contour inspection.
+- [x] Document catalogue context requirements, topographic orientation syntax, undirected slope axis, lattice-angle distinction, gradient approximation/flat threshold, halo/outside policy and budgets. Link guide/example; no hardware claims.
+- [x] Generate fresh neutral bundles and separate colored review previews, render in Inkscape, inspect both surfaces and composed artwork for orientation, retained holes/islands and clipping. Validate every surface using current plotter-workflow neutral validator read-only.
+- [x] Run full suite/Ruff/whitespace, compare saved ordinary contour/fill digests, and commit `docs: demonstrate topographic terrain gradient marks`.
+- [x] Request one fresh whole-branch read-only review. Reproduce and fix substantive findings with red/green regressions, rerun appropriate/full checks, then commit fixes.
 - [ ] Push/create PR against main under the user's existing authorization. Verify PR state; preserve worktree/previews, do not merge. Record final evidence and links.
 
 ## Plan review
 
-Self-review: all spec interfaces, context validation, numeric limits, same-field reuse, flat/outside policy and unchanged old outputs map to tasks. Task4 also resolves the prior review's accumulation-budget note without adding a second clipping renderer. Written spec approved; this plan awaits user review. Native execution remains selected.
+Self-review: all spec interfaces, context validation, numeric limits, same-field reuse, flat/outside policy and unchanged old outputs map to tasks. Task4 also resolves the prior review's accumulation-budget note without adding a second clipping renderer. Written spec and plan approved in conversation. Native execution remains selected.
+
+## Execution evidence
+
+Baseline: 968 tests passed, two existing dependency warnings. Sampled-gradient task observed the missing adapter before implementation; contextual catalogue tests observed missing descriptors/signature; orientation tests observed strict-rule failures; service tests observed missing integration and budgets. All targeted gates subsequently passed.
+
+All 13 saved ordinary contour/fill export files remain byte-identical. Three neutral example surfaces pass the current plotter-workflow validator. The composed review preview, neutral concave surface, and controlled same-seed slope/contour comparison were rendered and visually inspected. One fresh independent review found no important defects and independently passed 44 focused tests. Its minor documentation-spacing note was fixed.
+
+Rulings: use native PowerShell ledger bookkeeping on Windows; use focused gradient test modules instead of expanding existing large files; existing Truchet effect Literals already enforce contextual-effect rejection. Physical plotting remains deferred.
+Final verification: 1014 tests passed, two existing dependency warnings; Ruff and whitespace checks passed.
