@@ -1,21 +1,11 @@
-from collections.abc import Mapping
-from types import MappingProxyType
-from typing import Annotated, Literal
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, field_validator, model_validator
-
-from viz_virtualserver.fill_effects import validate_fill_parameters
+from .component_models import ComponentFillRule
+from .fill_styles import FillStyle
 
 
-class BandFillRule(BaseModel):
-    model_config = ConfigDict(strict=True, frozen=True, extra="forbid", allow_inf_nan=False)
+class BandFillRule(FillStyle):
     bands: tuple[int, ...]
-    effect: str
-    parameters: Annotated[Mapping[str, float], PlainSerializer(lambda value: dict(value))] = Field(
-        default_factory=dict
-    )
-    layer_id: str
-    field_direction: Literal["slope", "contour"] | None = None
 
     @field_validator("bands", mode="before")
     @classmethod
@@ -25,21 +15,10 @@ class BandFillRule(BaseModel):
         return tuple(value)
 
     @model_validator(mode="after")
-    def validated(self):
-        if self.effect == "field-marks":
-            if self.field_direction is None:
-                raise ValueError(
-                    "field-marks requires an explicit slope or contour field_direction"
-                )
-        elif "field_direction" in self.model_fields_set:
-            raise ValueError("field_direction is only supported for field-marks")
+    def validated_selection(self):
         if not self.bands or len(set(self.bands)) != len(self.bands):
             raise ValueError("bands must be nonempty and distinct")
-        if not self.layer_id.strip():
-            raise ValueError("fill layer_id must be nonempty")
-        controls = validate_fill_parameters(effect=self.effect, parameters=self.parameters)
         object.__setattr__(self, "bands", tuple(sorted(self.bands)))
-        object.__setattr__(self, "parameters", MappingProxyType(controls))
         return self
 
 
@@ -56,7 +35,7 @@ class TopographicParameters(BaseModel):
     index_every: int = Field(default=5, ge=1, le=120)
     simplify_tolerance: float = Field(default=0.02, ge=0)
 
-    band_fills: tuple[BandFillRule, ...] = ()
+    band_fills: tuple[BandFillRule | ComponentFillRule, ...] = ()
 
     @field_validator("band_fills", mode="before")
     @classmethod

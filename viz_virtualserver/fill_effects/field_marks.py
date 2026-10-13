@@ -31,34 +31,10 @@ def render_field_marks(
     validate_region(region)
     if region.is_empty:
         return ()
-    radians = math.radians(angle % 180)
-    dx, dy = math.cos(radians), math.sin(radians)
-    dx = 0.0 if abs(dx) < 1e-15 else dx
-    dy = 0.0 if abs(dy) < 1e-15 else dy
-    left, bottom, right, top = region.bounds
-    corners = ((left, bottom), (left, top), (right, bottom), (right, top))
-    along = tuple(x * dx + y * dy for x, y in corners)
-    across = tuple(-x * dy + y * dx for x, y in corners)
-    half = mark_length / 2
-    # A local vector can point in any direction, so pad both lattice axes.
-    padded = (min(along) - half, max(along) + half,
-              min(across) - half, max(across) + half)
-    coordinates = (*along, *across, *padded, left, bottom, right, top)
-    if (half <= 0 or any(not math.isfinite(value) for value in coordinates)
-            or any(math.ulp(value) * 8 > min(spacing, mark_length) for value in coordinates)):
-        raise ValueError("field mark spacing or length cannot be represented reliably")
-    limits = tuple(value / spacing for value in padded)
-    if any(not math.isfinite(value) for value in limits):
-        raise ValueError("field mark lattice cannot be represented reliably")
-    first_column, last_column = math.ceil(limits[0]), math.floor(limits[1])
-    first_row, last_row = math.ceil(limits[2]), math.floor(limits[3])
-    candidates = max(0, last_column - first_column + 1) * max(0, last_row - first_row + 1)
-    if candidates > MAX_MARK_CANDIDATES:
-        raise ValueError("field lattice exceeds 100,000 candidate marks")
-    if candidates == 0:
+    plan = _candidate_plan(region, spacing=spacing, mark_length=mark_length, angle=angle)
+    if plan is None:
         return ()
-    if candidates * 2 > MAX_MARK_POINTS:
-        raise ValueError("field mark sampling exceeds 2,000,000 points")
+    dx, dy, first_column, last_column, first_row, last_row, half, candidates = plan
     paths = []
     try:
         for row in range(first_row, last_row + 1):
@@ -93,3 +69,35 @@ def render_field_marks(
     except GEOSException as exc:
         raise ValueError("field mark clipping failed") from exc
     return tuple(sorted(paths, key=lambda p: p.points))
+
+
+def _candidate_plan(region, *, spacing, mark_length, angle):
+    radians = math.radians(angle % 180)
+    dx, dy = math.cos(radians), math.sin(radians)
+    dx = 0.0 if abs(dx) < 1e-15 else dx
+    dy = 0.0 if abs(dy) < 1e-15 else dy
+    left, bottom, right, top = region.bounds
+    corners = ((left, bottom), (left, top), (right, bottom), (right, top))
+    along = tuple(x * dx + y * dy for x, y in corners)
+    across = tuple(-x * dy + y * dx for x, y in corners)
+    half = mark_length / 2
+    # A local vector can point in any direction, so pad both lattice axes.
+    padded = (min(along) - half, max(along) + half,
+              min(across) - half, max(across) + half)
+    coordinates = (*along, *across, *padded, left, bottom, right, top)
+    if (half <= 0 or any(not math.isfinite(value) for value in coordinates)
+            or any(math.ulp(value) * 8 > min(spacing, mark_length) for value in coordinates)):
+        raise ValueError("field mark spacing or length cannot be represented reliably")
+    limits = tuple(value / spacing for value in padded)
+    if any(not math.isfinite(value) for value in limits):
+        raise ValueError("field mark lattice cannot be represented reliably")
+    first_column, last_column = math.ceil(limits[0]), math.floor(limits[1])
+    first_row, last_row = math.ceil(limits[2]), math.floor(limits[3])
+    candidates = max(0, last_column - first_column + 1) * max(0, last_row - first_row + 1)
+    if candidates > MAX_MARK_CANDIDATES:
+        raise ValueError("field lattice exceeds 100,000 candidate marks")
+    if candidates == 0:
+        return None
+    if candidates * 2 > MAX_MARK_POINTS:
+        raise ValueError("field mark sampling exceeds 2,000,000 points")
+    return dx, dy, first_column, last_column, first_row, last_row, half, candidates

@@ -119,3 +119,31 @@ def render_fill_effect(region: BaseGeometry, *, effect: str,
     if descriptor.requires_field:
         return renderer(region, **controls, field=field)
     return renderer(region, **controls)
+
+
+def estimate_fill_candidates(region: BaseGeometry, *, effect: str,
+                             parameters: Mapping[str, object] | None = None) -> int:
+    """Count actual scan/lattice candidates using the renderer's own plan."""
+    controls = validate_fill_parameters(effect=effect, parameters=parameters)
+    _validate_region(region)
+    if region.is_empty:
+        return 0
+    if effect in ('parallel-hatch', 'crosshatch'):
+        from .parallel_hatch import _scan_frame
+        angle = controls['angle'] % 180
+        angles = (angle,) if effect == 'parallel-hatch' else (angle, (angle+90)%180)
+        frames = [_scan_frame(region, spacing=controls['spacing'], angle=a) for a in angles]
+        count = sum(max(0, f.last-f.first+1) for f in frames)
+        from .parallel_hatch import MAX_HATCH_ROWS
+        if count > MAX_HATCH_ROWS:
+            raise ValueError('hatching exceeds 100,000 scan rows')
+        return count
+    if effect == 'stroke-dots':
+        from .stroke_dots import _candidate_plan
+    elif effect == 'circle-rings':
+        from .circle_rings import _candidate_plan
+    else:
+        from .field_marks import _candidate_plan
+        controls = {k:v for k,v in controls.items() if k in ('spacing','mark_length','angle')}
+    plan = _candidate_plan(region, **controls)
+    return plan[-1] if plan is not None else 0

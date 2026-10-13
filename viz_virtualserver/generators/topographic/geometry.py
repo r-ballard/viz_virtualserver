@@ -12,12 +12,12 @@ from viz_virtualserver.scalar_fields.models import Contour
 
 
 def _line(c):
-    return LineString(c.points+(c.points[:1] if c.closed else ()))
+    return LineString(c.points + (c.points[:1] if c.closed else ()))
 
 
 def simplify_contours(contours: tuple[Contour, ...], *, tolerance: float) -> tuple[Contour, ...]:
     if not math.isfinite(tolerance) or tolerance < 0:
-        raise ValueError('simplification tolerance must be finite and nonnegative')
+        raise ValueError("simplification tolerance must be finite and nonnegative")
     if tolerance == 0 or not contours:
         return contours
     originals = [_line(c) for c in contours]
@@ -28,8 +28,11 @@ def simplify_contours(contours: tuple[Contour, ...], *, tolerance: float) -> tup
         if candidate is None:
             continue
         geometry = _line(candidate)
-        if (original.is_simple and not geometry.is_simple
-                or geometry.hausdorff_distance(original) > tolerance):
+        if (
+            original.is_simple
+            and not geometry.is_simple
+            or geometry.hausdorff_distance(original) > tolerance
+        ):
             continue
         candidates[i] = candidate
     # Reversion can expose a new conflict with a neighbor: iterate monotonically.
@@ -38,7 +41,7 @@ def simplify_contours(contours: tuple[Contour, ...], *, tolerance: float) -> tup
         tree = STRtree(lines)
         revert = set()
         for i, geometry in enumerate(lines):
-            for j in tree.query(geometry, predicate='intersects').tolist():
+            for j in tree.query(geometry, predicate="intersects").tolist():
                 if j <= i or (candidates[i] == contours[i] and candidates[j] == contours[j]):
                     continue
                 overlap = geometry.intersection(lines[j])
@@ -59,9 +62,9 @@ def simplify_contours(contours: tuple[Contour, ...], *, tolerance: float) -> tup
 def _linear_parts(geometry):
     if geometry.is_empty:
         return
-    if geometry.geom_type == 'LineString':
+    if geometry.geom_type == "LineString":
         yield geometry
-    elif hasattr(geometry, 'geoms'):
+    elif hasattr(geometry, "geoms"):
         for part in geometry.geoms:
             yield from _linear_parts(part)
 
@@ -90,8 +93,9 @@ def clip_contours(contours: tuple[Contour, ...], polygon: PolygonDomain) -> tupl
     return tuple(sorted(result, key=lambda c: (c.level, c.points, c.closed)))
 
 
-def prepare_contours(contours: tuple[Contour, ...], polygon: PolygonDomain, *,
-                     tolerance: float) -> tuple[Contour, ...]:
+def prepare_contours(
+    contours: tuple[Contour, ...], polygon: PolygonDomain, *, tolerance: float
+) -> tuple[Contour, ...]:
     simplified = simplify_contours(contours, tolerance=tolerance)
     original_clipped = clip_contours(contours, polygon)
     retained = []
@@ -115,7 +119,7 @@ def prepare_contours(contours: tuple[Contour, ...], polygon: PolygonDomain, *,
     for i, line in enumerate(lines):
         if line.is_simple is False:
             return original_clipped
-        for j in tree.query(line, predicate='intersects').tolist():
+        for j in tree.query(line, predicate="intersects").tolist():
             if j <= i:
                 continue
             a = original_by_level.get(clipped[i].level)

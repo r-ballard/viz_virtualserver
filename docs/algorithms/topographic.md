@@ -133,3 +133,34 @@ python -m viz_virtualserver.cli.domain_bundle examples/domain-jobs/topographic-g
 The example shows slope marks, contour marks, and a concave selected-band panel. Each uses independent terrain, so it is not a controlled orientation comparison. Hold the effective domain seed and geometry constant in the Python service to compare orientations on identical terrain.
 
 Gradient storage uses the existing sample cap and is shared per domain. The common field renderer limits each call to 100,000 candidate marks and 2,000,000 clipped points. Contours and all fill rules retain a combined 1,000,000-vertex pass limit; subsequent rules stop on excess. Dense marks can overlap at a chosen physical scale: inspect spacing and pen assignment downstream.
+
+## Seeded component fill choices
+
+A band-fill rule may use `component_choices` instead of a single effect. Selected bands are unioned first, then each polygon member receives one deterministic weighted choice. Holes stay attached; point-touching MultiPolygon members remain separate. Unselected bands and blank choices stay empty.
+
+```json
+{"bands": [0, 2, 4, 6, 8], "component_seed": 0,
+ "component_choices": [
+   {"id": "blank", "weight": 2, "effect": null},
+   {"id": "dots", "weight": 3, "effect": "stroke-dots",
+    "parameters": {"spacing": 3}, "layer_id": "terrain-dots"},
+   {"id": "marks", "weight": 1, "effect": "field-marks",
+    "field_direction": "contour", "layer_id": "terrain-marks"}
+ ]}
+```
+
+Each choice needs a unique, nonblank, case-sensitive ID and an integer weight from 1 to 1,000,000. There must be 1 through 32 choices. A blank choice requires explicit `effect: null` and must omit rendering controls. Nonblank choices use catalogue parameters and layers, including the existing field-direction rules. Choice rules must omit top-level effect/parameters/layer/direction; old rules must omit component fields. Every possible choice is validated before terrain sampling.
+
+The effective domain seed and optional integer component_seed drive a versioned hash of each canonical full-precision local polygon and selected band indices. Choice order, winding, hole order and unrelated components do not change an unchanged component's assignment. Changing only component_seed changes assignments without changing terrain; weights do not promise exact proportions in a small drawing. Shape or palette-ID/weight changes can change assignments.
+
+Exactly equivalent bounds-local geometry retains assignments under translation or composition placement. No quantization hides numerical changes: translations that lose local precision may change IDs. Tiny islands are retained. Component effects share the original domain lattice origin, not their own bounding origins.
+
+Declare the first two contour layers followed by the exact set of every potential nonblank choice layer, including choices not selected in this drawing. Empty channels remain in the audit and have no SVG group. All-blank palettes need only contour layers. Mixed old and choice rules still require disjoint band selections. Existing single-effect rules retain their output.
+
+Component selection caps each union at 100,000 components and 1,000,000 polygon coordinates. A choice rule has an aggregate 100,000 scan-row/lattice-position budget across rendered components; crosshatch counts both families. The catalogue uses the same planning arithmetic for estimates and rendering. Individual effect limits and combined pass vertices still apply; excessive cost fails rather than dropping geometry.
+
+```powershell
+python -m viz_virtualserver.cli.domain_bundle examples/domain-jobs/topographic-component-choices.json --output-dir output/topographic-component-choices
+```
+
+The example mixes blank, dots, hatching and contour-oriented marks on independent square and concave terrains. The audit retains supplied palettes and seeds; this release does not export a per-component decision manifest or support manual overrides.
