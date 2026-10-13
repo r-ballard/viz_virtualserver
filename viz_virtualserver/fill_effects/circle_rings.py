@@ -28,8 +28,9 @@ def _segments(radius: float, tolerance: float) -> int:
 
 def _canonical_stroke(line: BaseGeometry) -> FillStroke | None:
     source = tuple(line.coords)
-    points = tuple(point for index, point in enumerate(source)
-                   if index == 0 or point != source[index - 1])
+    points = tuple(
+        point for index, point in enumerate(source) if index == 0 or point != source[index - 1]
+    )
     if len(points) < 2:
         return None
     closed = points[0] == points[-1]
@@ -66,46 +67,22 @@ def _clipped_strokes(line: BaseGeometry, region: BaseGeometry) -> tuple[FillStro
 
 
 def circle_rings(
-    region: BaseGeometry, *, spacing: float, radius: float, angle: float,
+    region: BaseGeometry,
+    *,
+    spacing: float,
+    radius: float,
+    angle: float,
     curve_tolerance: float,
 ) -> tuple[FillStroke, ...]:
     """Return complete closed rings and separate open arcs in input units."""
     if region.is_empty:
         return ()
-    radians = math.radians(angle % 360)
-    dx, dy = math.cos(radians), math.sin(radians)
-    dx = 0.0 if abs(dx) < 1e-15 else dx
-    dy = 0.0 if abs(dy) < 1e-15 else dy
-    left, bottom, right, top = region.bounds
-    corners = ((left, bottom), (left, top), (right, bottom), (right, top))
-    along = tuple(x * dx + y * dy for x, y in corners)
-    across = tuple(-x * dy + y * dx for x, y in corners)
-    padded = (min(along) - radius, max(along) + radius,
-              min(across) - radius, max(across) + radius)
-    if (any(not math.isfinite(value) for value in (*along, *across, *padded))
-            or any(math.ulp(value) * 4 > min(spacing, radius, curve_tolerance)
-                   for value in (*along, *across, *padded, left, bottom, right, top))):
-        raise ValueError("ring spacing, radius or tolerance cannot be represented reliably")
-    limits = tuple(value / spacing for value in padded)
-    if any(not math.isfinite(value) for value in limits):
-        raise ValueError("ring lattice cannot be represented reliably")
-    first_column, last_column = math.ceil(limits[0]), math.floor(limits[1])
-    first_row, last_row = math.ceil(limits[2]), math.floor(limits[3])
-    candidates = max(0, last_column - first_column + 1) * max(0, last_row - first_row + 1)
-    if candidates > MAX_RING_CANDIDATES:
-        raise ValueError("circle lattice exceeds 100,000 candidate rings")
-    if candidates == 0:
+    plan = _candidate_plan(
+        region, spacing=spacing, radius=radius, angle=angle, curve_tolerance=curve_tolerance
+    )
+    if plan is None:
         return ()
-    # Reserve arithmetic error at the emitted coordinates instead of spending
-    # the entire deviation budget on an ideal, untranslated polygon.
-    rounding = 8 * max(math.ulp(value) for value in
-                       (*along, *across, *padded, left, bottom, right, top, radius))
-    sampling_tolerance = curve_tolerance - rounding
-    if sampling_tolerance <= 0:
-        raise ValueError("ring tolerance cannot be represented reliably at these coordinates")
-    count = _segments(radius, sampling_tolerance)
-    if candidates * count > MAX_RING_POINTS:
-        raise ValueError("circle sampling exceeds 2,000,000 points")
+    dx, dy, first_column, last_column, first_row, last_row, count, candidates = plan
     offsets = []
     cardinal = ((radius, 0.0), (0.0, radius), (-radius, 0.0), (0.0, -radius))
     quarter = count // 4
@@ -134,3 +111,42 @@ def circle_rings(
     except GEOSException as exc:
         raise ValueError("ring region clipping failed") from exc
     return tuple(sorted(paths, key=lambda p: (p.points, p.closed)))
+
+
+def _candidate_plan(region, *, spacing, radius, angle, curve_tolerance):
+    radians = math.radians(angle % 360)
+    dx, dy = math.cos(radians), math.sin(radians)
+    dx = 0.0 if abs(dx) < 1e-15 else dx
+    dy = 0.0 if abs(dy) < 1e-15 else dy
+    left, bottom, right, top = region.bounds
+    corners = ((left, bottom), (left, top), (right, bottom), (right, top))
+    along = tuple(x * dx + y * dy for x, y in corners)
+    across = tuple(-x * dy + y * dx for x, y in corners)
+    padded = (min(along) - radius, max(along) + radius, min(across) - radius, max(across) + radius)
+    if any(not math.isfinite(value) for value in (*along, *across, *padded)) or any(
+        math.ulp(value) * 4 > min(spacing, radius, curve_tolerance)
+        for value in (*along, *across, *padded, left, bottom, right, top)
+    ):
+        raise ValueError("ring spacing, radius or tolerance cannot be represented reliably")
+    limits = tuple(value / spacing for value in padded)
+    if any(not math.isfinite(value) for value in limits):
+        raise ValueError("ring lattice cannot be represented reliably")
+    first_column, last_column = math.ceil(limits[0]), math.floor(limits[1])
+    first_row, last_row = math.ceil(limits[2]), math.floor(limits[3])
+    candidates = max(0, last_column - first_column + 1) * max(0, last_row - first_row + 1)
+    if candidates > MAX_RING_CANDIDATES:
+        raise ValueError("circle lattice exceeds 100,000 candidate rings")
+    if candidates == 0:
+        return None
+    # Reserve arithmetic error at the emitted coordinates instead of spending
+    # the entire deviation budget on an ideal, untranslated polygon.
+    rounding = 8 * max(
+        math.ulp(value) for value in (*along, *across, *padded, left, bottom, right, top, radius)
+    )
+    sampling_tolerance = curve_tolerance - rounding
+    if sampling_tolerance <= 0:
+        raise ValueError("ring tolerance cannot be represented reliably at these coordinates")
+    count = _segments(radius, sampling_tolerance)
+    if candidates * count > MAX_RING_POINTS:
+        raise ValueError("circle sampling exceeds 2,000,000 points")
+    return dx, dy, first_column, last_column, first_row, last_row, count, candidates
