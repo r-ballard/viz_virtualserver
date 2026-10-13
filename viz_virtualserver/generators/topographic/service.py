@@ -13,6 +13,7 @@ from viz_virtualserver.scalar_fields.regions import extract_band_regions
 from viz_virtualserver.scalar_fields.sampling import plan_grid, sample_field, smooth_normalize
 from viz_virtualserver.scalar_fields.terrain import TerrainField
 
+from .component_models import iter_rule_styles
 from .fills import render_band_fills
 from .geometry import prepare_contours
 from .models import TopographicParameters
@@ -28,7 +29,7 @@ class TopographicDomainAlgorithm:
             raise ValueError("topographic does not support composition-frame terrain")
         p = TopographicParameters.model_validate(thaw_json_value(design_pass.parameters))
         layers = tuple(layer.id for layer in design_pass.logical_layers)
-        fill_ids = {r.layer_id for r in p.band_fills}
+        fill_ids = {style.layer_id for r in p.band_fills for style in iter_rule_styles(r)}
         if (
             len(layers) < 2
             or len(set(layers)) != len(layers)
@@ -48,7 +49,7 @@ class TopographicDomainAlgorithm:
                 if p.band_fills:
                     resolution = 8 * max(math.ulp(c) for point in domain.vertices for c in point)
                     controls = [p.sample_spacing]
-                    for rule in p.band_fills:
+                    for rule in (s for r in p.band_fills for s in iter_rule_styles(r)):
                         controls.append(rule.parameters["spacing"])
                         for key in ("mark_length", "radius", "curve_tolerance"):
                             if key in rule.parameters:
