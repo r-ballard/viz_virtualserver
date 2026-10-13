@@ -248,3 +248,9 @@ Topographic passes can apply these effects to explicit unions of elevation bands
 `field-marks` is the sixth catalogue effect and has `requires_field=True`. Its controls are positive `spacing` (default 8), positive `mark_length` (default 0.5), and finite lattice `angle` (default 0 degrees). Pass a vector evaluator separately: `render_fill_effect(region, effect="field-marks", field=evaluator, parameters={"spacing": 3})`. The evaluator implements `sample(x, y)` and returns a `VectorSample` of finite raw components. The renderer normalizes direction, omits zero vectors, clips marks, and preserves disconnected fragments.
 
 Field context is required even for an empty region; ordinary effects reject a supplied field. Parameter validation remains usable without context. Truchet supports the five ordinary effects and rejects field-marks because it has no terrain source. Topographic passes provide the [sampled terrain evaluator](../algorithms/topographic.md#terrain-gradient-marks) through explicit slope/contour band rules. Field arrays are not serialized in job parameters or neutral exports.
+
+## Component selection and costs
+
+Topographic [component palettes](../algorithms/topographic.md#seeded-component-fill-choices) choose ordinary or contextual effects independently for disconnected polygons, including a blank choice. Region identification and weighted decisions are reusable through `viz_virtualserver.region_selection`; they do not own pen settings or effect controls.
+
+`estimate_fill_candidates(region, effect=..., parameters=...)` counts scan rows or lattice centres using the renderer's own plan. It validates controls/geometry without generating strokes or requiring field context. Use it to reserve cumulative work when rendering many regions; individual render calls still enforce their own limits. Clipped stroke counts can differ from candidate counts.

@@ -54,7 +54,7 @@ the existing catalogue controls; field-marks requires explicit slope/contour
 field_direction, while other effects must omit it. Parameters may be omitted to
 use catalogue defaults, but explicit null is rejected.
 
-component_seed is an optional strict integer, default0, independent of the terrain
+component_seed is an optional strict integer, default 0, independent of the terrain
 seed; changing it changes assignments without regenerating terrain. Old rules
 must omit component_seed and component_choices. Choice rules must omit top-level
 effect, parameters, layer_id and field_direction. Reject ambiguous combinations,
@@ -129,14 +129,14 @@ future inspection; manual overrides are not part of this release.
 
 ## Limits and failures
 
-Preserve all sample, scalar-region, catalogue and combined1,000,000-vertex pass
-limits. Limit component selection to100,000 components and1,000,000 input polygon
+Preserve all sample, scalar-region, catalogue and combined 1,000,000-vertex pass
+limits. Limit component selection to100,000 components and 1,000,000 input polygon
 coordinates per union. Precheck coordinate count before canonicalization and cap
 component accumulation before allocating all identity records. Do not silently
 drop components on excess.
 
 Per-component rendering can repeat lattice work. Enforce a cumulative rule limit
-of100,000 candidate positions for lattice-based effects, not just a fresh catalogue
+of 100,000 candidate positions for lattice-based effects, not just a fresh catalogue
 limit for each island. Reuse or factor the existing effect candidate-cost calculations
 so estimates match actual spacing/angle/radius/mark padding; do not duplicate a
 diverging approximation. For crosshatch, count both families. No execution beyond
@@ -181,5 +181,5 @@ plotter testing remains deferred.
 
 ## Design status
 
-Concept approved. This written spec awaits user review before implementation
-planning. No product code has been changed.
+Concept, written spec and implementation plan approved in conversation. Native
+execution selected; physical testing remains deferred.
