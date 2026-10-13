@@ -99,6 +99,7 @@ class TopographicDomainAlgorithm:
                         regions,
                         p.band_fills,
                         sampled_field=sampled,
+                        domain_seed=context.domain_seeds[domain.id],
                         max_vertices=MAX_VERTICES - vertex_count - contour_vertices,
                     )
                 for contour in contours:
