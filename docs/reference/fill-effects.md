@@ -30,7 +30,7 @@ The result is four open strokes:
 `list_fill_effects()` returns an ordered tuple of frozen descriptors with `id`,
 `name`, `description`, and a tuple of `parameters`. Each parameter exposes `name`,
 `default`, `unit`, and `exclusive_minimum`. Rendering uses those same declarations.
-The public API does not expose mutable registration state.
+Descriptors also expose `requires_field`, false for ordinary effects. The public API does not expose mutable registration state.
 
 | Effect | Control | Default | Meaning |
 | --- | --- | --- | --- |
@@ -210,7 +210,7 @@ normalization fail explicitly. Centre controls are validated but ignored by
 other effects. Truchet retains its spacing/angle defaults of 2 and 45.
 
 [Classic Truchet](../algorithms/truchet.md#plotter-fills-of-classic-regions) supports
-the same effects and validated `hatch_*` controls. It reconstructs grammar
+the five effects that do not require caller field context and validated `hatch_*` controls. It reconstructs grammar
 fields from the same sampled arcs used for its boundary curves, unions matching
 regions across tiles, and draws in design units near the domain origin before
 translating output back. `painted` selects region 1; `unpainted` selects the
@@ -242,3 +242,9 @@ plugin discovery remain separate work.
 ## Topographic regions
 
 Topographic passes can apply these effects to explicit unions of elevation bands. See [band-fill rules](../algorithms/topographic.md#elevation-band-fills) for selection, channels, phase, and budgets. The public `validate_fill_parameters(effect=..., parameters=...)` function validates controls and returns a fresh dictionary containing defaults, without rendering geometry.
+
+## Caller-supplied field marks
+
+`field-marks` is the sixth catalogue effect and has `requires_field=True`. Its controls are positive `spacing` (default 8), positive `mark_length` (default 0.5), and finite lattice `angle` (default 0 degrees). Pass a vector evaluator separately: `render_fill_effect(region, effect="field-marks", field=evaluator, parameters={"spacing": 3})`. The evaluator implements `sample(x, y)` and returns a `VectorSample` of finite raw components. The renderer normalizes direction, omits zero vectors, clips marks, and preserves disconnected fragments.
+
+Field context is required even for an empty region; ordinary effects reject a supplied field. Parameter validation remains usable without context. Truchet supports the five ordinary effects and rejects field-marks because it has no terrain source. Topographic passes provide the [sampled terrain evaluator](../algorithms/topographic.md#terrain-gradient-marks) through explicit slope/contour band rules. Field arrays are not serialized in job parameters or neutral exports.

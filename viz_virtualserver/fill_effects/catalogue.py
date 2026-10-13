@@ -10,10 +10,12 @@ from shapely.geometry.base import BaseGeometry
 
 from .circle_rings import circle_rings
 from .crosshatch import crosshatches
+from .field_marks import render_field_marks
 from .models import EffectParameter, FillEffectDescriptor, FillStroke
 from .parallel_hatch import parallel_hatches
 from .region_validation import validate_region as _validate_region
 from .stroke_dots import stroke_dots
+from .vector_fields import VectorField
 from .vortex_marks import vortex_marks
 
 _PARALLEL_HATCH = FillEffectDescriptor(
@@ -56,6 +58,14 @@ _REGISTRY = {
                     EffectParameter("center_x", 0.0, "input-units"),
                     EffectParameter("center_y", 0.0, "input-units")),
     ), vortex_marks),
+    "field-marks": (FillEffectDescriptor(
+        id="field-marks", name="Field marks",
+        description="Fixed-length marks oriented by a caller-supplied vector field.",
+        parameters=(EffectParameter("spacing", 8.0, "input-units", 0.0),
+                    EffectParameter("mark_length", .5, "input-units", 0.0),
+                    EffectParameter("angle", 0.0, "degrees")),
+        requires_field=True,
+    ), render_field_marks),
 }
 
 
@@ -95,8 +105,17 @@ def validate_fill_parameters(
 
 
 def render_fill_effect(region: BaseGeometry, *, effect: str,
-                       parameters: Mapping[str, object] | None = None) -> tuple[FillStroke, ...]:
+                       parameters: Mapping[str, object] | None = None,
+                       field: VectorField | None = None) -> tuple[FillStroke, ...]:
     """Render strokes without changing frame, assigning layers, or repairing regions."""
     controls = validate_fill_parameters(effect=effect, parameters=parameters)
+    descriptor, renderer = _REGISTRY[effect]
+    if descriptor.requires_field:
+        if not callable(getattr(field, "sample", None)):
+            raise ValueError("fill effect requires a vector field implementing sample(x, y)")
+    elif field is not None:
+        raise ValueError("fill effect does not accept a vector field")
     _validate_region(region)
-    return _REGISTRY[effect][1](region, **controls)
+    if descriptor.requires_field:
+        return renderer(region, **controls, field=field)
+    return renderer(region, **controls)

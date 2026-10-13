@@ -1,6 +1,6 @@
 from collections.abc import Mapping
 from types import MappingProxyType
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, field_validator, model_validator
 
@@ -15,6 +15,7 @@ class BandFillRule(BaseModel):
         default_factory=dict
     )
     layer_id: str
+    field_direction: Literal["slope", "contour"] | None = None
 
     @field_validator("bands", mode="before")
     @classmethod
@@ -25,6 +26,13 @@ class BandFillRule(BaseModel):
 
     @model_validator(mode="after")
     def validated(self):
+        if self.effect == "field-marks":
+            if self.field_direction is None:
+                raise ValueError(
+                    "field-marks requires an explicit slope or contour field_direction"
+                )
+        elif "field_direction" in self.model_fields_set:
+            raise ValueError("field_direction is only supported for field-marks")
         if not self.bands or len(set(self.bands)) != len(self.bands):
             raise ValueError("bands must be nonempty and distinct")
         if not self.layer_id.strip():

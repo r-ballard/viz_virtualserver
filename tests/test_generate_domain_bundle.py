@@ -65,7 +65,7 @@ def test_topographic_band_fill_cli_roles_empty_channels_and_atomic_failure(tmp_p
     from viz_virtualserver.generators.topographic import service
 
     with monkeypatch.context() as patch:
-        patch.setattr(service, "render_band_fills", lambda *args: ())
+        patch.setattr(service, "render_band_fills", lambda *args, **kwargs: ())
         empty = tmp_path / "empty"
         assert cli_module.main([str(source), "--output-dir", str(empty)]) == 0
     manifest = json.loads((empty / "design.json").read_text())

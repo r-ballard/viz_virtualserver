@@ -83,7 +83,7 @@ minimum pen clearance. Judge spacing after physical scaling and pen assignment i
 plotter-workflow. Text labels remain a downstream Inkscape operation.
 
 Future extensions include actual elevation rasters, rounded-hill field sources,
-gradient-driven marks and shared-coordinate terrain.
+shared-coordinate terrain and slope-dependent mark density.
 
 ## Elevation-band fills
 
@@ -109,3 +109,27 @@ Regions use the same normalized sampled terrain and levels as the contours, befo
 Fill lattices use the polygon's bounds-local coordinate frame. Translating the same domain translates its artwork without changing lattice phase. Composition placement does not create shared terrain between polygons.
 
 Region extraction additionally limits cell-level work to 12,000,000 and cumulative intermediate polygon coordinates to 1,000,000 per domain. Contours and fills share the final 1,000,000-vertex pass limit, alongside each effect's own limits. Excessive cost or inadequate coordinate precision fails before publishing a bundle; increase spacing or reduce contour count rather than relying on silent coarsening.
+
+## Terrain-gradient marks
+
+Use `effect: "field-marks"` in a band-fill rule and explicitly set `field_direction` to `"slope"` or `"contour"`. Other effects must omit this field. For example:
+
+```json
+{"bands": [0, 2, 4, 6, 8], "effect": "field-marks",
+ "field_direction": "contour", "layer_id": "terrain-marks",
+ "parameters": {"spacing": 3, "mark_length": 1.5, "angle": 0}}
+```
+
+Slope marks follow the uphill/downhill axis; they are undirected strokes, not arrows. Contour marks rotate that axis 90 degrees. `angle` rotates the placement lattice independently of terrain direction. Spacing and length are fixed; flat areas omit marks. Rules retain ordinary band union, clipping, channel and unfilled-region behavior.
+
+Directions come from central differences of the same smoothed, normalized sampled terrain, with one-sided differences at the outer grid edge. Raw x/y derivatives are bilinearly interpolated before normalization. This approximates terrain directions; it is not an exact tangent to marching-square segments. Contour simplification does not affect marks.
+
+The numerical flatness floor is `64 * float_epsilon * max(1, max(abs(heights))) / min(dx, dy)` in normalized height per input unit. No extra artistic smoothing or flatness setting is applied. The full sampled halo supplies directions around boundaries. Centres outside that rectangle omit marks without extrapolation, including possible fragments whose centres lie beyond the halo.
+
+```powershell
+python -m viz_virtualserver.cli.domain_bundle examples/domain-jobs/topographic-gradient-marks.json --output-dir output/topographic-gradient-marks
+```
+
+The example shows slope marks, contour marks, and a concave selected-band panel. Each uses independent terrain, so it is not a controlled orientation comparison. Hold the effective domain seed and geometry constant in the Python service to compare orientations on identical terrain.
+
+Gradient storage uses the existing sample cap and is shared per domain. The common field renderer limits each call to 100,000 candidate marks and 2,000,000 clipped points. Contours and all fill rules retain a combined 1,000,000-vertex pass limit; subsequent rules stop on excess. Dense marks can overlap at a chosen physical scale: inspect spacing and pen assignment downstream.
