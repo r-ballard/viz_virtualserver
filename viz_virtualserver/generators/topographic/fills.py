@@ -67,7 +67,7 @@ def render_band_fills(
                 render_one(selected, rule)
                 continue
             decisions = choose_components(
-                identify_components(selected),
+                identify_components(selected) if not selected.is_empty else (),
                 tuple(WeightedOption(c.id, c.weight) for c in rule.component_choices),
                 domain_seed=domain_seed,
                 component_seed=rule.component_seed,
@@ -80,6 +80,8 @@ def render_band_fills(
                 label = f"component {decision.component.id} choice {choice.id}"
                 if choice.effect is None:
                     continue
+                if vertices >= max_vertices:
+                    raise ValueError("component fill vertex allowance exhausted; increase spacing")
                 candidates += estimate_fill_candidates(
                     decision.component.geometry, effect=choice.effect, parameters=choice.parameters
                 )

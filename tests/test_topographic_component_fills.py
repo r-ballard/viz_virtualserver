@@ -172,3 +172,76 @@ def test_service_translation_winding_order_and_missing_seed():
         assert np.array(moved.points) == pytest.approx(np.array(original.points) - (30, 20))
     with pytest.raises(ValueError, match="seed"):
         render_band_fills((BandRegion(0, None, None, box(0, 0, 4, 4)),), rules(palette()))
+
+
+def test_gradients_shared_across_ordinary_and_multiple_choice_components(monkeypatch):
+    from viz_virtualserver.generators.topographic import fills as module
+    from viz_virtualserver.scalar_fields.gradients import SampledGradient
+
+    calls = []
+
+    def construct(field):
+        calls.append(field)
+        return SampledGradient(field)
+
+    monkeypatch.setattr(module, "SampledGradient", construct)
+    choices = [
+        {
+            "id": "marks",
+            "weight": 1,
+            "effect": "field-marks",
+            "field_direction": "contour",
+            "parameters": {"spacing": 3},
+            "layer_id": "fill",
+        }
+    ]
+    component = palette(bands=[0, 2, 4, 6, 8], component_choices=choices)
+    ordinary = {
+        "bands": [1, 3, 5, 7],
+        "effect": "field-marks",
+        "field_direction": "slope",
+        "layer_id": "fill",
+    }
+    result = generate(
+        (SQUARE,),
+        params={**PARAMS, "band_fills": [ordinary, component]},
+        layers=("contours", "index", "fill"),
+    )
+    assert len(calls) == 1
+    assert any(p.layer_id == "fill" for p in result.paths)
+
+
+def test_empty_selected_band_is_no_artwork_in_service(monkeypatch):
+    from viz_virtualserver.generators.topographic import service
+
+    monkeypatch.setattr(
+        service, "extract_band_regions", lambda *args: (BandRegion(0, None, None, Polygon()),)
+    )
+    p = palette(component_choices=[{"id": "blank", "weight": 1, "effect": None}])
+    assert generate((SQUARE,), params={**PARAMS, "band_fills": [p]}) == generate(
+        (SQUARE,), params=PARAMS
+    )
+
+
+def test_exhausted_allowance_stops_subsequent_component_renderer(monkeypatch):
+    from viz_virtualserver.fill_effects import FillStroke
+    from viz_virtualserver.generators.topographic import fills as module
+
+    calls = []
+
+    def render(region, **kwargs):
+        calls.append(region)
+        return (FillStroke(((0, 0), (1, 1))),)
+
+    monkeypatch.setattr(module, "render_fill_effect", render)
+    region = MultiPolygon([box(0, 0, 4, 4), box(8, 0, 12, 4)])
+    r = rules(
+        palette(
+            component_choices=[
+                {"id": "dots", "weight": 1, "effect": "stroke-dots", "layer_id": "fill"}
+            ]
+        )
+    )
+    with pytest.raises(ValueError, match="vertex"):
+        render_band_fills((BandRegion(0, None, None, region),), r, domain_seed=31, max_vertices=2)
+    assert len(calls) == 1

@@ -28,7 +28,16 @@ class ComponentDecision:
 def choose_components(
     components, options, *, domain_seed: int, component_seed: int, bands: tuple[int, ...]
 ) -> tuple[ComponentDecision, ...]:
-    options = tuple(sorted(options, key=lambda v: v.id))
+    try:
+        validated_options = []
+        for option in options:
+            if not isinstance(option, WeightedOption) or len(validated_options) >= 32:
+                raise ValueError("choices require 1 through 32 weighted options")
+            validated_options.append(option)
+        options = tuple(sorted(validated_options, key=lambda v: v.id))
+        bands = tuple(bands)
+    except TypeError as error:
+        raise ValueError("options and bands must be iterable") from error
     if (
         not 1 <= len(options) <= 32
         or any(not isinstance(v, WeightedOption) for v in options)

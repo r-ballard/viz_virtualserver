@@ -17,12 +17,14 @@ def test_canonical_identity_and_weight_fixture():
     records = identify_components(polygon)
     canonical = Polygon([(0, 0), (0, 1), (1, 1), (1, 0)])
     expected = hashlib.sha256(to_wkb(canonical, byte_order=0, output_dimension=2)).hexdigest()
+    assert expected == "21d13a9c8a62d8ab29e19409e80b5f2231845f72e6a897b2d7705e4ddddb5312"
     assert records[0].id == expected
     fields = ("viz-component-choice-v1", "31", "0", "0,2", expected)
     encoded = b"".join(struct.pack(">Q", len(v.encode())) + v.encode() for v in fields)
     bucket = int.from_bytes(hashlib.sha256(encoded).digest(), "big") % 5
     options = (WeightedOption("blank", 2), WeightedOption("dots", 3))
     result = choose_components(records, options, domain_seed=31, component_seed=0, bands=(0, 2))
+    assert result[0].choice_id == "blank"
     assert result[0].choice_id == ("blank" if bucket < 2 else "dots")
     assert result == choose_components(
         records, options[::-1], domain_seed=31, component_seed=0, bands=(2, 0)
@@ -55,7 +57,8 @@ def test_repeated_vertices_full_precision_and_caps(monkeypatch):
 
     p = [(0, 0), (1, 0), (1, 0), (1, 1), (0, 1)]
     assert (
-        identify_components(Polygon(p))[0].id == identify_components(Polygon(p[2:] + p[:2] + [p[2]]))[0].id
+        identify_components(Polygon(p))[0].id
+        == identify_components(Polygon(p[2:] + p[:2] + [p[2]]))[0].id
     )
     assert (
         identify_components(box(0, 0, 1, 1))[0].id
@@ -84,3 +87,17 @@ def test_invalid_geometry_and_digest_collision(monkeypatch):
 def test_invalid_options(weight):
     with pytest.raises(ValueError):
         WeightedOption("x", weight)
+
+
+@pytest.mark.parametrize(
+    "options", [None, [object()], [WeightedOption("a", 1), WeightedOption("a", 1)], []]
+)
+def test_generic_selector_rejects_invalid_inputs_cleanly(options):
+    with pytest.raises(ValueError):
+        choose_components(
+            identify_components(box(0, 0, 1, 1)),
+            options,
+            domain_seed=31,
+            component_seed=0,
+            bands=(0,),
+        )

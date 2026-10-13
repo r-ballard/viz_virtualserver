@@ -81,3 +81,15 @@ def test_blank_rejects_render_fields_duplicates_caps_overlap():
             TopographicParameters.model_validate({"band_fills": [rule(component_choices=choices)]})
     with pytest.raises(ValueError):
         TopographicParameters.model_validate({"band_fills": [rule(), rule()]})
+
+
+@pytest.mark.parametrize(
+    "effect",
+    ["parallel-hatch", "crosshatch", "circle-rings", "stroke-dots", "vortex-marks", "field-marks"],
+)
+def test_every_effect_is_valid_in_choice(effect):
+    choice = {"id": "effect", "weight": 1, "effect": effect, "layer_id": "fill"}
+    if effect == "field-marks":
+        choice["field_direction"] = "slope"
+    p = TopographicParameters.model_validate({"band_fills": [rule(component_choices=[choice])]})
+    assert p.band_fills[0].component_choices[0].parameters["spacing"] > 0
