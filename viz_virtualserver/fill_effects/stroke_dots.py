@@ -10,6 +10,8 @@ from shapely.geometry.base import BaseGeometry
 
 from .mark_selection import MarkSelection
 from .models import FillStroke
+from .region_validation import validate_region
+from .vector_fields import _finite_number
 
 MAX_DOT_CANDIDATES = 100_000
 MAX_DOT_POINTS = 2_000_000
@@ -26,6 +28,12 @@ def stroke_dots(
 ) -> tuple[FillStroke, ...]:
     """Return short open strokes; pen width and ink coverage remain downstream."""
     selection = MarkSelection(density, density_seed)
+    spacing = _finite_number(spacing, "dot spacing")
+    mark_length = _finite_number(mark_length, "dot mark length")
+    angle = _finite_number(angle, "dot lattice angle")
+    if spacing <= 0 or mark_length <= 0:
+        raise ValueError("dot spacing and mark length must be positive")
+    validate_region(region)
     if region.is_empty:
         return ()
     plan = _candidate_plan(region, spacing=spacing, mark_length=mark_length, angle=angle)

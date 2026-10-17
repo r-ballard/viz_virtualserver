@@ -62,3 +62,47 @@ def test_candidate_caps_remain_at_zero(monkeypatch):
         render_fill_effect(
             box(-10, -10, 10, 10), effect="stroke-dots", parameters={"spacing": 2, "density": 0}
         )
+
+
+def test_direction_and_effect_share_candidate_mask_on_rotated_lattice():
+    import math
+
+    class Direction:
+        def __init__(self, xy):
+            self.xy = xy
+
+        def sample(self, x, y):
+            return VectorSample(*self.xy)
+
+    for angle in (0, 45):
+        masks = []
+        for xy in ((1, 0), (0, 1)):
+            strokes = render_fill_effect(
+                box(-20, -20, 20, 20),
+                effect="field-marks",
+                parameters={"spacing": 4, "mark_length": 1, "angle": angle, "density": 0.5},
+                density_seed=-7,
+                field=Direction(xy),
+            )
+            masks.append(
+                {
+                    tuple(round((a + b) / 2, 12) for a, b in zip(s.points[0], s.points[-1]))
+                    for s in strokes
+                    if math.dist(*s.points) > 0.999
+                    and all(abs(v) < 18 for p in s.points for v in p)
+                }
+            )
+        assert masks[0] and masks[0] == masks[1]
+
+
+def test_direct_dot_endpoint_validates_invalid_region_and_controls():
+    from shapely.geometry import Polygon
+
+    from viz_virtualserver.fill_effects.stroke_dots import stroke_dots
+
+    invalid = Polygon([(0, 0), (10, 10), (0, 10), (10, 0)])
+    for density in (0, 1):
+        with pytest.raises(ValueError):
+            stroke_dots(invalid, spacing=2, mark_length=1, angle=0, density=density)
+        with pytest.raises(ValueError):
+            stroke_dots(Polygon(), spacing=0, mark_length=1, angle=0, density=density)

@@ -91,3 +91,47 @@ def test_union_component_mask_agreement_and_zero_exhausted_allowance():
             (BandRegion(0, None, None, region),),
             TopographicParameters.model_validate({"band_fills": [ordinary]}).band_fills,
         )
+
+
+def test_sparse_component_cost_and_invalid_unused_style_fail_early(monkeypatch):
+    from viz_virtualserver.generators.topographic import fills as module
+    from viz_virtualserver.generators.topographic import service
+
+    monkeypatch.setattr(module, "MAX_COMPONENT_CANDIDATES", 1)
+    palette = {
+        "bands": [0],
+        "component_choices": [
+            {
+                "id": "dots",
+                "weight": 1,
+                "effect": "stroke-dots",
+                "parameters": {"density": 0, "spacing": 2},
+                "layer_id": "fill",
+            }
+        ],
+    }
+    rules = TopographicParameters.model_validate({"band_fills": [palette]}).band_fills
+    with pytest.raises(ValueError, match="candidate"):
+        render_band_fills(
+            (BandRegion(0, None, None, box(0, 0, 20, 20)),), rules, domain_seed=31, max_vertices=0
+        )
+    monkeypatch.setattr(service, "sample_field", lambda *a: pytest.fail("sampled invalid style"))
+    palette["component_choices"][0]["density_seed"] = True
+    with pytest.raises(ValueError):
+        generate(
+            (SQUARE,),
+            params={**PARAMS, "band_fills": [palette]},
+            layers=("contours", "index", "fill"),
+        )
+
+
+def test_deferred_field_rejects_wrong_terrain_even_at_zero():
+    p = rule(0, effect="field-marks", field_direction="slope", bands=[0])
+    rules = TopographicParameters.model_validate({"band_fills": [p]}).band_fills
+    with pytest.raises(ValueError, match="terrain|SampledField"):
+        render_band_fills(
+            (BandRegion(0, None, None, box(0, 0, 10, 10)),),
+            rules,
+            domain_seed=31,
+            sampled_field=object(),
+        )

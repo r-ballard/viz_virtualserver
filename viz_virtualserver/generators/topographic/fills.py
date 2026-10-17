@@ -64,8 +64,8 @@ def render_band_fills(
                 else style.density_seed
             )
         if style.effect == "field-marks":
-            if sampled_field is None:
-                raise ValueError("field-marks requires sampled terrain")
+            if not isinstance(sampled_field, SampledField):
+                raise ValueError("field-marks requires sampled terrain as a SampledField")
             context["field"] = _DeferredField(get_view, style.field_direction)
         strokes = render_fill_effect(
             selected, effect=style.effect, parameters=style.parameters, **context

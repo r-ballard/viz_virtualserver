@@ -56,7 +56,7 @@ def test_invalid_density(density):
 
 
 def test_domain_seed_derivation_and_strict_indices():
-    assert derive_density_seed(31, 0) == derive_density_seed(31, 0)
+    assert derive_density_seed(31, 0) == -7421177190933531874
     assert derive_density_seed(31, 0) != derive_density_seed(31, 1)
     assert -(2**63) <= derive_density_seed(2**64 - 1, -(2**63)) < 2**63
     with pytest.raises(ValueError):
