@@ -40,6 +40,8 @@ class EffectParameter:
     default: float
     unit: str
     exclusive_minimum: float | None = None
+    minimum: float | None = None
+    maximum: float | None = None
 
 
 @dataclass(frozen=True)
