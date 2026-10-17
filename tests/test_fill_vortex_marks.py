@@ -32,7 +32,7 @@ def test_vortex_catalogue_defaults_and_lattice_rotation():
     assert [(p.name, p.default, p.unit) for p in effect.parameters] == [
         ("spacing", 8, "input-units"), ("mark_length", .5, "input-units"),
         ("angle", 0, "degrees"), ("center_x", 0, "input-units"),
-        ("center_y", 0, "input-units"),
+        ("center_y", 0, "input-units"), ("density", 1, "fraction"),
     ]
     region = box(-9, -9, 9, 9)
     assert vortex(region) == vortex(region, spacing=8, mark_length=.5,

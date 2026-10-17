@@ -164,3 +164,25 @@ python -m viz_virtualserver.cli.domain_bundle examples/domain-jobs/topographic-c
 ```
 
 The example mixes blank, dots, hatching and contour-oriented marks on independent square and concave terrains. The audit retains supplied palettes and seeds; this release does not export a per-component decision manifest or support manual overrides.
+
+## Deterministic mark density
+
+`stroke-dots`, `vortex-marks` and `field-marks` accept numeric `density` from 0 through 1 in their parameters (default 1). A separate optional `density_seed` belongs on the ordinary rule or component-choice entry and is a strict signed 64-bit integer (default 0).
+
+```json
+{"bands": [0, 2, 4, 6, 8], "effect": "stroke-dots",
+ "parameters": {"spacing": 3, "mark_length": 0.7, "density": 0.3},
+ "density_seed": 7, "layer_id": "terrain-dots"}
+```
+
+Density retains a reproducible subset of candidate marks; it does not change spacing, mark length or vector direction. Increasing it adds marks without moving survivors. Coverage is statistical, not an exact count or calibrated ink area. Full density preserves existing output. Zero density emits no marks but retains its declared channel and validates controls, field availability and full candidate costs. Rejected field marks do not evaluate terrain gradients; zero density does not allocate gradient arrays.
+
+The effective domain seed and density_seed derive a shared mask from lattice row/column indices. Component IDs, choice IDs, bands, layers and effect IDs do not enter this seed. Changing density_seed changes thinning without changing terrain or component assignments. Equivalent local lattices use the same mask when clipped separately or as a union. Changing spacing/angle moves the lattice; its index decisions stay fixed. All fragments from a clipped candidate share one decision.
+
+Hatches and rings reject density controls. Blank choices must omit density_seed and all other rendering fields. Truchet has no new density controls in this release; standalone catalogue calls support the same mark effects with an explicit density_seed.
+
+```powershell
+python -m viz_virtualserver.cli.domain_bundle examples/domain-jobs/topographic-mark-density.json --output-dir output/topographic-mark-density
+```
+
+The example uses independent sparse-dot, field-mark and concave terrains. Hold domain geometry and effective seed fixed in the Python service for a controlled comparison of densities 0,.25,.5,.75,1. Low density never bypasses the full planned lattice's per-effect or aggregate candidate limits; final emitted vertices remain subject to the existing pass cap.

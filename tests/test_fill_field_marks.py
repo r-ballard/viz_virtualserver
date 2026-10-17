@@ -34,6 +34,7 @@ def test_contextual_effect_descriptor_controls_and_rendering():
         "spacing": 8,
         "mark_length": 0.5,
         "angle": 0,
+        "density": 1,
     }
     region = box(-10, -10, 10, 10)
     field = PlaneField()

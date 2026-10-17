@@ -19,7 +19,7 @@ def test_explicit_field_orientation_is_valid_and_immutable(direction):
     p = TopographicParameters.model_validate({"band_fills": [rule(field_direction=direction)]})
     r = p.band_fills[0]
     assert r.field_direction == direction
-    assert r.parameters == {"spacing": 8, "mark_length": 0.5, "angle": 0}
+    assert r.parameters == {"spacing": 8, "mark_length": 0.5, "angle": 0, "density": 1}
     with pytest.raises(ValueError):
         r.field_direction = "other"
 

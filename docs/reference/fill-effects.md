@@ -254,3 +254,9 @@ Field context is required even for an empty region; ordinary effects reject a su
 Topographic [component palettes](../algorithms/topographic.md#seeded-component-fill-choices) choose ordinary or contextual effects independently for disconnected polygons, including a blank choice. Region identification and weighted decisions are reusable through `viz_virtualserver.region_selection`; they do not own pen settings or effect controls.
 
 `estimate_fill_candidates(region, effect=..., parameters=...)` counts scan rows or lattice centres using the renderer's own plan. It validates controls/geometry without generating strokes or requiring field context. Use it to reserve cumulative work when rendering many regions; individual render calls still enforce their own limits. Clipped stroke counts can differ from candidate counts.
+
+## Seeded mark thinning
+
+Dot, vortex-mark and caller-field effects add `density` (default 1, inclusive 0 to 1). Pass `density_seed` as a separate keyword to `render_fill_effect`, not in numeric parameters; it is a strict signed 64-bit integer. The default is0. Unsupported effects reject density and nonzero seeds. Field context is still required at density 0 and on empty regions.
+
+Each lattice index gets a versioned SHA256 threshold. Selection precedes vector evaluation and clipping, so fragments stay together and nested densities preserve survivors. Candidate estimates count the full lattice and remain identical across density values. Descriptors expose optional inclusive `minimum`/`maximum` alongside existing exclusive minima. See [topographic density rules](../algorithms/topographic.md#deterministic-mark-density) for independent domain/style seeds and component integration. Ordered dithering, error diffusion, raster sources and terrain-driven density are future work.

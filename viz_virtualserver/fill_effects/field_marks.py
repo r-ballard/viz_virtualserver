@@ -8,6 +8,7 @@ from shapely.errors import GEOSException
 from shapely.geometry import LineString
 from shapely.geometry.base import BaseGeometry
 
+from .mark_selection import MarkSelection
 from .models import FillStroke
 from .region_validation import validate_region
 from .vector_fields import VectorField, VectorSample, _finite_number
@@ -17,10 +18,17 @@ MAX_MARK_POINTS = 2_000_000
 
 
 def render_field_marks(
-    region: BaseGeometry, *, spacing: float, mark_length: float,
-    angle: float, field: VectorField,
+    region: BaseGeometry,
+    *,
+    spacing: float,
+    mark_length: float,
+    angle: float,
+    field: VectorField,
+    density: float = 1.0,
+    density_seed: int = 0,
 ) -> tuple[FillStroke, ...]:
     """Use direction only; zero vectors omit marks and magnitude does not size them."""
+    selection = MarkSelection(density, density_seed)
     spacing = _finite_number(spacing, "mark spacing")
     mark_length = _finite_number(mark_length, "mark length")
     angle = _finite_number(angle, "lattice angle")
@@ -35,6 +43,8 @@ def render_field_marks(
     if plan is None:
         return ()
     dx, dy, first_column, last_column, first_row, last_row, half, candidates = plan
+    if selection.density == 0:
+        return ()
     paths = []
     try:
         for row in range(first_row, last_row + 1):
@@ -43,6 +53,8 @@ def render_field_marks(
                 y = column * spacing * dy + row * spacing * dx
                 if not math.isfinite(x) or not math.isfinite(y):
                     raise ValueError("field mark centre cannot be represented reliably")
+                if not selection.accepts(row, column):
+                    continue
                 sample = field.sample(x, y)
                 if not isinstance(sample, VectorSample):
                     raise ValueError("field sample must return a VectorSample")
@@ -50,8 +62,10 @@ def render_field_marks(
                 if ux == 0 and uy == 0:
                     continue
                 points = ((x - half * ux, y - half * uy), (x + half * ux, y + half * uy))
-                if (any(not math.isfinite(c) for point in points for c in point)
-                        or points[0] == points[1]):
+                if (
+                    any(not math.isfinite(c) for point in points for c in point)
+                    or points[0] == points[1]
+                ):
                     raise ValueError("field mark endpoints cannot be represented reliably")
                 pending = [LineString(points).intersection(region)]
                 while pending:
@@ -82,11 +96,13 @@ def _candidate_plan(region, *, spacing, mark_length, angle):
     across = tuple(-x * dy + y * dx for x, y in corners)
     half = mark_length / 2
     # A local vector can point in any direction, so pad both lattice axes.
-    padded = (min(along) - half, max(along) + half,
-              min(across) - half, max(across) + half)
+    padded = (min(along) - half, max(along) + half, min(across) - half, max(across) + half)
     coordinates = (*along, *across, *padded, left, bottom, right, top)
-    if (half <= 0 or any(not math.isfinite(value) for value in coordinates)
-            or any(math.ulp(value) * 8 > min(spacing, mark_length) for value in coordinates)):
+    if (
+        half <= 0
+        or any(not math.isfinite(value) for value in coordinates)
+        or any(math.ulp(value) * 8 > min(spacing, mark_length) for value in coordinates)
+    ):
         raise ValueError("field mark spacing or length cannot be represented reliably")
     limits = tuple(value / spacing for value in padded)
     if any(not math.isfinite(value) for value in limits):

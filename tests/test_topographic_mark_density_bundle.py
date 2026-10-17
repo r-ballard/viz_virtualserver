@@ -1,0 +1,37 @@
+import json
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+import pytest
+
+from viz_virtualserver.cli import domain_bundle as cli
+
+
+def test_density_bundle_reproducible_controls_empty_channels_and_atomic_failure(tmp_path):
+    job = json.loads(Path("examples/domain-jobs/topographic-mark-density.json").read_text())
+    job["domains"] = job["domains"][:1]
+    job["passes"] = job["passes"][:1]
+    job["composition_transforms"] = job["composition_transforms"][:1]
+    job["domains"][0]["vertices"] = [[0, 0], [20, 0], [20, 20], [0, 20]]
+    source = tmp_path / "job.json"
+    source.write_text(json.dumps(job))
+    a, b = tmp_path / "a", tmp_path / "b"
+    for dest in (a, b):
+        assert cli.main([str(source), "--output-dir", str(dest)]) == 0
+    for name in ("design.json", "design.svg", "surfaces/sparse-dots.svg"):
+        assert (a / name).read_bytes() == (b / name).read_bytes()
+    audit = json.loads((a / "design.json").read_text())
+    assert '"density": 0.3' in json.dumps(audit) and '"density_seed": 7' in json.dumps(audit)
+    job["passes"][0]["parameters"]["band_fills"][0]["parameters"]["density"] = 0
+    source.write_text(json.dumps(job))
+    empty = tmp_path / "empty"
+    assert cli.main([str(source), "--output-dir", str(empty)]) == 0
+    assert len(json.loads((empty / "design.json").read_text())["logical_layers"]) == 3
+    root = ET.parse(empty / "surfaces/sparse-dots.svg").getroot()
+    assert not root.findall("{http://www.w3.org/2000/svg}g[@data-viz-layer-id='terrain-dots']")
+    before = {p.relative_to(a): p.read_bytes() for p in a.rglob("*") if p.is_file()}
+    job["passes"][0]["parameters"]["band_fills"][0]["parameters"]["density"] = 2
+    source.write_text(json.dumps(job))
+    with pytest.raises(SystemExit):
+        cli.main([str(source), "--output-dir", str(a), "--overwrite"])
+    assert before == {p.relative_to(a): p.read_bytes() for p in a.rglob("*") if p.is_file()}

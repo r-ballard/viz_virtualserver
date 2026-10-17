@@ -4,6 +4,7 @@ from shapely.errors import GEOSException
 from shapely.ops import unary_union
 
 from viz_virtualserver.fill_effects import FillStroke, estimate_fill_candidates, render_fill_effect
+from viz_virtualserver.fill_effects.mark_selection import MARK_DENSITY_EFFECTS, derive_density_seed
 from viz_virtualserver.region_selection import (
     WeightedOption,
     choose_components,
@@ -16,6 +17,15 @@ from viz_virtualserver.scalar_fields.models import MAX_VERTICES, SampledField
 from .component_models import ComponentFillRule
 
 MAX_COMPONENT_CANDIDATES = 100_000
+
+
+class _DeferredField:
+    def __init__(self, get_view, direction):
+        self._get_view = get_view
+        self._direction = direction
+
+    def sample(self, x, y):
+        return self._get_view(self._direction).sample(x, y)
 
 
 def render_band_fills(
@@ -32,16 +42,31 @@ def render_band_fills(
     result = []
     gradient = None
     vertices = 0
+    views = {}
 
-    def render_one(selected, style):
-        nonlocal gradient, vertices
-        context = {}
-        if style.effect == "field-marks":
-            if sampled_field is None:
-                raise ValueError("field-marks requires sampled terrain")
+    def get_view(direction):
+        nonlocal gradient
+        if direction not in views:
             if gradient is None:
                 gradient = SampledGradient(sampled_field)
-            context["field"] = gradient.vector_field(style.field_direction)
+            views[direction] = gradient.vector_field(direction)
+        return views[direction]
+
+    def render_one(selected, style):
+        nonlocal vertices
+        context = {}
+        if style.effect in MARK_DENSITY_EFFECTS:
+            if style.parameters["density"] < 1 and domain_seed is None:
+                raise ValueError("mark thinning requires domain seed context")
+            context["density_seed"] = (
+                derive_density_seed(domain_seed, style.density_seed)
+                if domain_seed is not None
+                else style.density_seed
+            )
+        if style.effect == "field-marks":
+            if not isinstance(sampled_field, SampledField):
+                raise ValueError("field-marks requires sampled terrain as a SampledField")
+            context["field"] = _DeferredField(get_view, style.field_direction)
         strokes = render_fill_effect(
             selected, effect=style.effect, parameters=style.parameters, **context
         )
@@ -80,7 +105,7 @@ def render_band_fills(
                 label = f"component {decision.component.id} choice {choice.id}"
                 if choice.effect is None:
                     continue
-                if vertices >= max_vertices:
+                if vertices >= max_vertices and choice.parameters.get("density", 1) != 0:
                     raise ValueError("component fill vertex allowance exhausted; increase spacing")
                 candidates += estimate_fill_candidates(
                     decision.component.geometry, effect=choice.effect, parameters=choice.parameters

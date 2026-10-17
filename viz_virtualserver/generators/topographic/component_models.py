@@ -19,13 +19,16 @@ class ComponentFillChoice(BaseModel):
     )
     layer_id: str | None = None
     field_direction: Literal["slope", "contour"] | None = None
+    density_seed: int = Field(default=0, ge=-(2**63), le=2**63 - 1)
 
     @model_validator(mode="after")
     def validated(self):
         if not self.id.strip():
             raise ValueError("choice ID must be nonblank")
         if self.effect is None:
-            if self.model_fields_set.intersection({"parameters", "layer_id", "field_direction"}):
+            if self.model_fields_set.intersection(
+                {"parameters", "layer_id", "field_direction", "density_seed"}
+            ):
                 raise ValueError("blank choice must omit rendering controls")
             object.__setattr__(self, "parameters", MappingProxyType({}))
         else:
@@ -36,6 +39,8 @@ class ComponentFillChoice(BaseModel):
             }
             if "field_direction" in self.model_fields_set:
                 payload["field_direction"] = self.field_direction
+            if "density_seed" in self.model_fields_set:
+                payload["density_seed"] = self.density_seed
             style = FillStyle.model_validate(payload)
             object.__setattr__(self, "parameters", style.parameters)
         return self

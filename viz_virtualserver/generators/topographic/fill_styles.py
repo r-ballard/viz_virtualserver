@@ -5,6 +5,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, model_validator
 
 from viz_virtualserver.fill_effects import validate_fill_parameters
+from viz_virtualserver.fill_effects.mark_selection import MARK_DENSITY_EFFECTS
 
 
 class FillStyle(BaseModel):
@@ -15,9 +16,12 @@ class FillStyle(BaseModel):
     )
     layer_id: str
     field_direction: Literal["slope", "contour"] | None = None
+    density_seed: int = Field(default=0, ge=-(2**63), le=2**63 - 1)
 
     @model_validator(mode="after")
     def validated(self):
+        if self.effect not in MARK_DENSITY_EFFECTS and "density_seed" in self.model_fields_set:
+            raise ValueError("density_seed is only supported for dot and field marks")
         if self.effect == "field-marks":
             if self.field_direction is None:
                 raise ValueError(

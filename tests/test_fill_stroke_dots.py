@@ -18,7 +18,7 @@ def test_dot_catalogue_defaults_and_literal_lattice_marks():
     descriptor = next(e for e in list_fill_effects() if e.id == "stroke-dots")
     assert [(p.name, p.default, p.unit) for p in descriptor.parameters] == [
         ("spacing", 8, "input-units"), ("mark_length", .5, "input-units"),
-        ("angle", 0, "degrees"),
+        ("angle", 0, "degrees"), ("density", 1, "fraction"),
     ]
     region = box(-1, -1, 9, 9)
     result = dots(region)
