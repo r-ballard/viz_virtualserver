@@ -8,6 +8,7 @@ from shapely.errors import GEOSException
 from shapely.geometry import LineString
 from shapely.geometry.base import BaseGeometry
 
+from .density_fields import DensityField, effective_density, validate_density_field
 from .mark_selection import MarkSelection
 from .models import FillStroke
 from .region_validation import validate_region
@@ -26,9 +27,11 @@ def render_field_marks(
     field: VectorField,
     density: float = 1.0,
     density_seed: int = 0,
+    density_field: DensityField | None = None,
 ) -> tuple[FillStroke, ...]:
     """Use direction only; zero vectors omit marks and magnitude does not size them."""
     selection = MarkSelection(density, density_seed)
+    validate_density_field(density_field)
     spacing = _finite_number(spacing, "mark spacing")
     mark_length = _finite_number(mark_length, "mark length")
     angle = _finite_number(angle, "lattice angle")
@@ -53,7 +56,14 @@ def render_field_marks(
                 y = column * spacing * dy + row * spacing * dx
                 if not math.isfinite(x) or not math.isfinite(y):
                     raise ValueError("field mark centre cannot be represented reliably")
-                if not selection.accepts(row, column):
+                accepted = (
+                    selection.accepts(row, column)
+                    if density_field is None
+                    else selection.accepts_at(
+                        row, column, effective_density(selection.density, density_field, x, y)
+                    )
+                )
+                if not accepted:
                     continue
                 sample = field.sample(x, y)
                 if not isinstance(sample, VectorSample):

@@ -10,6 +10,7 @@ from shapely.geometry.base import BaseGeometry
 
 from .circle_rings import circle_rings
 from .crosshatch import crosshatches
+from .density_fields import DensityField, validate_density_field
 from .field_marks import render_field_marks
 from .mark_selection import MARK_DENSITY_EFFECTS, validate_density_seed
 from .models import EffectParameter, FillEffectDescriptor, FillStroke
@@ -41,8 +42,9 @@ _REGISTRY = {
         FillEffectDescriptor(
             id="circle-rings",
             name="Circle rings",
-            description=("Circle outlines on a rotated square lattice, "
-                         "clipped to polygonal regions."),
+            description=(
+                "Circle outlines on a rotated square lattice, clipped to polygonal regions."
+            ),
             parameters=(
                 EffectParameter("spacing", 8.0, "input-units", 0.0),
                 EffectParameter("radius", 2.0, "input-units", 0.0),
@@ -56,14 +58,16 @@ _REGISTRY = {
         FillEffectDescriptor(
             id="stroke-dots",
             name="Stroke dots",
-            description=("Short open marks on a rotated square lattice, "
-                         "clipped to polygonal regions."),
+            description=(
+                "Short open marks on a rotated square lattice, clipped to polygonal regions."
+            ),
             parameters=(
                 EffectParameter("spacing", 8.0, "input-units", 0.0),
                 EffectParameter("mark_length", 0.5, "input-units", 0.0),
                 EffectParameter("angle", 0.0, "degrees"),
                 EffectParameter("density", 1.0, "fraction", minimum=0.0, maximum=1.0),
             ),
+            supports_density_field=True,
         ),
         stroke_dots,
     ),
@@ -80,6 +84,7 @@ _REGISTRY = {
                 EffectParameter("center_y", 0.0, "input-units"),
                 EffectParameter("density", 1.0, "fraction", minimum=0.0, maximum=1.0),
             ),
+            supports_density_field=True,
         ),
         vortex_marks,
     ),
@@ -95,6 +100,7 @@ _REGISTRY = {
                 EffectParameter("density", 1.0, "fraction", minimum=0.0, maximum=1.0),
             ),
             requires_field=True,
+            supports_density_field=True,
         ),
         render_field_marks,
     ),
@@ -147,6 +153,7 @@ def render_fill_effect(
     parameters: Mapping[str, object] | None = None,
     field: VectorField | None = None,
     density_seed: int = 0,
+    density_field: DensityField | None = None,
 ) -> tuple[FillStroke, ...]:
     """Render strokes without changing frame, assigning layers, or repairing regions."""
     controls = validate_fill_parameters(effect=effect, parameters=parameters)
@@ -154,6 +161,9 @@ def render_fill_effect(
     if effect not in MARK_DENSITY_EFFECTS and density_seed != 0:
         raise ValueError("fill effect does not accept a density seed")
     descriptor, renderer = _REGISTRY[effect]
+    validate_density_field(density_field)
+    if density_field is not None and not descriptor.supports_density_field:
+        raise ValueError("fill effect does not accept a density field")
     if descriptor.requires_field:
         if not callable(getattr(field, "sample", None)):
             raise ValueError("fill effect requires a vector field implementing sample(x, y)")
@@ -162,6 +172,8 @@ def render_fill_effect(
     _validate_region(region)
     if effect in MARK_DENSITY_EFFECTS:
         controls["density_seed"] = density_seed
+        if density_field is not None:
+            controls["density_field"] = density_field
     if descriptor.requires_field:
         return renderer(region, **controls, field=field)
     return renderer(region, **controls)
