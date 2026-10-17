@@ -6,7 +6,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, field_validator, model_validator
 
-from .density_models import ElevationDensitySource, reject_null_density_source
+from .density_models import DensitySource, reject_null_density_source
 from .fill_styles import FillStyle
 
 
@@ -21,7 +21,7 @@ class ComponentFillChoice(BaseModel):
     layer_id: str | None = None
     field_direction: Literal["slope", "contour"] | None = None
     density_seed: int = Field(default=0, ge=-(2**63), le=2**63 - 1)
-    density_source: ElevationDensitySource | None = None
+    density_source: DensitySource | None = None
     pen_width: float = Field(default=0, ge=0)
     boundary_margin: float = Field(default=0, ge=0)
 

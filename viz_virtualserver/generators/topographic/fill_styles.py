@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, field_valida
 from viz_virtualserver.fill_effects import validate_fill_parameters
 from viz_virtualserver.fill_effects.mark_selection import MARK_DENSITY_EFFECTS
 
-from .density_models import ElevationDensitySource, reject_null_density_source
+from .density_models import DensitySource, reject_null_density_source
 
 
 class FillStyle(BaseModel):
@@ -20,7 +20,7 @@ class FillStyle(BaseModel):
     layer_id: str
     field_direction: Literal["slope", "contour"] | None = None
     density_seed: int = Field(default=0, ge=-(2**63), le=2**63 - 1)
-    density_source: ElevationDensitySource | None = None
+    density_source: DensitySource | None = None
     pen_width: float = Field(default=0, ge=0)
     boundary_margin: float = Field(default=0, ge=0)
 

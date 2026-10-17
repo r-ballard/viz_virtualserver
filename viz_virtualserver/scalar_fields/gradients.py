@@ -55,22 +55,9 @@ class SampledGradient:
     def vector_field(self, direction: Direction) -> "GradientField":
         return GradientField(self, direction)
 
-
-@dataclass(frozen=True, slots=True)
-class GradientField:
-    gradient: SampledGradient
-    direction: Direction
-
-    def __post_init__(self):
-        if not isinstance(self.gradient, SampledGradient) or self.direction not in (
-            "slope",
-            "contour",
-        ):
-            raise ValueError("gradient direction must be slope or contour")
-
-    def sample(self, x: float, y: float) -> VectorSample:
+    def sample_raw(self, x: float, y: float) -> VectorSample:
         x, y = _finite_number(x, "gradient position"), _finite_number(y, "gradient position")
-        g = self.gradient
+        g = self
         x0, y0, x1, y1 = g.bounds
         if not x0 <= x <= x1 or not y0 <= y <= y1:
             return VectorSample(0, 0)
@@ -86,7 +73,23 @@ class GradientField:
             return (1 - v) * lower + v * upper
 
         dx, dy = interpolate(g.dx_values), interpolate(g.dy_values)
-        raw = VectorSample(dx, dy)
-        if raw.magnitude <= g.threshold:
+        return VectorSample(dx, dy)
+
+
+@dataclass(frozen=True, slots=True)
+class GradientField:
+    gradient: SampledGradient
+    direction: Direction
+
+    def __post_init__(self):
+        if not isinstance(self.gradient, SampledGradient) or self.direction not in (
+            "slope",
+            "contour",
+        ):
+            raise ValueError("gradient direction must be slope or contour")
+
+    def sample(self, x: float, y: float) -> VectorSample:
+        raw = self.gradient.sample_raw(x, y)
+        if raw.magnitude <= self.gradient.threshold:
             return VectorSample(0, 0)
-        return raw if self.direction == "slope" else VectorSample(-dy, dx)
+        return raw if self.direction == "slope" else VectorSample(-raw.dy, raw.dx)

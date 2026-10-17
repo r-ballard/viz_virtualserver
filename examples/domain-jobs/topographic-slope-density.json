@@ -1,0 +1,289 @@
+{
+  "schema_version": 1,
+  "seed": 31,
+  "domains": [
+    {
+      "id": "slope",
+      "vertices": [
+        [
+          0,
+          0
+        ],
+        [
+          80,
+          0
+        ],
+        [
+          80,
+          80
+        ],
+        [
+          0,
+          80
+        ]
+      ]
+    },
+    {
+      "id": "inverted",
+      "vertices": [
+        [
+          0,
+          0
+        ],
+        [
+          80,
+          0
+        ],
+        [
+          80,
+          80
+        ],
+        [
+          0,
+          80
+        ]
+      ]
+    },
+    {
+      "id": "concave",
+      "vertices": [
+        [
+          0,
+          0
+        ],
+        [
+          80,
+          0
+        ],
+        [
+          80,
+          80
+        ],
+        [
+          40,
+          35
+        ],
+        [
+          0,
+          80
+        ]
+      ]
+    }
+  ],
+  "passes": [
+    {
+      "id": "map-slope",
+      "algorithm": "topographic",
+      "target_domain_ids": [
+        "slope"
+      ],
+      "parameters": {
+        "terrain_scale": 30,
+        "terrain_smoothing": 1,
+        "sample_spacing": 1,
+        "contour_count": 8,
+        "simplify_tolerance": 0,
+        "band_fills": [
+          {
+            "bands": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8
+            ],
+            "effect": "stroke-dots",
+            "parameters": {
+              "spacing": 3,
+              "mark_length": 0.7,
+              "density": 1
+            },
+            "density_seed": 7,
+            "density_source": {
+              "type": "slope",
+              "minimum": 0.05,
+              "maximum": 0.95,
+              "invert": false,
+              "reference_slope": 0.05
+            },
+            "layer_id": "terrain-dots",
+            "pen_width": 0.4,
+            "boundary_margin": 0.2
+          }
+        ]
+      },
+      "logical_layers": [
+        {
+          "id": "topographic-contours"
+        },
+        {
+          "id": "topographic-index"
+        },
+        {
+          "id": "terrain-dots"
+        }
+      ]
+    },
+    {
+      "id": "map-inverted",
+      "algorithm": "topographic",
+      "target_domain_ids": [
+        "inverted"
+      ],
+      "parameters": {
+        "terrain_scale": 30,
+        "terrain_smoothing": 1,
+        "sample_spacing": 1,
+        "contour_count": 8,
+        "simplify_tolerance": 0,
+        "band_fills": [
+          {
+            "bands": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8
+            ],
+            "effect": "field-marks",
+            "parameters": {
+              "spacing": 3,
+              "mark_length": 1.5,
+              "density": 1
+            },
+            "density_seed": 7,
+            "density_source": {
+              "type": "slope",
+              "minimum": 0.05,
+              "maximum": 0.95,
+              "invert": true,
+              "reference_slope": 0.05
+            },
+            "layer_id": "terrain-marks",
+            "field_direction": "contour",
+            "pen_width": 0.4,
+            "boundary_margin": 0.2
+          }
+        ]
+      },
+      "logical_layers": [
+        {
+          "id": "topographic-contours"
+        },
+        {
+          "id": "topographic-index"
+        },
+        {
+          "id": "terrain-marks"
+        }
+      ]
+    },
+    {
+      "id": "map-concave",
+      "algorithm": "topographic",
+      "target_domain_ids": [
+        "concave"
+      ],
+      "parameters": {
+        "terrain_scale": 30,
+        "terrain_smoothing": 1,
+        "sample_spacing": 1,
+        "contour_count": 8,
+        "simplify_tolerance": 0,
+        "band_fills": [
+          {
+            "bands": [
+              0,
+              2,
+              4,
+              6,
+              8
+            ],
+            "component_choices": [
+              {
+                "id": "blank",
+                "weight": 1,
+                "effect": null
+              },
+              {
+                "effect": "stroke-dots",
+                "parameters": {
+                  "spacing": 3,
+                  "mark_length": 0.7,
+                  "density": 1
+                },
+                "density_seed": 7,
+                "density_source": {
+                  "type": "slope",
+                  "minimum": 0.05,
+                  "maximum": 0.95,
+                  "invert": false,
+                  "reference_slope": 0.05
+                },
+                "layer_id": "terrain-dots",
+                "id": "dots",
+                "weight": 3,
+                "pen_width": 0.4,
+                "boundary_margin": 0.2
+              }
+            ]
+          }
+        ]
+      },
+      "logical_layers": [
+        {
+          "id": "topographic-contours"
+        },
+        {
+          "id": "topographic-index"
+        },
+        {
+          "id": "terrain-dots"
+        }
+      ]
+    }
+  ],
+  "composition_transforms": [
+    {
+      "domain_id": "slope",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "domain_id": "inverted",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        95,
+        0
+      ]
+    },
+    {
+      "domain_id": "concave",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        190,
+        0
+      ]
+    }
+  ]
+}

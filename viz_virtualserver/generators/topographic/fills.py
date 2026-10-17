@@ -13,7 +13,7 @@ from viz_virtualserver.region_selection import (
     identify_components,
 )
 from viz_virtualserver.scalar_fields.contours import canonical_contour
-from viz_virtualserver.scalar_fields.densities import SampledElevationDensity
+from viz_virtualserver.scalar_fields.densities import SampledElevationDensity, SampledSlopeDensity
 from viz_virtualserver.scalar_fields.gradients import SampledGradient
 from viz_virtualserver.scalar_fields.models import MAX_VERTICES, SampledField
 
@@ -37,6 +37,17 @@ class _DeferredField:
         return self._get_view(self._direction).sample(x, y)
 
 
+class _DeferredDensity:
+    def __init__(self, get_source):
+        self._get_source = get_source
+        self._source = None
+
+    def sample(self, x, y):
+        if self._source is None:
+            self._source = self._get_source()
+        return self._source.sample(x, y)
+
+
 def render_band_fills(
     regions,
     rules,
@@ -57,7 +68,7 @@ def render_band_fills(
         raise ValueError("fill coordinate guard must be finite and nonnegative")
     if any(style.density_source is not None for rule in rules for style in iter_rule_styles(rule)):
         if not isinstance(sampled_field, SampledField):
-            raise ValueError("elevation density requires sampled terrain as a SampledField")
+            raise ValueError("terrain density requires sampled terrain as a SampledField")
     indexed = {r.index: r.geometry for r in regions}
     result = []
     gradient = None
@@ -65,13 +76,28 @@ def render_band_fills(
     views = {}
     density_sources = {}
 
-    def get_view(direction):
+    def get_gradient():
         nonlocal gradient
+        if gradient is None:
+            gradient = SampledGradient(sampled_field)
+        return gradient
+
+    def get_view(direction):
         if direction not in views:
-            if gradient is None:
-                gradient = SampledGradient(sampled_field)
-            views[direction] = gradient.vector_field(direction)
+            views[direction] = get_gradient().vector_field(direction)
         return views[direction]
+
+    def get_density_source(source):
+        if source not in density_sources:
+            controls = dict(minimum=source.minimum, maximum=source.maximum, invert=source.invert)
+            density_sources[source] = (
+                SampledSlopeDensity(
+                    get_gradient(), reference_slope=source.reference_slope, **controls
+                )
+                if source.type == "slope"
+                else SampledElevationDensity(sampled_field, **controls)
+            )
+        return density_sources[source]
 
     def render_one(selected, style):
         nonlocal vertices
@@ -80,15 +106,11 @@ def render_band_fills(
         if source is not None:
             if domain_seed is None:
                 raise ValueError("sampled density requires domain seed context")
-            key = (source.minimum, source.maximum, source.invert)
-            if key not in density_sources:
-                density_sources[key] = SampledElevationDensity(
-                    sampled_field,
-                    minimum=source.minimum,
-                    maximum=source.maximum,
-                    invert=source.invert,
-                )
-            context["density_field"] = density_sources[key]
+            context["density_field"] = (
+                _DeferredDensity(lambda: get_density_source(source))
+                if source.type == "slope"
+                else get_density_source(source)
+            )
         if style.effect in MARK_DENSITY_EFFECTS:
             if style.parameters["density"] < 1 and domain_seed is None:
                 raise ValueError("mark thinning requires domain seed context")
@@ -118,7 +140,14 @@ def render_band_fills(
             if selected.is_empty:
                 return
         strokes = render_fill_effect(
-            selected, effect=style.effect, parameters=style.parameters, **context
+            selected,
+            effect=style.effect,
+            parameters=(
+                {**style.parameters, "density": 0}
+                if source is not None and source.maximum == 0
+                else style.parameters
+            ),
+            **context,
         )
         canonical = []
         for stroke in strokes:
