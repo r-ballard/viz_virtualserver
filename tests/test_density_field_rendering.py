@@ -1,4 +1,6 @@
+import hashlib
 import math
+import struct
 
 import pytest
 from shapely.geometry import Polygon, box
@@ -8,7 +10,6 @@ from viz_virtualserver.fill_effects import (
     list_fill_effects,
     render_fill_effect,
 )
-from viz_virtualserver.fill_effects.mark_selection import MarkSelection
 from viz_virtualserver.fill_effects.vector_fields import VectorSample
 
 
@@ -49,14 +50,32 @@ def test_invalid_density_samples(value):
 
 
 def test_context_validation_direct_endpoints_and_unsupported():
+    from viz_virtualserver.fill_effects.field_marks import render_field_marks
     from viz_virtualserver.fill_effects.stroke_dots import stroke_dots
+    from viz_virtualserver.fill_effects.vortex_marks import vortex_marks
 
-    for region in (Polygon(), box(-1, -1, 1, 1)):
-        for d in (0, 1):
-            with pytest.raises(ValueError):
-                stroke_dots(
-                    region, spacing=8, mark_length=0.5, angle=0, density=d, density_field=object()
-                )
+    class Vector:
+        def sample(self, x, y):
+            return VectorSample(1, 0)
+
+    direct = (
+        (stroke_dots, {}),
+        (render_field_marks, {"field": Vector()}),
+        (vortex_marks, {"center_x": 0, "center_y": 0}),
+    )
+    for renderer, context in direct:
+        for region in (Polygon(), box(-1, -1, 1, 1)):
+            for d in (0, 1):
+                with pytest.raises(ValueError, match="density"):
+                    renderer(
+                        region,
+                        spacing=8,
+                        mark_length=0.5,
+                        angle=0,
+                        density=d,
+                        density_field=object(),
+                        **context,
+                    )
     for effect in ("parallel-hatch", "crosshatch", "circle-rings"):
         with pytest.raises(ValueError):
             render_fill_effect(Polygon(), effect=effect, density_field=Constant(0.5))
@@ -121,10 +140,19 @@ def test_plane_decisions_nested_and_fragment_ownership():
         for offset in (0, 0.25)
     ]
     assert set(outputs[0]) <= set(outputs[1])
-    for stroke in outputs[0]:
-        x, y = ((a + b) / 2 for a, b in zip(stroke.points[0], stroke.points[-1]))
-        if abs(x) < 5 and abs(y) < 5:
-            assert MarkSelection().accepts_at(round(y / 3), round(x / 3), Plane(0).sample(x, y))
+    for output, offset in zip(outputs, (0, 0.25), strict=True):
+        expected = set()
+        for row in range(-2, 3):
+            for column in range(-2, 3):
+                x, y = column * 3, row * 3
+                density = min(1.0, max(0.0, (x + 6) / 12 + offset))
+                numerator, denominator = density.as_integer_ratio()
+                fields = ("viz-mark-density-v1", "0", str(row), str(column))
+                encoded = b"".join(struct.pack(">Q", len(v.encode())) + v.encode() for v in fields)
+                h = int.from_bytes(hashlib.sha256(encoded).digest(), "big")
+                if h < (numerator << 256) // denominator:
+                    expected.add(((max(-6.0, x - 0.5), float(y)), (min(6.0, x + 0.5), float(y))))
+        assert {stroke.points for stroke in output} == expected
     region = box(-3, -1, 3, 1).difference(box(-0.5, -0.5, 0.5, 0.5))
     strokes = render_fill_effect(
         region,

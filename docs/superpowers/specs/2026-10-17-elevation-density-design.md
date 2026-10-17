@@ -184,6 +184,5 @@ without merging. Preserve worktrees and previews. Physical testing stays deferre
 
 ## Design status
 
-Concept approved by proceeding with the recommended elevation/minimum/maximum/
-inversion scope. Written spec awaits review before implementation planning.
-No product code has been changed.
+Concept, written spec and implementation plan approved in conversation. Native
+execution selected; physical plotting remains deferred.

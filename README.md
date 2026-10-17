@@ -52,7 +52,7 @@ formats remain stable across the package cleanup.
 
 | Algorithm | Guide | Example jobs |
 | --- | --- | --- |
-| Synthetic topographic contours, band fills, component choices and density-controlled terrain marks | [Topographic artwork](docs/algorithms/topographic.md) | `examples/domain-jobs/topographic-tuning.json` |
+| Synthetic topographic contours, band fills, component choices and elevation-driven terrain marks | [Topographic artwork](docs/algorithms/topographic.md) | `examples/domain-jobs/topographic-tuning.json` |
 | Recursive Voronoi cells | [Voronoi cells](docs/how-to/voronoi-cells.md) | `examples/domain-jobs/voronoi-three-polygons.json` |
 | Radial tiles | [Radial tiles](docs/algorithms/radial-tiles.md) | `examples/domain-jobs/radial-tiles-three-polygons.json` |
 | Truchet grammar and multi-scale curves | [Truchet tiles](docs/algorithms/truchet.md) | `examples/domain-jobs/truchet-*.json` |

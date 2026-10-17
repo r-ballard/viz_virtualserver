@@ -129,3 +129,37 @@ def test_zero_field_avoids_gradients_omitted_source_avoids_adapter_and_bad_conte
         module, "SampledElevationDensity", lambda *args, **kw: pytest.fail("density adapter")
     )
     assert generate((SQUARE,), params=PARAMS).paths
+
+
+def test_source_mapping_preserves_component_assignments_and_local_translation(monkeypatch):
+    from viz_virtualserver.generators.topographic import fills as module
+
+    decisions = []
+    original = module.choose_components
+
+    def choose(*args, **kwargs):
+        result = original(*args, **kwargs)
+        decisions.append(tuple((d.component.id, d.choice_id) for d in result))
+        return result
+
+    monkeypatch.setattr(module, "choose_components", choose)
+    choice = {k: v for k, v in rule(0, 0.5).items() if k != "bands"}
+    choice.update(id="dots", weight=3)
+    palette = {
+        "bands": [0, 2, 4, 6, 8],
+        "component_choices": [{"id": "blank", "weight": 1, "effect": None}, choice],
+    }
+    params = {**PARAMS, "band_fills": [palette]}
+    a = generate((SQUARE,), params=params, layers=("contours", "index", "fill"))
+    choice["density_source"] = {"type": "elevation", "minimum": 0.25, "maximum": 1}
+    b = generate((SQUARE,), params=params, layers=("contours", "index", "fill"))
+    assert decisions[0] == decisions[1]
+    assert fills(a) <= fills(b)
+    shifted = type(SQUARE)(SQUARE.id, tuple((x - 30, y - 20) for x, y in SQUARE.vertices))
+    moved = generate((shifted,), params=params, layers=("contours", "index", "fill"))
+    assert decisions[1] == decisions[2]
+    original_paths = [p for p in b.paths if p.layer_id == "fill"]
+    moved_paths = [p for p in moved.paths if p.layer_id == "fill"]
+    assert len(original_paths) == len(moved_paths)
+    for p, q in zip(original_paths, moved_paths, strict=True):
+        assert np.array(q.points) == pytest.approx(np.array(p.points) - (30, 20))

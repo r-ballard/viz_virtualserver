@@ -186,3 +186,30 @@ python -m viz_virtualserver.cli.domain_bundle examples/domain-jobs/topographic-m
 ```
 
 The example uses independent sparse-dot, field-mark and concave terrains. Hold domain geometry and effective seed fixed in the Python service for a controlled comparison of densities 0,.25,.5,.75,1. Low density never bypasses the full planned lattice's per-effect or aggregate candidate limits; final emitted vertices remain subject to the existing pass cap.
+
+## Elevation-driven density
+
+Mark styles and nonblank component choices may supply `density_source` alongside numeric parameters:
+
+```json
+{"bands": [0, 2, 4, 6, 8], "effect": "stroke-dots",
+ "parameters": {"spacing": 3, "mark_length": 0.7, "density": 1},
+ "density_seed": 7,
+ "density_source": {"type": "elevation", "minimum": 0.1,
+                    "maximum": 0.8, "invert": false},
+ "layer_id": "terrain-dots"}
+```
+
+Type is required and must be `elevation`. Minimum defaults to 0, maximum to 1, and inversion to false. Bounds are finite real values in [0,1] with minimum <= maximum; equal bounds are valid. Invert requires a boolean. Explicit null, unsupported sources/effects and unknown keys are errors, even for unused choices. Blank choices must omit the source. Keep the source outside numeric parameters.
+
+The same smoothed, normalized height field supplies bilinear elevation h at each candidate centre. Inside the sampled rectangle, clamp h to [0,1], optionally use 1-h, then map linearly between minimum and maximum. The existing numeric density multiplies this mapped value. The seeded lattice mask stays fixed: pointwise-increased coverage adds marks without moving survivors, while inversion redistributes dense areas.
+
+The halo can extend outside normalized interior elevations, which explains the height clamp. Centres outside the full sampled rectangle get zero density without extrapolation, even with nonzero minimum or constant mappings; long marks can therefore lose fragments whose centres exceed the halo. Terrain is never renormalized over individual bands/components. Constant or negligible fields still produce no artwork.
+
+Source controls change only retention: terrain, component choices, mark directions, spacing, clipping, layer ownership and contour simplification remain independent. Missing source preserves prior fixed-density output. Density-only dots allocate no gradients; rejected field candidates do not evaluate vectors. Full lattice budgets still apply, including maximum-zero mappings. Such mappings retain declared empty channels and can pass an exhausted emitted-vertex allowance after validation and candidate reservation.
+
+```powershell
+python -m viz_virtualserver.cli.domain_bundle examples/domain-jobs/topographic-elevation-density.json --output-dir output/topographic-elevation-density
+```
+
+The example shows normal dots, inverted contour-oriented marks and component choices on a concave target. Its panels have independent terrain. Use the same effective seed/domain in Python to compare normal and inverted mapping on identical terrain. Coverage is approximate mark retention, not calibrated ink coverage. Slope/raster sources and new Truchet controls remain future work.
