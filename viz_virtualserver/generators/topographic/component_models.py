@@ -6,6 +6,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, PlainSerializer, field_validator, model_validator
 
+from .density_models import ElevationDensitySource, reject_null_density_source
 from .fill_styles import FillStyle
 
 
@@ -20,6 +21,12 @@ class ComponentFillChoice(BaseModel):
     layer_id: str | None = None
     field_direction: Literal["slope", "contour"] | None = None
     density_seed: int = Field(default=0, ge=-(2**63), le=2**63 - 1)
+    density_source: ElevationDensitySource | None = None
+
+    @field_validator("density_source", mode="before")
+    @classmethod
+    def nonnull_source(cls, value):
+        return reject_null_density_source(value)
 
     @model_validator(mode="after")
     def validated(self):
@@ -27,7 +34,7 @@ class ComponentFillChoice(BaseModel):
             raise ValueError("choice ID must be nonblank")
         if self.effect is None:
             if self.model_fields_set.intersection(
-                {"parameters", "layer_id", "field_direction", "density_seed"}
+                {"parameters", "layer_id", "field_direction", "density_seed", "density_source"}
             ):
                 raise ValueError("blank choice must omit rendering controls")
             object.__setattr__(self, "parameters", MappingProxyType({}))
@@ -41,6 +48,8 @@ class ComponentFillChoice(BaseModel):
                 payload["field_direction"] = self.field_direction
             if "density_seed" in self.model_fields_set:
                 payload["density_seed"] = self.density_seed
+            if "density_source" in self.model_fields_set:
+                payload["density_source"] = self.density_source
             style = FillStyle.model_validate(payload)
             object.__setattr__(self, "parameters", style.parameters)
         return self

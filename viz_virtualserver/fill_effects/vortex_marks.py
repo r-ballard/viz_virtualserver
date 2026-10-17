@@ -2,6 +2,7 @@
 
 from shapely.geometry.base import BaseGeometry
 
+from .density_fields import DensityField
 from .field_marks import render_field_marks
 from .models import FillStroke
 from .vector_fields import VortexField
@@ -17,6 +18,7 @@ def vortex_marks(
     center_y: float,
     density: float = 1.0,
     density_seed: int = 0,
+    density_field: DensityField | None = None,
 ) -> tuple[FillStroke, ...]:
     return render_field_marks(
         region,
@@ -26,4 +28,5 @@ def vortex_marks(
         field=VortexField(center_x, center_y),
         density=density,
         density_seed=density_seed,
+        density_field=density_field,
     )

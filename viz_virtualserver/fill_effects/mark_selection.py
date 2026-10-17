@@ -55,3 +55,16 @@ class MarkSelection:
         if self.density == 1:
             return True
         return _candidate_hash(self.seed, row, column) < self._threshold
+
+    def accepts_at(self, row: int, column: int, density: float) -> bool:
+        if type(row) is not int or type(column) is not int:
+            raise ValueError("mark lattice indices must be integers")
+        value = _finite_number(density, "local mark density")
+        if not 0 <= value <= 1:
+            raise ValueError("local mark density must lie between 0 and 1")
+        if value == 0:
+            return False
+        if value == 1:
+            return True
+        numerator, denominator = value.as_integer_ratio()
+        return _candidate_hash(self.seed, row, column) < (numerator << 256) // denominator
