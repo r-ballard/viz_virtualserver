@@ -83,7 +83,7 @@ minimum pen clearance. Judge spacing after physical scaling and pen assignment i
 plotter-workflow. Text labels remain a downstream Inkscape operation.
 
 Future extensions include actual elevation rasters, rounded-hill field sources,
-shared-coordinate terrain and slope-dependent mark density.
+and shared-coordinate terrain.
 
 ## Elevation-band fills
 
@@ -200,19 +200,19 @@ Mark styles and nonblank component choices may supply `density_source` alongside
  "layer_id": "terrain-dots"}
 ```
 
-Type is required and must be `elevation`. Minimum defaults to 0, maximum to 1, and inversion to false. Bounds are finite real values in [0,1] with minimum <= maximum; equal bounds are valid. Invert requires a boolean. Explicit null, unsupported sources/effects and unknown keys are errors, even for unused choices. Blank choices must omit the source. Keep the source outside numeric parameters.
+For elevation mapping, type is required and must be `elevation`. Minimum defaults to 0, maximum to 1, and inversion to false. Bounds are finite real values in [0,1] with minimum <= maximum; equal bounds are valid. Invert requires a boolean. Explicit null, unsupported sources/effects and unknown keys are errors, even for unused choices. Blank choices must omit the source. Keep the source outside numeric parameters.
 
 The same smoothed, normalized height field supplies bilinear elevation h at each candidate centre. Inside the sampled rectangle, clamp h to [0,1], optionally use 1-h, then map linearly between minimum and maximum. The existing numeric density multiplies this mapped value. The seeded lattice mask stays fixed: pointwise-increased coverage adds marks without moving survivors, while inversion redistributes dense areas.
 
 The halo can extend outside normalized interior elevations, which explains the height clamp. Centres outside the full sampled rectangle get zero density without extrapolation, even with nonzero minimum or constant mappings; long marks can therefore lose fragments whose centres exceed the halo. Terrain is never renormalized over individual bands/components. Constant or negligible fields still produce no artwork.
 
-Source controls change only retention: terrain, component choices, mark directions, spacing, clipping, layer ownership and contour simplification remain independent. Missing source preserves prior fixed-density output. Density-only dots allocate no gradients; rejected field candidates do not evaluate vectors. Full lattice budgets still apply, including maximum-zero mappings. Such mappings retain declared empty channels and can pass an exhausted emitted-vertex allowance after validation and candidate reservation.
+Source controls change only retention: terrain, component choices, mark directions, spacing, clipping, layer ownership and contour simplification remain independent. Missing source preserves prior fixed-density output. Elevation-density-only dots allocate no gradients; rejected field candidates do not evaluate vectors. Full lattice budgets still apply, including maximum-zero mappings. Such mappings retain declared empty channels and can pass an exhausted emitted-vertex allowance after validation and candidate reservation.
 
 ```powershell
 python -m viz_virtualserver.cli.domain_bundle examples/domain-jobs/topographic-elevation-density.json --output-dir output/topographic-elevation-density
 ```
 
-The example shows normal dots, inverted contour-oriented marks and component choices on a concave target. Its panels have independent terrain. Use the same effective seed/domain in Python to compare normal and inverted mapping on identical terrain. Coverage is approximate mark retention, not calibrated ink coverage. Slope/raster sources and new Truchet controls remain future work.
+The example shows normal dots, inverted contour-oriented marks and component choices on a concave target. Its panels have independent terrain. Use the same effective seed/domain in Python to compare normal and inverted mapping on identical terrain. Coverage is approximate mark retention, not calibrated ink coverage. Raster sources and new Truchet controls remain future work.
 
 ## Pen-aware fill containment
 
@@ -258,3 +258,61 @@ Generate the square and concave component example with:
 ```powershell
 python -m viz_virtualserver.cli.domain_bundle examples/domain-jobs/topographic-fill-containment.json --output-dir output/topographic-fill-containment
 ```
+
+## Slope-driven density
+
+Use `type: "slope"` in the same `density_source` position to shade by steepness:
+
+```json
+{
+  "bands": [0, 2, 4, 6, 8],
+  "effect": "stroke-dots",
+  "layer_id": "terrain-dots",
+  "parameters": {"spacing": 3, "mark_length": 0.7, "density": 1},
+  "density_source": {
+    "type": "slope",
+    "reference_slope": 0.05,
+    "minimum": 0.1,
+    "maximum": 0.9,
+    "invert": false
+  },
+  "pen_width": 0.4,
+  "boundary_margin": 0.2
+}
+```
+
+`reference_slope` is required, finite and strictly positive. It is measured in
+normalized terrain height per domain input unit, not degrees or physical terrain
+elevation. Bilinearly interpolate the sampled gradient's raw components, then
+compute their magnitude `s`. Coverage uses `t = min(1, s / reference_slope)`,
+optionally replaces `t` with `1 - t`, then maps between minimum and maximum.
+The existing numeric density remains a global multiplier. Flat gradients map to minimum density, or maximum when inverted. Density uses
+raw derivatives even below the numerical cutoff used for mark direction.
+
+Slopes at or above the reference saturate. A larger reference produces fewer
+marks for normal mapping. The reference is explicit and is never inferred from
+each band, component, or domain maximum. Changing terrain scale or smoothing
+can therefore change coverage. An example plane rising by 0.03 per unit in x
+and 0.04 in y has slope 0.05; at reference 0.1 and bounds [0.1, 0.9], density
+is 0.5. This describes synthetic terrain shading rather than a geographic map.
+
+The same source works with dots, vortex marks, and slope/contour-directed field
+marks, including nonblank component choices. Directional marks still omit zero or numerically negligible
+vectors even when an inverted density source favors flat regions. Points outside
+the full sampled rectangle receive zero density, including with inversion or a
+nonzero minimum. No extrapolation or additional terrain sampling occurs.
+
+Slope sources and directional marks share one immutable sampled gradient per
+domain. Derivatives are allocated only when evaluated; zero global density and
+maximum-zero sources still reserve full candidate work but need no derivatives.
+Mapping controls are independent of terrain, component decisions, lattice phase,
+seeded retention and pen-aware containment. Elevation and omitted-source behavior
+is unchanged. Source settings are retained in the job audit.
+
+```powershell
+python -m viz_virtualserver.cli.domain_bundle examples/domain-jobs/topographic-slope-density.json --output-dir output/topographic-slope-density
+```
+
+The example contains normal dots, inverted contour marks, and concave component
+choices, each on independently seeded terrain. Compare source mappings on one
+fixed job/domain seed when evaluating differences in coverage.

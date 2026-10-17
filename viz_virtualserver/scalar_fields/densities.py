@@ -1,4 +1,4 @@
-"""Immutable elevation-to-density sampling without terrain resampling."""
+"""Immutable elevation and slope density sampling without terrain resampling."""
 
 import math
 from dataclasses import dataclass
@@ -6,6 +6,7 @@ from dataclasses import field as dataclass_field
 
 from viz_virtualserver.fill_effects.vector_fields import _finite_number
 
+from .gradients import SampledGradient
 from .models import MAX_SAMPLES, SampledField
 
 
@@ -60,3 +61,41 @@ class SampledElevationDensity:
             t = 1 - t
         density = self.minimum + (self.maximum - self.minimum) * t
         return min(self.maximum, max(self.minimum, density))
+
+
+@dataclass(frozen=True, slots=True)
+class SampledSlopeDensity:
+    """Map gradient magnitude to density using an explicit height/unit reference."""
+
+    gradient: SampledGradient
+    reference_slope: float = dataclass_field(kw_only=True)
+    minimum: float = dataclass_field(default=0, kw_only=True)
+    maximum: float = dataclass_field(default=1, kw_only=True)
+    invert: bool = dataclass_field(default=False, kw_only=True)
+
+    def __post_init__(self):
+        if not isinstance(self.gradient, SampledGradient):
+            raise ValueError("slope density requires a SampledGradient")
+        reference = _finite_number(self.reference_slope, "reference slope")
+        minimum = _finite_number(self.minimum, "density minimum")
+        maximum = _finite_number(self.maximum, "density maximum")
+        if reference <= 0:
+            raise ValueError("reference slope must be positive")
+        if not 0 <= minimum <= maximum <= 1 or type(self.invert) is not bool:
+            raise ValueError("density mapping requires ordered bounds in [0,1] and boolean invert")
+        object.__setattr__(self, "reference_slope", reference)
+        object.__setattr__(self, "minimum", minimum)
+        object.__setattr__(self, "maximum", maximum)
+
+    def sample(self, x: float, y: float) -> float:
+        x, y = _finite_number(x, "density position"), _finite_number(y, "density position")
+        x0, y0, x1, y1 = self.gradient.bounds
+        if not x0 <= x <= x1 or not y0 <= y <= y1:
+            return 0.0
+        magnitude = self.gradient.sample_raw(x, y).magnitude
+        t = 1.0 if magnitude >= self.reference_slope else magnitude / self.reference_slope
+        if self.invert:
+            t = 1 - t
+        return min(
+            self.maximum, max(self.minimum, self.minimum + (self.maximum - self.minimum) * t)
+        )

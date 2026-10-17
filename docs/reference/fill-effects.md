@@ -270,3 +270,7 @@ Each lattice index gets a versioned SHA256 threshold. Selection precedes vector 
 Descriptors expose `supports_density_field`, true for stroke-dots, vortex-marks and field-marks. Catalogue and direct calls accept optional `density_field`, an evaluator with `sample(x, y)` returning a finite real in [0,1]. This is separate from numeric parameters and vector-field context. Invalid structural context fails on empty/zero calls; evaluated invalid values are errors, not clamped. Unsupported effects reject supplied density fields.
 
 Local coverage is numeric density times the sampled value. Sampling precedes the existing exact seeded threshold and vector evaluation; all clipped fragments share the decision. A zero global multiplier may skip callback execution after validation/planning. Callback failures retain their cause and produce contextual rendering errors. Candidate estimates and full-work limits remain unchanged. Topographic [elevation sources](../algorithms/topographic.md#elevation-driven-density) provide the first adapter; generic callbacks do not depend on terrain.
+
+Topographic [slope sources](../algorithms/topographic.md#slope-driven-density) map
+gradient magnitude against an explicit `reference_slope`, reusing the generic
+density evaluator and the terrain gradient shared with directional marks.
