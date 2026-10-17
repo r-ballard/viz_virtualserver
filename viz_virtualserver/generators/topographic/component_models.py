@@ -22,6 +22,8 @@ class ComponentFillChoice(BaseModel):
     field_direction: Literal["slope", "contour"] | None = None
     density_seed: int = Field(default=0, ge=-(2**63), le=2**63 - 1)
     density_source: ElevationDensitySource | None = None
+    pen_width: float = Field(default=0, ge=0)
+    boundary_margin: float = Field(default=0, ge=0)
 
     @field_validator("density_source", mode="before")
     @classmethod
@@ -34,7 +36,15 @@ class ComponentFillChoice(BaseModel):
             raise ValueError("choice ID must be nonblank")
         if self.effect is None:
             if self.model_fields_set.intersection(
-                {"parameters", "layer_id", "field_direction", "density_seed", "density_source"}
+                {
+                    "parameters",
+                    "layer_id",
+                    "field_direction",
+                    "density_seed",
+                    "density_source",
+                    "pen_width",
+                    "boundary_margin",
+                }
             ):
                 raise ValueError("blank choice must omit rendering controls")
             object.__setattr__(self, "parameters", MappingProxyType({}))
@@ -43,6 +53,8 @@ class ComponentFillChoice(BaseModel):
                 "effect": self.effect,
                 "parameters": self.parameters,
                 "layer_id": self.layer_id,
+                "pen_width": self.pen_width,
+                "boundary_margin": self.boundary_margin,
             }
             if "field_direction" in self.model_fields_set:
                 payload["field_direction"] = self.field_direction

@@ -1,3 +1,4 @@
+import math
 from collections.abc import Mapping
 from types import MappingProxyType
 from typing import Annotated, Literal
@@ -20,6 +21,8 @@ class FillStyle(BaseModel):
     field_direction: Literal["slope", "contour"] | None = None
     density_seed: int = Field(default=0, ge=-(2**63), le=2**63 - 1)
     density_source: ElevationDensitySource | None = None
+    pen_width: float = Field(default=0, ge=0)
+    boundary_margin: float = Field(default=0, ge=0)
 
     @field_validator("density_source", mode="before")
     @classmethod
@@ -28,6 +31,8 @@ class FillStyle(BaseModel):
 
     @model_validator(mode="after")
     def validated(self):
+        if not math.isfinite(self.pen_width / 2 + self.boundary_margin):
+            raise ValueError("combined fill clearance must be finite")
         if self.effect not in MARK_DENSITY_EFFECTS and "density_source" in self.model_fields_set:
             raise ValueError("density_source is only supported for dot and field marks")
         if self.effect not in MARK_DENSITY_EFFECTS and "density_seed" in self.model_fields_set:

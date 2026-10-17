@@ -213,3 +213,48 @@ python -m viz_virtualserver.cli.domain_bundle examples/domain-jobs/topographic-e
 ```
 
 The example shows normal dots, inverted contour-oriented marks and component choices on a concave target. Its panels have independent terrain. Use the same effective seed/domain in Python to compare normal and inverted mapping on identical terrain. Coverage is approximate mark retention, not calibrated ink coverage. Slope/raster sources and new Truchet controls remain future work.
+
+## Pen-aware fill containment
+
+Band-fill styles and nonblank component choices accept `pen_width` and
+`boundary_margin` alongside `effect`, `parameters`, and `layer_id`:
+
+```json
+{
+  "bands": [0, 2, 4, 6, 8],
+  "effect": "stroke-dots",
+  "layer_id": "dots",
+  "parameters": {"spacing": 3, "mark_length": 0.7},
+  "pen_width": 0.4,
+  "boundary_margin": 0.2
+}
+```
+
+Both controls are finite nonnegative numbers in domain input units. Both default
+to zero, preserving existing geometry. Centerlines are clipped inside the selected
+region inset by `pen_width / 2 + boundary_margin`, with a small conservative
+allowance for rounded offset approximation and SVG coordinate rounding. Holes
+expand, narrow regions may disappear, and clipped marks may become shorter.
+The resulting geometry contains a round-ended pen footprint of the specified
+width with the requested additional gap. This supports all six fill effects;
+it does not configure plotter hardware, pen plans, or SVG stroke widths.
+
+Component identities and weighted choices are determined before the inset.
+Adjacent bands selected by one rule are united before the inset, so their shared
+contours do not create artificial gaps. Select alternating bands to leave blank
+regions; selecting all bands still fills the whole domain. Lattice and density
+seeds retain their existing meanings.
+
+Use `simplify_tolerance: 0` when inspecting exact agreement with elevation-band
+edges. Simplified contour outlines can depart from the unsimplified fill regions.
+Set the preview stroke width to the intended pen width, and use round or bevel
+joins; long miter joins are outside the round pen footprint model. If artwork is
+scaled during imposition, choose the input width and margin for that final scale
+(for example, a 0.4 mm pen at 50% scale needs an input `pen_width` of 0.8).
+Physical ink spread and positioning error require an additional margin.
+
+Generate the square and concave component example with:
+
+```powershell
+python -m viz_virtualserver.cli.domain_bundle examples/domain-jobs/topographic-fill-containment.json --output-dir output/topographic-fill-containment
+```
