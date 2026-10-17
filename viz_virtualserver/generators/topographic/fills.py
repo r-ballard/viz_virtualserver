@@ -11,12 +11,19 @@ from viz_virtualserver.region_selection import (
     identify_components,
 )
 from viz_virtualserver.scalar_fields.contours import canonical_contour
+from viz_virtualserver.scalar_fields.densities import SampledElevationDensity
 from viz_virtualserver.scalar_fields.gradients import SampledGradient
 from viz_virtualserver.scalar_fields.models import MAX_VERTICES, SampledField
 
-from .component_models import ComponentFillRule
+from .component_models import ComponentFillRule, iter_rule_styles
 
 MAX_COMPONENT_CANDIDATES = 100_000
+
+
+def is_known_zero_style(style):
+    return style.parameters.get("density", 1) == 0 or (
+        style.density_source is not None and style.density_source.maximum == 0
+    )
 
 
 class _DeferredField:
@@ -38,11 +45,15 @@ def render_band_fills(
 ):
     if type(max_vertices) is not int or max_vertices < 0:
         raise ValueError("fill vertex allowance must be a nonnegative integer")
+    if any(style.density_source is not None for rule in rules for style in iter_rule_styles(rule)):
+        if not isinstance(sampled_field, SampledField):
+            raise ValueError("elevation density requires sampled terrain as a SampledField")
     indexed = {r.index: r.geometry for r in regions}
     result = []
     gradient = None
     vertices = 0
     views = {}
+    density_sources = {}
 
     def get_view(direction):
         nonlocal gradient
@@ -55,6 +66,19 @@ def render_band_fills(
     def render_one(selected, style):
         nonlocal vertices
         context = {}
+        source = style.density_source
+        if source is not None:
+            if domain_seed is None:
+                raise ValueError("sampled density requires domain seed context")
+            key = (source.minimum, source.maximum, source.invert)
+            if key not in density_sources:
+                density_sources[key] = SampledElevationDensity(
+                    sampled_field,
+                    minimum=source.minimum,
+                    maximum=source.maximum,
+                    invert=source.invert,
+                )
+            context["density_field"] = density_sources[key]
         if style.effect in MARK_DENSITY_EFFECTS:
             if style.parameters["density"] < 1 and domain_seed is None:
                 raise ValueError("mark thinning requires domain seed context")
@@ -105,7 +129,7 @@ def render_band_fills(
                 label = f"component {decision.component.id} choice {choice.id}"
                 if choice.effect is None:
                     continue
-                if vertices >= max_vertices and choice.parameters.get("density", 1) != 0:
+                if vertices >= max_vertices and not is_known_zero_style(choice):
                     raise ValueError("component fill vertex allowance exhausted; increase spacing")
                 candidates += estimate_fill_candidates(
                     decision.component.geometry, effect=choice.effect, parameters=choice.parameters
