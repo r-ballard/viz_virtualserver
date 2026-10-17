@@ -51,6 +51,9 @@ class TopographicDomainAlgorithm:
                     controls = [p.sample_spacing]
                     for rule in (s for r in p.band_fills for s in iter_rule_styles(r)):
                         controls.append(rule.parameters["spacing"])
+                        clearance = rule.pen_width / 2 + rule.boundary_margin
+                        if clearance:
+                            controls.append(clearance)
                         for key in ("mark_length", "radius", "curve_tolerance"):
                             if key in rule.parameters:
                                 controls.append(rule.parameters[key])
@@ -101,6 +104,7 @@ class TopographicDomainAlgorithm:
                         sampled_field=sampled,
                         domain_seed=context.domain_seeds[domain.id],
                         max_vertices=MAX_VERTICES - vertex_count - contour_vertices,
+                        coordinate_guard=resolution,
                     )
                 for contour in contours:
                     vertex_count += len(contour.points)

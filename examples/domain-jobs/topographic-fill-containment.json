@@ -1,0 +1,252 @@
+{
+  "schema_version": 1,
+  "seed": 31,
+  "domains": [
+    {
+      "id": "square",
+      "vertices": [
+        [
+          0,
+          0
+        ],
+        [
+          80,
+          0
+        ],
+        [
+          80,
+          80
+        ],
+        [
+          0,
+          80
+        ]
+      ]
+    },
+    {
+      "id": "concave",
+      "vertices": [
+        [
+          0,
+          0
+        ],
+        [
+          80,
+          0
+        ],
+        [
+          80,
+          80
+        ],
+        [
+          40,
+          35
+        ],
+        [
+          0,
+          80
+        ]
+      ]
+    }
+  ],
+  "passes": [
+    {
+      "id": "map-square",
+      "algorithm": "topographic",
+      "target_domain_ids": [
+        "square"
+      ],
+      "parameters": {
+        "terrain_scale": 30,
+        "terrain_smoothing": 1,
+        "sample_spacing": 1,
+        "contour_count": 8,
+        "simplify_tolerance": 0,
+        "band_fills": [
+          {
+            "bands": [
+              0,
+              2,
+              4,
+              6,
+              8
+            ],
+            "component_seed": 0,
+            "component_choices": [
+              {
+                "id": "blank",
+                "weight": 2,
+                "effect": null
+              },
+              {
+                "id": "dots",
+                "weight": 3,
+                "effect": "stroke-dots",
+                "parameters": {
+                  "spacing": 3,
+                  "mark_length": 0.5
+                },
+                "layer_id": "terrain-dots",
+                "pen_width": 0.4,
+                "boundary_margin": 0.2
+              },
+              {
+                "id": "hatch",
+                "weight": 2,
+                "effect": "parallel-hatch",
+                "parameters": {
+                  "spacing": 2,
+                  "angle": 45
+                },
+                "layer_id": "terrain-hatch",
+                "pen_width": 0.4,
+                "boundary_margin": 0.2
+              },
+              {
+                "id": "marks",
+                "weight": 2,
+                "effect": "field-marks",
+                "field_direction": "contour",
+                "parameters": {
+                  "spacing": 3,
+                  "mark_length": 1.5
+                },
+                "layer_id": "terrain-marks",
+                "pen_width": 0.4,
+                "boundary_margin": 0.2
+              }
+            ]
+          }
+        ]
+      },
+      "logical_layers": [
+        {
+          "id": "topographic-contours"
+        },
+        {
+          "id": "topographic-index"
+        },
+        {
+          "id": "terrain-dots"
+        },
+        {
+          "id": "terrain-hatch"
+        },
+        {
+          "id": "terrain-marks"
+        }
+      ]
+    },
+    {
+      "id": "map-concave",
+      "algorithm": "topographic",
+      "target_domain_ids": [
+        "concave"
+      ],
+      "parameters": {
+        "terrain_scale": 30,
+        "terrain_smoothing": 1,
+        "sample_spacing": 1,
+        "contour_count": 8,
+        "simplify_tolerance": 0,
+        "band_fills": [
+          {
+            "bands": [
+              0,
+              2,
+              4,
+              6,
+              8
+            ],
+            "component_seed": 0,
+            "component_choices": [
+              {
+                "id": "blank",
+                "weight": 2,
+                "effect": null
+              },
+              {
+                "id": "dots",
+                "weight": 3,
+                "effect": "stroke-dots",
+                "parameters": {
+                  "spacing": 3,
+                  "mark_length": 0.5
+                },
+                "layer_id": "terrain-dots",
+                "pen_width": 0.4,
+                "boundary_margin": 0.2
+              },
+              {
+                "id": "hatch",
+                "weight": 2,
+                "effect": "parallel-hatch",
+                "parameters": {
+                  "spacing": 2,
+                  "angle": 45
+                },
+                "layer_id": "terrain-hatch",
+                "pen_width": 0.4,
+                "boundary_margin": 0.2
+              },
+              {
+                "id": "marks",
+                "weight": 2,
+                "effect": "field-marks",
+                "field_direction": "contour",
+                "parameters": {
+                  "spacing": 3,
+                  "mark_length": 1.5
+                },
+                "layer_id": "terrain-marks",
+                "pen_width": 0.4,
+                "boundary_margin": 0.2
+              }
+            ]
+          }
+        ]
+      },
+      "logical_layers": [
+        {
+          "id": "topographic-contours"
+        },
+        {
+          "id": "topographic-index"
+        },
+        {
+          "id": "terrain-dots"
+        },
+        {
+          "id": "terrain-hatch"
+        },
+        {
+          "id": "terrain-marks"
+        }
+      ]
+    }
+  ],
+  "composition_transforms": [
+    {
+      "domain_id": "square",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        0,
+        0
+      ]
+    },
+    {
+      "domain_id": "concave",
+      "matrix": [
+        1,
+        0,
+        0,
+        1,
+        95,
+        0
+      ]
+    }
+  ]
+}

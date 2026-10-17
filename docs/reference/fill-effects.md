@@ -241,6 +241,10 @@ plugin discovery remain separate work.
 
 ## Topographic regions
 
+Topographic styles also support [pen-aware containment](../algorithms/topographic.md#pen-aware-fill-containment)
+through `pen_width` and `boundary_margin`. These are region-level controls, outside
+the catalogue's numeric `parameters`; direct catalogue calls still clip centerlines.
+
 Topographic passes can apply these effects to explicit unions of elevation bands. See [band-fill rules](../algorithms/topographic.md#elevation-band-fills) for selection, channels, phase, and budgets. The public `validate_fill_parameters(effect=..., parameters=...)` function validates controls and returns a fresh dictionary containing defaults, without rendering geometry.
 
 ## Caller-supplied field marks

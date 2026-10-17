@@ -1,5 +1,7 @@
 """Catalogue strokes clipped to explicit unions of elevation bands."""
 
+import math
+
 from shapely.errors import GEOSException
 from shapely.ops import unary_union
 
@@ -42,9 +44,17 @@ def render_band_fills(
     domain_seed: int | None = None,
     sampled_field: SampledField | None = None,
     max_vertices: int = MAX_VERTICES,
+    coordinate_guard: float = 0,
 ):
     if type(max_vertices) is not int or max_vertices < 0:
         raise ValueError("fill vertex allowance must be a nonnegative integer")
+    if (
+        isinstance(coordinate_guard, bool)
+        or not isinstance(coordinate_guard, (int, float))
+        or not math.isfinite(coordinate_guard)
+        or coordinate_guard < 0
+    ):
+        raise ValueError("fill coordinate guard must be finite and nonnegative")
     if any(style.density_source is not None for rule in rules for style in iter_rule_styles(rule)):
         if not isinstance(sampled_field, SampledField):
             raise ValueError("elevation density requires sampled terrain as a SampledField")
@@ -91,6 +101,22 @@ def render_band_fills(
             if not isinstance(sampled_field, SampledField):
                 raise ValueError("field-marks requires sampled terrain as a SampledField")
             context["field"] = _DeferredField(get_view, style.field_direction)
+        clearance = style.pen_width / 2 + style.boundary_margin
+        if clearance:
+            # GEOS approximates round offsets with inscribed chords. Inflate the
+            # radius so even those chords clear concave corners and hole corners.
+            # The guard also covers the SVG exporter's nine-decimal rounding.
+            guard = (
+                max(1e-8, coordinate_guard, 32 * math.ulp(max(abs(v) for v in selected.bounds)))
+                if not selected.is_empty
+                else 1e-8
+            )
+            offset = clearance / math.cos(math.pi / 64) + guard
+            if not math.isfinite(offset):
+                raise ValueError("fill clearance is too large")
+            selected = selected.buffer(-offset, quad_segs=16)
+            if selected.is_empty:
+                return
         strokes = render_fill_effect(
             selected, effect=style.effect, parameters=style.parameters, **context
         )
